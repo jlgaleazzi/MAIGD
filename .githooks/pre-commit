@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Reject commits of text files that aren't valid UTF-8 (for example, UTF-16 written by
+# Windows PowerShell 5.1's `>>` or Out-File). Enable with: git config core.hooksPath .githooks
+bad=0
+while IFS= read -r -d '' f; do
+  case "$f" in *.md|*.json|*.cs|*.py|*.sh|*.svg|*.txt|*.asmdef|Modelfile|*/Modelfile|.git*) ;; *) continue ;; esac
+  if ! git show ":$f" | python -c "import sys; d=sys.stdin.buffer.read(); d.decode('utf-8'); sys.exit(1 if b'\x00' in d else 0)" 2>/dev/null; then
+    echo "pre-commit: $f is not UTF-8 text (UTF-16 or contains NUL bytes). Re-save it as UTF-8."
+    bad=1
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACM -z)
+exit $bad
