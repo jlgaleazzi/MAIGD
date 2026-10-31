@@ -1,0 +1,24 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama on DGX Spark",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": {
+        "qwen3.6-crew": {
+          "name": "Qwen3.6 35B (crew, 64k ctx)",
+          "limit": {
+            "context": 65536,
+            "output": 16384
+          }
+        }
+      }
+    }
+  },
+  "model": "ollama/qwen3.6-crew",
+  "small_model": "ollama/qwen3.6-crew",
+  "default_agent": "orchestrator"
+}

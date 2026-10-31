@@ -1,0 +1,8 @@
+# Ollama model for the Biplanes crew: Qwen3.6 35B with a context window big enough for
+# tool calling plus multi-file reads (Ollama's default context is far too small).
+# Build:  ollama create qwen3.6-crew -f tools/Modelfile
+# Change FROM if your local tag differs (check with `ollama list`).
+FROM qwen3.6:35b
+PARAMETER num_ctx 65536
+PARAMETER num_predict 16384
+PARAMETER repeat_penalty 1.05
