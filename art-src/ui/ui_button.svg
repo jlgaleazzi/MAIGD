@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="56" viewBox="0 0 160 56">
+  <g id="button" fill="none" stroke="#E8F1FA" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="4" y="4" width="152" height="48" rx="6"/>
+    <!-- inner wireframe -->
+    <rect x="12" y="12" width="136" height="32" rx="3" stroke-width="1.5" opacity="0.5"/>
+    <!-- dimension callout marks (blueprint style) -->
+    <line x1="4" y1="28" x2="0" y2="28" stroke-width="1.5"/>
+    <line x1="156" y1="28" x2="160" y2="28" stroke-width="1.5"/>
+  </g>
+</svg>

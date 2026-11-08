@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- enemy_bomber - Enemy WWI twin-engine bomber facing right (+x) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 140" width="320" height="140">
+
+  <!-- Fuselage (main body) -->
+  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Main fuselage outline -->
+    <path d="M305,70 C305,62 300,57 290,54 L180,50
+             C120,48 70,52 50,62 C35,72 30,78 30,82
+             C30,86 35,92 50,102 C70,112 120,116 180,118
+             L290,122 C300,124 305,118 305,110 Z"/>
+
+    <!-- Cockpit opening -->
+    <path d="M160,50 C162,38 172,32 182,32 C192,32 200,38 205,46" stroke-width="2.5"/>
+
+    <!-- Tail section (left side) -->
+    <path d="M50,62 L35,48 L30,45"/>
+    <path d="M50,72 L30,70"/>
+    <path d="M50,82 L35,96 L30,100"/>
+    <path d="M30,45 C28,60 28,75 30,90 C32,100 34,106 38,110" stroke-width="2.5"/>
+
+    <!-- Vertical stabilizer -->
+    <path d="M40,68 L32,20 L48,58" stroke-width="2"/>
+
+    <!-- Horizontal tail -->
+    <path d="M35,55 L25,52 L28,60 L35,62" stroke-width="1.5"/>
+    <path d="M35,90 L25,94 L28,86 L35,84" stroke-width="1.5"/>
+
+    <!-- Upper wing -->
+    <path d="M230,35 L220,20 L60,20 L50,35"/>
+    <path d="M230,35 C230,30 226,23 220,20 L60,20 C54,20 48,27 50,35" stroke-width="2"/>
+
+    <!-- Lower wing -->
+    <path d="M230,125 L220,140 L60,140 L50,125"/>
+    <path d="M230,125 C230,130 226,137 220,140 L60,140 C54,140 48,133 50,125" stroke-width="2"/>
+
+    <!-- Wing ribs (upper) -->
+    <g stroke-width="1.5">
+      <line x1="200" y1="35" x2="200" y2="20"/>
+      <line x1="170" y1="35" x2="170" y2="20"/>
+      <line x1="140" y1="35" x2="140" y2="20"/>
+      <line x1="110" y1="35" x2="110" y2="20"/>
+      <line x1="82" y1="35" x2="75" y2="20"/>
+    </g>
+
+    <!-- Wing ribs (lower) -->
+    <g stroke-width="1.5">
+      <line x1="200" y1="125" x2="200" y2="140"/>
+      <line x1="170" y1="125" x2="170" y2="140"/>
+      <line x1="140" y1="125" x2="140" y2="140"/>
+      <line x1="110" y1="125" x2="110" y2="140"/>
+      <line x1="82" y1="125" x2="75" y2="140"/>
+    </g>
+
+    <!-- Vertical struts -->
+    <g stroke-width="1.5">
+      <line x1="210" y1="35" x2="210" y2="125"/>
+      <line x1="175" y1="35" x2="175" y2="125"/>
+      <line x1="140" y1="35" x2="140" y2="125"/>
+      <line x1="105" y1="35" x2="105" y2="125"/>
+      <line x1="70" y1="35" x2="70" y2="125"/>
+    </g>
+
+    <!-- Diagonal bracing wires -->
+    <g stroke-width="1">
+      <line x1="210" y1="35" x2="175" y2="125"/>
+      <line x1="175" y1="35" x2="140" y2="125"/>
+      <line x1="140" y1="35" x2="105" y2="125"/>
+      <line x1="105" y1="35" x2="70" y2="125"/>
+    </g>
+    <g stroke-width="1">
+      <line x1="175" y1="35" x2="210" y2="125"/>
+      <line x1="140" y1="35" x2="175" y2="125"/>
+      <line x1="105" y1="35" x2="140" y2="125"/>
+      <line x1="70" y1="35" x2="105" y2="125"/>
+    </g>
+
+    <!-- Left engine nacelle -->
+    <path d="M160,40 C170,38 175,44 178,52 L178,92 C175,100 170,106 160,104
+             C150,102 148,96 148,72 C148,48 150,42 160,40 Z"/>
+
+    <!-- Right engine nacelle -->
+    <path d="M160,40 C170,38 175,44 178,52 L178,92 C175,100 170,106 160,104
+             C150,102 148,96 148,72 C148,48 150,42 160,40" stroke-dasharray="4 4"/>
+
+    <!-- Left propeller -->
+    <ellipse cx="185" cy="72" rx="5" ry="32" stroke-dasharray="4 4" stroke-width="1.5"/>
+
+    <!-- Right propeller -->
+    <ellipse cx="185" cy="72" rx="3" ry="32" stroke-dasharray="4 4" stroke-width="1.5" opacity="0.6"/>
+
+    <!-- Left prop hub -->
+    <circle cx="192" cy="72" r="4" fill="#E8F1FA" stroke-width="1.5"/>
+
+    <!-- Gunner positions (dome hatches) -->
+    <path d="M105,35 C105,25 115,22 120,30" stroke-width="2"/>
+    <path d="M105,105 C105,115 115,118 120,110" stroke-width="2"/>
+
+    <!-- Bomb bay line -->
+    <line x1="95" y1="78" x2="140" y2="78" stroke-width="1.5" opacity="0.6"/>
+    <line x1="95" y1="86" x2="140" y2="86" stroke-width="1.5" opacity="0.6"/>
+
+    <!-- Engine cowling lines -->
+    <g stroke-width="1.5">
+      <path d="M290,54 C295,57 300,63 305,70"/>
+      <path d="M290,122 C295,118 300,112 305,110"/>
+    </g>
+  </g>
+
+  <!-- Iron Cross on fuselage center -->
+  <g fill="#E4572E" stroke="#E8F1FA" stroke-width="0.8">
+    <path d="M159,67 L161,67 L161,69 L163,69 L163,71 L161,71 L161,73 L159,73
+             L159,71 L157,71 L157,69 L159,69 Z"/>
+  </g>
+
+  <!-- Iron Cross on tail fin -->
+  <g fill="#E4572E" stroke="#E8F1FA" stroke-width="0.6">
+    <path d="M31,28 L32.5,28 L32.5,30 L34,30 L34,31 L32.5,31 L32.5,33 L31,33
+             L31,31 L29.5,31 L29.5,30 L31,30 Z"/>
+  </g>
+
+  <!-- Dimension line callout for blueprint flavor -->
+  <g stroke="#9DB4CC" opacity="0.6" stroke-width="0.8">
+    <!-- Top dimension line -->
+    <line x1="55" y1="10" x2="225" y2="10"/>
+    <line x1="55" y1="7" x2="55" y2="13"/>
+    <line x1="225" y1="7" x2="225" y2="13"/>
+    <!-- Bottom dimension line -->
+    <line x1="55" y1="132" x2="300" y2="132"/>
+    <line x1="55" y1="129" x2="55" y2="135"/>
+    <line x1="300" y1="129" x2="300" y2="135"/>
+  </g>
+
+</svg>

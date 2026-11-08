@@ -1,0 +1,19 @@
+{
+    "name": "Biplanes.Editor",
+    "rootNamespace": "Biplanes.Editor",
+    "references": [
+        "GUID:6e59c0ad3be370247ba3e827ef555959",
+        "GUID:75469ad4d38634e559750d17036d5f7c"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

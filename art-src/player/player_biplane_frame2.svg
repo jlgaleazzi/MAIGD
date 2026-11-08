@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- player_biplane_frame2 - Propeller animation frame 2 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 80" width="160" height="80">
+  
+  <!-- Fuselage (main body) -->
+  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M142,40 C142,35 138,32 130,31 L60,29 
+             C40,28 25,30 18,35 C12,40 10,44 10,47 
+             C10,50 12,54 18,58 C25,62 40,64 60,65 
+             L130,67 C138,68 142,65 142,60 Z"/>
+    <path d="M65,29 C68,22 75,18 82,18 C89,18 95,22 97,29" stroke-width="2.5"/>
+    <path d="M18,35 L8,25 L5,22"/>
+    <path d="M18,40 L6,38"/>
+    <path d="M18,45 L8,55 L5,58"/>
+    <path d="M5,22 C4,30 4,38 5,45 C6,52 7,56 10,60" stroke-width="2.5"/>
+    
+    <!-- Upper wing -->
+    <path d="M95,20 L90,15 L20,15 L15,20"/>
+    <path d="M95,20 C95,17 93,15 90,15 L20,15 C17,15 15,17 15,20" stroke-width="2"/>
+    
+    <!-- Lower wing -->
+    <path d="M95,60 L90,65 L20,65 L15,60"/>
+    <path d="M95,60 C95,63 93,65 90,65 L20,65 C17,65 15,63 15,60" stroke-width="2"/>
+    
+    <!-- Wing ribs (upper) -->
+    <g stroke-width="1.5">
+      <line x1="80" y1="20" x2="80" y2="15"/>
+      <line x1="65" y1="20" x2="65" y2="15"/>
+      <line x1="50" y1="20" x2="50" y2="15"/>
+      <line x1="35" y1="20" x2="35" y2="15"/>
+      <line x1="27" y1="20" x2="23" y2="15"/>
+    </g>
+    
+    <!-- Wing ribs (lower) -->
+    <g stroke-width="1.5">
+      <line x1="80" y1="60" x2="80" y2="65"/>
+      <line x1="65" y1="60" x2="65" y2="65"/>
+      <line x1="50" y1="60" x2="50" y2="65"/>
+      <line x1="35" y1="60" x2="35" y2="65"/>
+      <line x1="27" y1="60" x2="23" y2="65"/>
+    </g>
+    
+    <!-- Vertical struts -->
+    <g stroke-width="1.5">
+      <line x1="85" y1="20" x2="85" y2="60"/>
+      <line x1="70" y1="20" x2="70" y2="60"/>
+      <line x1="55" y1="20" x2="55" y2="60"/>
+      <line x1="40" y1="20" x2="40" y2="60"/>
+    </g>
+    
+    <!-- Diagonal bracing wires -->
+    <g stroke-width="1">
+      <line x1="85" y1="20" x2="70" y2="60"/>
+      <line x1="70" y1="20" x2="55" y2="60"/>
+      <line x1="55" y1="20" x2="40" y2="60"/>
+    </g>
+    <g stroke-width="1">
+      <line x1="70" y1="20" x2="85" y2="60"/>
+      <line x1="55" y1="20" x2="70" y2="60"/>
+      <line x1="40" y1="20" x2="55" y2="60"/>
+    </g>
+    
+    <!-- Propeller disc (rotated - different position from frame1) -->
+    <circle cx="148" cy="40" r="10" stroke-dasharray="4 4" stroke-width="1.5"/>
+    <ellipse cx="148" cy="40" rx="3" ry="9" fill="#E8F1FA" opacity="0.2"/>
+    
+    <!-- Propeller hub -->
+    <circle cx="148" cy="40" r="2.5" fill="#E8F1FA" stroke-width="1.5"/>
+    
+    <!-- Engine cowling lines -->
+    <g stroke-width="1.5">
+      <path d="M130,31 C134,33 136,36 137,40"/>
+      <path d="M130,67 C134,65 136,62 137,40"/>
+    </g>
+  </g>
+  
+  <!-- Bullseye roundel (same as frame1) -->
+  <circle cx="80" cy="40" r="9" fill="#F2C14E" stroke="#E8F1FA" stroke-width="1.5"/>
+  <circle cx="80" cy="40" r="5" fill="none" stroke="#E8F1FA" stroke-width="1"/>
+  
+  <!-- Dimension line callout -->
+  <g stroke="#9DB4CC" opacity="0.6" stroke-width="0.8">
+    <line x1="25" y1="8" x2="95" y2="8"/>
+    <line x1="25" y1="6" x2="25" y2="10"/>
+    <line x1="95" y1="6" x2="95" y2="10"/>
+    <line x1="25" y1="74" x2="85" y2="74"/>
+    <line x1="25" y1="72" x2="25" y2="76"/>
+    <line x1="85" y1="72" x2="85" y2="76"/>
+  </g>
+  
+</svg>

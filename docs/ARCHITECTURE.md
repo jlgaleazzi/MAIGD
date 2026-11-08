@@ -10,6 +10,8 @@ something this contract doesn't cover, stop and report it in your handoff. Don't
 2. **Code finds content by path, never by GUID**: sprites come from `Resources.Load`,
    missions are JSON `TextAsset`s.
 3. **No tags or physics layers.** Identify objects by component (`Team`, `IDamageable`).
+   The single exception is Unity's built-in `MainCamera` tag on the camera, which
+   `Camera.main` requires (§6).
 4. **One class per file**, and the filename must match the class name. Namespace
    `Biplanes.<Area>`.
 5. **Unity 6 LTS (6000.0.x), C# 9.** No external packages except `com.unity.inputsystem`
@@ -53,11 +55,27 @@ MAIGD/
   (world units/s) taken from the mission JSON. "Mission distance" = the camera's x.
 - **Player** stays inside the camera rectangle minus a 0.5 margin. Moves with
   `Rigidbody2D` (Kinematic) and `MovePosition`.
-- **Ground** sits at y = -4.5 and is drawn by `TerrainStrip` from the mission's
-  `terrain` heights. Touching terrain, buildings or trees = instant 100% damage.
+- **Ground** has its baseline at y = -4.5 and is drawn by `TerrainStrip` from the mission's
+  `terrain` heights: ground surface y = -4.5 + interpolated `height`. Touching terrain,
+  buildings or trees = instant 100% damage.
+- **Background** is three parallax layers (`far`, `mid`, `near`) drawn by
+  `ParallaxBackground` from the mission's `background` theme. The camera clear colour is
+  the ART_STYLE `paper` colour `#0F2A4A`, which shows through wherever the layers are transparent.
 - **Physics:** 2D only. Every hittable object has a `Collider2D` set to **isTrigger**,
   and every moving object has a Kinematic `Rigidbody2D`. Collision logic lives in
-  `OnTriggerEnter2D`.
+  `OnTriggerEnter2D`. **The one exception is terrain:** it has no collider. Objects that
+  care about the ground compare their y against `TerrainStrip.Instance.HeightAt(x)` (see
+  Missions below).
+- **Draw order** (`SpriteRenderer.sortingOrder`, default sorting layer; never add layers):
+
+  | Order | What |
+  |---|---|
+  | -30 / -20 / -10 | background `far` / `mid` / `near` |
+  | 0 | terrain |
+  | 5 | enemies, obstacles, targets, pickups |
+  | 10 | FX (explosions, smoke, flak bursts) |
+  | 15 | projectiles |
+  | 20 | player plane |
 - **Teams:** `enum Team { Player, Enemy, Neutral }` on the `TeamTag` component.
   Projectiles ignore their own team.
 
@@ -82,7 +100,16 @@ namespace Biplanes.Core {
 ```
 Scripts in Core/: `GameManager` (state machine: Menu, Briefing, Playing, Paused, Won,
 Lost), `ScrollController`, `ScoreKeeper`, `TeamTag`, `Health` (implements IDamageable,
-percent-based, raises events, death VFX hook).
+percent-based, raises events, death VFX hook; ignores hits once dead).
+`Health.SetMaxHitPoints(float hp)` switches it to enemy mode (`MaxHitPoints` > 0): the
+ApplyDamage value is then damage points (`bulletDamage`, `bombDamage`) turned into percent
+of `hp`, with no `damageTaken` multiplier, and `DamageSource.Collision` is always fatal.
+Each enemy calls it in Awake with its `enemyHealth.*` value. An enemy's GameObject is named
+after its Balance `score` key (`fighter`, `bomber`, `aaa`, `barrageBalloon`), because
+Health raises `EntityDestroyed` with `gameObject.name`. The enemy explodes and is removed
+once dead. All kinematic bodies that must report overlaps (player, projectiles) set
+`Rigidbody2D.useFullKinematicContacts = true`. Touching a fighter or bomber destroys both
+planes.
 
 ### Player (Player/)
 - `PlayerInput`: Input System, reading the keyboard directly with
@@ -110,8 +137,69 @@ All of them are spawned by `MissionRunner` from the mission JSON.
 ### Missions (Missions/)
 - `MissionData` (`[Serializable]` classes matching the JSON in §5, parsed with `JsonUtility`).
 - `MissionRunner`: loads `Resources/Missions/mission_0N`, spawns entries when camera x ≥
-  `atX`, tracks objectives, raises `MissionEnded`.
+  `atX`, tracks objectives, raises `MissionEnded`. Ground entries (aaa, balloons, buildings,
+  trees) stay at world x = `atX`, but spawn once that x is 2 units past the right screen
+  edge (camera x ≥ atX − half screen width − 2), so they scroll into view. Enemy planes (`fighter`, `bomber`) don't
+  use `atX`/`y` for placement. They enter just past the right screen edge, each one a
+  random 0–6 units further out than `spacing` (min 2) from the last, so they arrive at
+  random times. Each starts at a random height between terrain + 1.5 and 1 unit below the
+  screen top, with `sine` fighters starting 2 higher. `FighterAI.Configure(pattern, escortOf)`
+  applies the spawn entry's pattern and escort before Start.
 - `ObjectiveTracker`: evaluates the objective types in §5.
+- `TerrainStrip` (`Missions/TerrainStrip.cs`): the ground. One instance per mission.
+  ```csharp
+  public class TerrainStrip : MonoBehaviour {
+    public const float GroundBaseY = -4.5f;
+    public static TerrainStrip Instance { get; }                       // null outside a mission
+    public static TerrainStrip Create(TerrainPoint[] points, float length);
+    public float HeightAt(float x);   // world y of the ground surface at x
+  }
+  ```
+  - `HeightAt` interpolates linearly between `terrain` keyframes (sorted by `atX`). Before
+    the first keyframe it uses the first height, after the last it uses the last, and with
+    no keyframes it returns `GroundBaseY`. `MissionRunner` stops keeping its own copy of
+    this maths and calls `HeightAt` instead.
+  - Rendering uses **SpriteRenderers only**: no meshes, materials or `Shader.Find`, which
+    may be stripped from builds. The strip is cut into chunks 20 world units wide.
+    Each chunk is a runtime `Texture2D` at 32 px per unit, spanning y = -5 up to
+    the chunk's highest ground point + 0.5. Pixels below the surface are `paper` `#0F2A4A`
+    at 100% alpha, the 2 px directly under the surface are `pencil` `#9DB4CC`, and pixels
+    above are transparent. `sortingOrder` = 0, `filterMode` = Bilinear.
+  - Only the chunks overlapping [camera x - 10, camera x + 30] exist. Build a chunk when it
+    enters that window and `Destroy` it (and its texture) when it leaves. `Create` builds
+    the whole initial window at once; after that, never build more than one chunk per frame.
+  - Ground contact (no collider, see §3 Physics):
+    - `PlayerPlane`: each FixedUpdate, unless `OnRunway` is true, if the bottom of its
+      collider bounds ≤ `HeightAt(x)` it calls `Health.ApplyDamage(1f, DamageSource.Collision)`.
+      `Health` multiplies by `damageTaken.collision` (100), so 1 = instant crash. Right after
+      takeoff the plane climbs on its own for 0.6 s so a D-only takeoff doesn't scrape the
+      runway.
+    - `MissionRunner` places a runway start so the plane's collider rests on the ground. An
+      airborne start lower than 1.5 units above the ground is raised to 1.5, with a warning.
+    - `Bomb`: each Update, if its y ≤ `HeightAt(x)`, call
+      `FxManager.Instance.TriggerExplosion(position)` and then `Recycle()`.
+    - Ground-bound spawns (`aaa`, `building`, `tree`, `enemyBase`, `airfield`, `playerHQ`)
+      already sit at `HeightAt(atX) + y` through MissionRunner. Nothing else changes for them.
+- `ParallaxBackground` (`Missions/ParallaxBackground.cs`): the scenery. One instance per mission.
+  ```csharp
+  public class ParallaxBackground : MonoBehaviour {
+    public static ParallaxBackground Create(string theme, Camera cam);
+  }
+  ```
+  - Loads `Resources.Load<Sprite>("Sprites/backgrounds/bg_{theme}_{far|mid|near}")`. If a
+    layer is missing, log one warning and skip that layer. Never substitute a white sprite.
+  - Each layer is **two** SpriteRenderers side by side (tile width `w` = sprite
+    `bounds.size.x`, 19.2 units for a 1920 px image at 100 PPU), centred on the camera's y.
+  - In `LateUpdate` (after ScrollController moves the camera), for each layer with
+    parallax factor `f` from `Balance.json` → `background`:
+    `offset = Mathf.Repeat(camX * f, w)`, tile A x = `camX - offset`,
+    tile B x = `camX - offset + w`. `f` = 0 pins the layer to the screen, and `f` = 1 moves it
+    with the world. Two tiles always cover the 17.8-unit view.
+  - `sortingOrder`: far -30, mid -20, near -10 (see §3 Draw order).
+- `MissionRunner.StartMission` creates both right after `ScrollController.Create`:
+  `ParallaxBackground.Create(data.background, Camera.main)` then
+  `TerrainStrip.Create(data.terrain, data.length)`. Both are destroyed when the mission
+  scene unloads. Don't use `DontDestroyOnLoad`.
 
 ### UI (UI/), built with uGUI from code, specified in docs/UI_SPEC.md
 `HudView` (damage bar, smoke-warning tint at 70%, bomb icons ×7, score, objective text),
@@ -127,11 +215,19 @@ All of them are spawned by `MissionRunner` from the mission JSON.
   "healthBalloonRestore": 30.0,
   "enemyHealth": { "fighter": 25.0, "bomber": 200.0, "aaa": 100.0, "barrageBalloon": 50.0, "zeppelinTurret": 75.0, "zeppelinHull": 1000.0, "enemyBase": 100.0 },
   "score": { "fighter": 100, "barrageBalloon": 75, "aaa": 150, "zeppelinTurret": 200, "bomber": 500, "enemyBase": 1000, "zeppelin": 2500 },
-  "hullVulnerableEarly": false
+  "hullVulnerableEarly": false,
+  "background": { "farFactor": 0.1, "midFactor": 0.3, "nearFactor": 0.6 },
+  "enemySpeed": { "fighter": 3.0, "bomber": 1.5 }
 }
 ```
+`background` holds the parallax factors for `ParallaxBackground` (0 = fixed to the screen,
+1 = moves with the world). `GameBalance` mirrors it as a `BackgroundData` class with the same
+three float fields, in a `background` field.
+`enemySpeed` is how fast each enemy plane flies left in world units per second, on top of
+the camera scroll. It is mirrored as `EnemySpeedData` in the `enemySpeed` field.
 Enemy health is in damage points where the player bullet deals `bulletDamage`, so a
-fighter dies in 1 hit, a bomber in 8, and the hull in 40. Player damage is a percentage.
+fighter dies in 1 hit, a bomber in 8 bullets or 2 bombs, and the hull in 40. Player damage
+is a percentage. See `Health.SetMaxHitPoints` (§3 Core).
 
 ## 5. Mission JSON schema (`Resources/Missions/mission_0N.json`)
 ```json
@@ -174,7 +270,10 @@ fighter dies in 1 hit, a bomber in 8, and the hull in 40. Player damage is a per
 `Biplanes.EditorTools.ProjectBuilder` with static methods, each also a menu item under
 `Biplanes/`:
 - `BuildScenes()`: creates `Assets/Biplanes/Scenes/MainMenu.unity` and `Game.unity` from
-  code (camera, managers, UI canvas, EventSystem) and adds them to Build Settings.
+  code (camera, managers, UI canvas, EventSystem) and adds them to Build Settings. The
+  camera is tagged `MainCamera` (the only tag the project uses, needed for `Camera.main`),
+  placed at (0, 0, -10), and clears to `paper` `#0F2A4A`. The EventSystem uses
+  `InputSystemUIInputModule`.
 - `ConfigureProject()`: sets the sprite import settings for everything under
   `Resources/Sprites` (Sprite 2D, PPU 100, Bilinear filter, no compression for line art), active input handling = Input System, and
   company/product name.

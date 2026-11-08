@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <pattern id="hatch-mid" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#9DB4CC" stroke-width="0.8" opacity="0.6"/>
+    </pattern>
+  </defs>
+  <rect width="1920" height="1080" fill="#0F2A4A"/>
+  <rect width="1920" height="1080" fill="url(#grid-mid)" opacity="0.5">
+    <defs>
+      <pattern id="grid-mid" width="32" height="32" patternUnits="userSpaceOnUse">
+        <path d="M 32 0 L 0 0 L 0 32" fill="none" stroke="#1C3F66" stroke-width="0.5"/>
+      </pattern>
+    </defs>
+  </rect>
+  <!-- mid-ground: closer trench systems and barbed wire -->
+  <g stroke="#9DB4CC" stroke-width="1.5" fill="none" opacity="0.7" stroke-linecap="round" stroke-linejoin="round">
+    <!-- trench wall (must tile: y(0)=y(1920)) -->
+    <path d="M 0 780 Q 100 750 200 770 Q 300 790 400 760 Q 500 730 600 760
+             Q 700 790 800 750 Q 900 710 1000 740 Q 1100 770 1200 730
+             Q 1300 690 1400 720 Q 1500 750 1600 710 Q 1700 670 1800 700
+             Q 1900 730 1920 780"/>
+    <!-- barbed wire strand -->
+    <path d="M 0 820 C 50 810, 100 830, 150 815 C 200 800, 250 825, 300 810
+             C 350 795, 400 820, 450 805 C 500 790, 550 815, 600 800
+             C 650 785, 700 810, 750 795 C 800 780, 850 805, 900 790
+             C 950 775, 1000 800, 1050 785 C 1100 770, 1150 795, 1200 780
+             C 1250 765, 1300 790, 1350 775 C 1400 760, 1450 785, 1500 770
+             C 1550 755, 1600 780, 1650 765 C 1700 750, 1750 775, 1800 760
+             C 1850 745, 1900 770, 1920 780" opacity="0.5"/>
+    <!-- support posts for barbed wire -->
+    <line x1="150" y1="815" x2="150" y2="860" opacity="0.5"/>
+    <line x1="450" y1="805" x2="450" y2="855" opacity="0.5"/>
+    <line x1="750" y1="795" x2="750" y2="850" opacity="0.5"/>
+    <line x1="1050" y1="785" x2="1050" y2="845" opacity="0.5"/>
+    <line x1="1350" y1="775" x2="1350" y2="840" opacity="0.5"/>
+    <line x1="1650" y1="765" x2="1650" y2="835" opacity="0.5"/>
+  </g>
+  <!-- pencil overlap traces -->
+  <g stroke="#9DB4CC" stroke-width="1" fill="none" opacity="0.5" stroke-linecap="round">
+    <path d="M 0 780 Q 100 752 200 772 Q 300 792 400 762 Q 500 732 600 762
+             Q 700 792 800 752 Q 900 712 1000 742 Q 1100 772 1200 732
+             Q 1300 692 1400 722 Q 1500 752 1600 712 Q 1700 672 1800 702
+             Q 1900 732 1920 780"/>
+  </g>
+</svg>

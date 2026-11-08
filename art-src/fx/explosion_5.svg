@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <g id="burst" stroke="#E8F1FA" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.3">
+    <circle cx="64" cy="64" r="44" stroke-dasharray="4 4"/>
+    <!-- wispy final ring -->
+    <line x1="64" y1="64" x2="24" y2="24" opacity="0.5"/>
+    <line x1="64" y1="64" x2="104" y2="24" opacity="0.5"/>
+  </g>
+</svg>

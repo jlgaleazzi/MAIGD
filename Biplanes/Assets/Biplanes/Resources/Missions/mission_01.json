@@ -1,0 +1,25 @@
+{
+  "id": 1,
+  "title": "Destroy Incoming Airplanes",
+  "briefing": "Wave of enemy fighters inbound on the airfield. Take off and shoot them all down before they reach our position!",
+  "scrollSpeed": 2.0,
+  "length": 300.0,
+  "playerStart": { "x": -6.0, "y": -4.0, "onRunway": true },
+  "background": "farmland",
+  "terrain": [
+    { "atX": 0, "height": 0.0 },
+    { "atX": 120, "height": 1.5 }
+  ],
+  "spawns": [
+    { "atX": 30, "type": "fighter", "y": 2.0, "count": 3, "spacing": 1.5, "pattern": "sine", "id": "", "escortOf": "" },
+    { "atX": 60, "type": "fighter", "y": -1.0, "count": 2, "spacing": 1.0, "pattern": "straight", "id": "", "escortOf": "" },
+    { "atX": 90, "type": "fighter", "y": 3.0, "count": 4, "spacing": 1.5, "pattern": "sine", "id": "", "escortOf": "" },
+    { "atX": 130, "type": "aaa", "y": 0.0, "count": 1, "spacing": 0, "pattern": "static", "id": "", "escortOf": "" },
+    { "atX": 170, "type": "healthBalloon", "y": 1.5, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" },
+    { "atX": 210, "type": "fighter", "y": -2.0, "count": 3, "spacing": 1.0, "pattern": "sine", "id": "", "escortOf": "" },
+    { "atX": 250, "type": "aaa", "y": 0.0, "count": 2, "spacing": 3.0, "pattern": "static", "id": "", "escortOf": "" }
+  ],
+  "objectives": [
+    { "id": "kill_all_fighters", "type": "destroyAllOfType", "targetType": "fighter", "targetId": "", "failAtX": -1 }
+  ]
+}

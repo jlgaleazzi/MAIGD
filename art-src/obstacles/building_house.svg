@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- building_house - Wireframe village house -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 110" width="140" height="110">
+
+  <!-- House body and roof -->
+  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Main walls (rectangular) -->
+    <path d="M25,110 L25,45 C25,42 28,40 70,25
+             C112,40 115,42 115,45 L115,110" stroke-width="2.5"/>
+
+    <!-- Roof peak -->
+    <path d="M18,48 L70,12 L122,48"/>
+
+    <!-- Chimney -->
+    <path d="M95,20 L95,5 C95,3 97,2 100,2 C103,2 105,3 105,5 L105,45"/>
+
+    <!-- Door -->
+    <path d="M60,110 L60,72 C60,68 64,65 70,65 C76,65 80,68 80,72 L80,110" stroke-width="2.5"/>
+
+    <!-- Door knob -->
+    <circle cx="76" cy="88" r="2" fill="#E8F1FA" stroke-width="1.5"/>
+
+    <!-- Left window -->
+    <path d="M40,60 L40,80 L60,80 L60,60 C60,56 56,54 50,54 C44,54 40,56 40,60" stroke-width="2"/>
+    <line x1="50" y1="54" x2="50" y2="80" stroke-width="1"/>
+    <line x1="40" y1="67" x2="60" y2="67" stroke-width="1"/>
+
+    <!-- Right window -->
+    <path d="M80,60 L80,80 L100,80 L100,60 C100,56 96,54 90,54 C84,54 80,56 80,60" stroke-width="2"/>
+    <line x1="90" y1="54" x2="90" y2="80" stroke-width="1"/>
+    <line x1="80" y1="67" x2="100" y2="67" stroke-width="1"/>
+
+    <!-- Foundation line -->
+    <line x1="22" y1="110" x2="118" y2="110" stroke-width="2.5"/>
+
+    <!-- Roof shingle lines (decorative) -->
+    <g stroke-width="1">
+      <path d="M45,38 L70,18 L95,38"/>
+      <path d="M40,43 L70,22 L100,43"/>
+    </g>
+  </g>
+
+</svg>

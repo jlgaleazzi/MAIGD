@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <pattern id="hatch-near" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="5" stroke="#9DB4CC" stroke-width="1" opacity="0.6"/>
+    </pattern>
+  </defs>
+  <rect width="1920" height="1080" fill="#0F2A4A"/>
+  <rect width="1920" height="1080" fill="url(#grid-near)" opacity="0.5">
+    <defs>
+      <pattern id="grid-near" width="32" height="32" patternUnits="userSpaceOnUse">
+        <path d="M 32 0 L 0 0 L 0 32" fill="none" stroke="#1C3F66" stroke-width="0.5"/>
+      </pattern>
+    </defs>
+  </rect>
+  <!-- near ground: shell craters and muddy trenches -->
+  <g stroke="#9DB4CC" fill="url(#hatch-near)" stroke-width="1.5" opacity="0.7" stroke-linecap="round">
+    <!-- crater shapes (must tile: closed curves matching y at x=0 and x=1920) -->
+    <ellipse cx="150" cy="920" rx="80" ry="30"/>
+    <ellipse cx="450" cy="960" rx="60" ry="22"/>
+    <ellipse cx="750" cy="910" rx="90" ry="35"/>
+    <ellipse cx="1050" cy="950" rx="70" ry="28"/>
+    <ellipse cx="1350" cy="900" rx="85" ry="32"/>
+    <ellipse cx="1650" cy="940" rx="75" ry="26"/>
+  </g>
+  <!-- trench edge in foreground -->
+  <g stroke="#9DB4CC" fill="none" opacity="0.8" stroke-width="2" stroke-linecap="round">
+    <path d="M 0 1000 Q 200 970 400 985 Q 600 1000 800 970 Q 1000 940 1200 965
+             Q 1400 990 1600 960 Q 1800 930 1920 1000"/>
+    <!-- trench parapet -->
+    <path d="M 0 970 Q 200 940 400 955 Q 600 970 800 940 Q 1000 910 1200 935
+             Q 1400 960 1600 930 Q 1800 900 1920 970"/>
+  </g>
+  <!-- barbed wire foreground strands -->
+  <g stroke="#9DB4CC" fill="none" opacity="0.6" stroke-width="1.5" stroke-linecap="round">
+    <path d="M 0 870 L 200 860 L 400 875 L 600 865 L 800 880 L 1000 870
+             L 1200 885 L 1400 875 L 1600 890 L 1800 880 L 1920 870"/>
+    <!-- wire posts -->
+    <line x1="200" y1="860" x2="200" y2="920"/>
+    <line x1="600" y1="865" x2="600" y2="925"/>
+    <line x1="1000" y1="870" x2="1000" y2="930"/>
+    <line x1="1400" y1="875" x2="1400" y2="935"/>
+  </g>
+</svg>

@@ -1,0 +1,32 @@
+{
+  "id": 5,
+  "title": "Enemy Zeppelin",
+  "briefing": "The enemy deploys its newest and most powerful weapon — a massive zeppelin with anti-aircraft turrets and a fighter escort. Destroy it before it reaches our HQ!",
+  "scrollSpeed": 2.0,
+  "length": 700.0,
+  "playerStart": { "x": -6.0, "y": -4.0, "onRunway": false },
+  "background": "stormsky",
+  "terrain": [
+    { "atX": 0, "height": 0.0 },
+    { "atX": 150, "height": 1.0 },
+    { "atX": 350, "height": 2.0 },
+    { "atX": 500, "height": 1.5 },
+    { "atX": 600, "height": 0.0 }
+  ],
+  "spawns": [
+    { "atX": 60, "type": "zeppelin", "y": 5.0, "count": 1, "spacing": 0, "pattern": "straight", "id": "zeppelin_01", "escortOf": "" },
+    { "atX": 40, "type": "fighter", "y": 2.0, "count": 3, "spacing": 1.5, "pattern": "sine", "id": "esc_z1", "escortOf": "zeppelin_01" },
+    { "atX": 40, "type": "fighter", "y": -2.0, "count": 2, "spacing": 1.0, "pattern": "sine", "id": "esc_z2", "escortOf": "zeppelin_01" },
+    { "atX": 150, "type": "aaa", "y": 0.0, "count": 3, "spacing": 4.0, "pattern": "static", "id": "", "escortOf": "" },
+    { "atX": 200, "type": "healthBalloon", "y": 1.5, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" },
+    { "atX": 280, "type": "fighter", "y": -3.0, "count": 4, "spacing": 1.0, "pattern": "straight", "id": "", "escortOf": "" },
+    { "atX": 350, "type": "aaa", "y": 0.0, "count": 2, "spacing": 5.0, "pattern": "static", "id": "", "escortOf": "" },
+    { "atX": 450, "type": "fighter", "y": 3.0, "count": 3, "spacing": 1.5, "pattern": "sine", "id": "", "escortOf": "" },
+    { "atX": 520, "type": "healthBalloon", "y": 2.0, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" },
+    { "atX": 600, "type": "fighter", "y": -1.5, "count": 4, "spacing": 1.0, "pattern": "sine", "id": "", "escortOf": "" },
+    { "atX": 650, "type": "playerHQ", "y": 0.0, "count": 1, "spacing": 0, "pattern": "static", "id": "hq_01", "escortOf": "" }
+  ],
+  "objectives": [
+    { "id": "destroy_zeppelin", "type": "destroyById", "targetType": "zeppelin", "targetId": "zeppelin_01", "failAtX": 620 }
+  ]
+}

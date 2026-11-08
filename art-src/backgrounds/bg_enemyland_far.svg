@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <pattern id="hatch-el-far" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#9DB4CC" stroke-width="0.6" opacity="0.5"/>
+    </pattern>
+  </defs>
+  <rect width="1920" height="1080" fill="#0F2A4A"/>
+  <rect width="1920" height="1080" fill="url(#grid-el-far)" opacity="0.5">
+    <defs>
+      <pattern id="grid-el-far" width="32" height="32" patternUnits="userSpaceOnUse">
+        <path d="M 32 0 L 0 0 L 0 32" fill="none" stroke="#1C3F66" stroke-width="0.5"/>
+      </pattern>
+    </defs>
+  </rect>
+  <!-- distant city skyline with spires (must tile: y(0)=y(1920)) -->
+  <g stroke="#9DB4CC" fill="none" opacity="0.6" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- skyline base -->
+    <path d="M 0 750 L 80 730 L 80 680 L 100 680 L 100 720
+             L 140 700 L 140 640 L 160 620 L 180 640 L 180 710
+             L 240 690 L 240 650 L 260 630 L 280 650 L 280 700
+             L 340 680 L 340 600 L 350 580 L 360 560 L 370 580
+             L 380 600 L 380 690"/>
+    <path d="M 380 710 L 440 690 L 440 640 L 460 620 L 480 640 L 480 680
+             L 540 660 L 540 580 L 550 560 L 560 570 L 560 650
+             L 620 630 L 620 590 L 640 570 L 660 590 L 660 670
+             L 720 650 L 720 600 L 740 580 L 760 600 L 760 680
+             L 820 660 L 820 610 L 840 590 L 860 610 L 860 670"/>
+    <!-- continuing skyline -->
+    <path d="M 860 700 L 920 680 L 920 630 L 940 610 L 960 630 L 960 690
+             L 1020 670 L 1020 590 L 1040 570 L 1060 590 L 1060 680
+             L 1120 660 L 1120 610 L 1140 590 L 1160 610 L 1160 700
+             L 1220 680 L 1220 620 L 1240 600 L 1260 620 L 1260 690
+             L 1320 670 L 1320 590 L 1340 570 L 1360 590 L 1360 680
+             L 1420 660 L 1420 610 L 1440 590 L 1460 610 L 1460 700"/>
+    <!-- final section (must end at same y as start: 750) -->
+    <path d="M 1460 720 L 1520 700 L 1520 650 L 1540 630 L 1560 650
+             L 1560 710 L 1620 690 L 1620 640 L 1640 620 L 1660 640
+             L 1660 720 L 1720 700 L 1720 660 L 1740 640 L 1760 660
+             L 1760 730 L 1840 710 L 1840 690 L 1920 750"/>
+    <!-- spire tips -->
+    <line x1="355" y1="560" x2="355" y2="530" opacity="0.6"/>
+    <line x1="555" y1="560" x2="555" y2="530" opacity="0.6"/>
+    <line x1="750" y1="580" x2="750" y2="540" opacity="0.6"/>
+    <line x1="1050" y1="570" x2="1050" y2="530" opacity="0.6"/>
+    <line x1="1350" y1="570" x2="1350" y2="530" opacity="0.6"/>
+  </g>
+</svg>

@@ -1,0 +1,26 @@
+{
+  "id": 2,
+  "title": "Destroy the Enemy Bomber",
+  "briefing": "An enemy bomber with fighter escort is approaching our airfield. Destroy it before it drops its payload on us!",
+  "scrollSpeed": 2.5,
+  "length": 400.0,
+  "playerStart": { "x": -6.0, "y": -4.0, "onRunway": false },
+  "background": "farmland",
+  "terrain": [
+    { "atX": 0, "height": 0.0 },
+    { "atX": 150, "height": 1.2 },
+    { "atX": 300, "height": 0.8 }
+  ],
+  "spawns": [
+    { "atX": 50, "type": "bomber", "y": 4.0, "count": 1, "spacing": 0, "pattern": "straight", "id": "bomber_01", "escortOf": "" },
+    { "atX": 70, "type": "fighter", "y": 2.0, "count": 2, "spacing": 1.5, "pattern": "sine", "id": "esc_01", "escortOf": "bomber_01" },
+    { "atX": 70, "type": "fighter", "y": -1.0, "count": 1, "spacing": 0, "pattern": "straight", "id": "esc_02", "escortOf": "bomber_01" },
+    { "atX": 150, "type": "aaa", "y": 0.0, "count": 2, "spacing": 3.0, "pattern": "static", "id": "", "escortOf": "" },
+    { "atX": 220, "type": "healthBalloon", "y": 2.0, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" },
+    { "atX": 280, "type": "fighter", "y": 3.0, "count": 3, "spacing": 1.0, "pattern": "sine", "id": "", "escortOf": "" },
+    { "atX": 350, "type": "aaa", "y": 0.0, "count": 2, "spacing": 4.0, "pattern": "static", "id": "", "escortOf": "" }
+  ],
+  "objectives": [
+    { "id": "destroy_bomber", "type": "destroyById", "targetType": "bomber", "targetId": "bomber_01", "failAtX": 370 }
+  ]
+}

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- building_barn - Wireframe barn structure -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 110" width="140" height="110">
+
+  <!-- Barn body and roof -->
+  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Main barn walls -->
+    <path d="M20,110 L20,45 C20,40 25,35 70,10
+             C115,35 120,40 120,45 L120,110"/>
+
+    <!-- Roof peak line -->
+    <line x1="70" y1="10" x2="70" y2="35" stroke-width="2"/>
+
+    <!-- Door (center) -->
+    <path d="M58,110 L58,65 C58,60 62,55 70,55
+             C78,55 82,60 82,65 L82,110" stroke-width="2.5"/>
+
+    <!-- Barn cross-brace (X pattern on doors) -->
+    <g stroke-width="1.5">
+      <line x1="60" y1="68" x2="80" y2="108"/>
+      <line x1="80" y1="68" x2="60" y2="108"/>
+    </g>
+
+    <!-- Hay loft windows (round) -->
+    <circle cx="55" cy="30" r="7" stroke-width="2"/>
+    <line x1="48" y1="30" x2="62" y2="30" stroke-width="1"/>
+    <line x1="55" y1="23" x2="55" y2="37" stroke-width="1"/>
+
+    <circle cx="85" cy="30" r="7" stroke-width="2"/>
+    <line x1="78" y1="30" x2="92" y2="30" stroke-width="1"/>
+    <line x1="85" y1="23" x2="85" y2="37" stroke-width="1"/>
+
+    <!-- Barn siding lines -->
+    <g stroke-width="1.5">
+      <line x1="30" y1="50" x2="30" y2="110"/>
+      <line x1="45" y1="48" x2="45" y2="110"/>
+      <line x1="95" y1="48" x2="95" y2="110"/>
+      <line x1="110" y1="50" x2="110" y2="110"/>
+    </g>
+
+    <!-- Foundation / base line -->
+    <line x1="18" y1="110" x2="122" y2="110" stroke-width="2.5"/>
+
+    <!-- Gable end triangle detail -->
+    <path d="M60,45 L70,20 L80,45" stroke-width="1.5"/>
+  </g>
+
+</svg>

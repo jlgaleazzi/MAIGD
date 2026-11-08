@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- player_hq - Player command headquarters -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" width="400" height="100">
+
+  <!-- Main building -->
+  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- HQ building body (larger, with tower) -->
+    <path d="M5,88 L5,40 C5,35 10,30 20,30 L180,30
+             C190,30 195,35 195,40 L195,88"/>
+
+    <!-- Clock tower (center) -->
+    <path d="M170,30 L170,8 L180,2 L190,8 L190,30"/>
+
+    <!-- Tower roof -->
+    <path d="M165,8 L180,0 L195,8" stroke-width="2"/>
+
+    <!-- Clock face -->
+    <circle cx="180" cy="18" r="5" stroke-width="1.5"/>
+    <line x1="180" y1="14" x2="180" y2="17" stroke-width="1"/>
+    <line x1="180" y1="17" x2="183" y2="19" stroke-width="1"/>
+
+    <!-- Main entrance doors -->
+    <path d="M85,88 L85,65 C85,60 90,55 100,55
+             C110,55 115,60 115,65 L115,88" stroke-width="2.5"/>
+
+    <!-- Door arch detail -->
+    <path d="M88,65 C92,58 108,58 112,65" stroke-width="1.5"/>
+
+    <!-- Windows (left section) -->
+    <g stroke-width="1.5">
+      <rect x="30" y="45" width="16" height="14"/>
+      <line x1="38" y1="45" x2="38" y2="59"/>
+      <line x1="30" y1="52" x2="46" y2="52"/>
+
+      <rect x="60" y="45" width="16" height="14"/>
+      <line x1="68" y1="45" x2="68" y2="59"/>
+      <line x1="60" y1="52" x2="76" y2="52"/>
+    </g>
+
+    <!-- Windows (right section) -->
+    <g stroke-width="1.5">
+      <rect x="130" y="45" width="16" height="14"/>
+      <line x1="138" y1="45" x2="138" y2="59"/>
+      <line x1="130" y1="52" x2="146" y2="52"/>
+
+      <rect x="160" y="45" width="16" height="14"/>
+      <line x1="168" y1="45" x2="168" y2="59"/>
+      <line x1="160" y1="52" x2="176" y2="52"/>
+    </g>
+
+    <!-- Flag pole (right side of building) -->
+    <line x1="220" y1="88" x2="220" y2="10"/>
+
+    <!-- Flag with bullseye roundel -->
+    <path d="M220,14 L260,18 L260,30 L220,26"/>
+
+    <!-- Roundel on flag -->
+    <circle cx="240" cy="22" r="5" fill="#F2C14E" stroke="#E8F1FA" stroke-width="1"/>
+    <circle cx="240" cy="22" r="2.5" fill="none" stroke="#E8F1FA" stroke-width="0.8"/>
+
+    <!-- Side annex buildings -->
+    <path d="M200,88 L200,55 C200,50 205,46 215,46
+             C225,46 230,50 230,55 L230,88" stroke-width="2"/>
+    <path d="M170,88 L170,55 C170,50 175,46 185,46
+             C195,46 200,50 200,55 L200,88" stroke-width="2"/>
+
+    <!-- Ground line -->
+    <line x1="3" y1="88" x2="397" y2="88" stroke-width="2" opacity="0.4"/>
+
+    <!-- Guard posts (corners) -->
+    <g stroke-width="1.5">
+      <path d="M15,88 L18,70 L22,88"/>
+      <path d="M380,88 L383,65 L386,88"/>
+    </g>
+
+    <!-- Barricade / sandbags (front) -->
+    <g stroke-width="1.5" opacity="0.6">
+      <circle cx="75" cy="85" r="4"/>
+      <circle cx="90" cy="85" r="4"/>
+      <circle cx="105" cy="85" r="4"/>
+      <circle cx="260" cy="85" r="4"/>
+      <circle cx="275" cy="85" r="4"/>
+    </g>
+
+    <!-- Warning signs / markers -->
+    <g stroke-width="1.5">
+      <path d="M320,88 L323,78 L326,88"/>
+      <path d="M330,88 L333,78 L336,88"/>
+    </g>
+  </g>
+
+</svg>

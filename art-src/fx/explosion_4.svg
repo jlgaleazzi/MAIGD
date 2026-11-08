@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <g id="burst" stroke="#E8F1FA" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.65">
+    <circle cx="64" cy="64" r="38" stroke-dasharray="4 4"/>
+    <!-- very sparse shards -->
+    <line x1="64" y1="64" x2="22" y2="20"/>
+    <line x1="64" y1="64" x2="108" y2="20"/>
+    <line x1="64" y1="64" x2="10" y2="56"/>
+    <line x1="64" y1="64" x2="118" y2="56"/>
+  </g>
+</svg>

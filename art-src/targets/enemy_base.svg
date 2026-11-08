@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- enemy_base - Enemy airfield base hangar with flag -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 120" width="260" height="120">
+
+  <!-- Hangar body (large arched structure) -->
+  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Hangar arch -->
+    <path d="M40,120 L40,55 C40,20 70,10 130,10
+             C190,10 220,20 220,55 L220,120"/>
+
+    <!-- Hangar floor line -->
+    <line x1="40" y1="120" x2="220" y2="120" stroke-width="2.5"/>
+
+    <!-- Hangar rib lines (arched ribs across width) -->
+    <g stroke-width="1.5">
+      <path d="M60,120 L60,58 C60,30 90,18 130,14"/>
+      <path d="M100,120 L100,52 C100,28 125,16 130,10"/>
+      <path d="M160,120 L160,52 C160,28 135,16 130,10"/>
+      <path d="M200,120 L200,58 C200,30 170,18 130,14"/>
+    </g>
+
+    <!-- Hangar doors (large double doors) -->
+    <path d="M95,120 L95,60 C95,50 105,45 130,45 C155,45 165,50 165,60 L165,120"/>
+    <line x1="130" y1="45" x2="130" y2="120" stroke-width="2"/>
+
+    <!-- Door rivets -->
+    <g fill="#E8F1FA" stroke-width="1">
+      <circle cx="110" cy="70" r="1.5"/>
+      <circle cx="150" cy="70" r="1.5"/>
+      <circle cx="110" cy="95" r="1.5"/>
+      <circle cx="150" cy="95" r="1.5"/>
+    </g>
+
+    <!-- Hangar support struts -->
+    <g stroke-width="1.5">
+      <line x1="80" y1="120" x2="80" y2="85"/>
+      <line x1="180" y1="120" x2="180" y2="85"/>
+    </g>
+
+    <!-- Flag pole (right side) -->
+    <line x1="235" y1="90" x2="235" y2="20"/>
+
+    <!-- Flag with Iron Cross -->
+    <path d="M235,24 L260,28 L260,36 L235,34"/>
+
+    <!-- Small Iron Cross on flag -->
+    <g fill="#E4572E" stroke="#E8F1FA" stroke-width="0.6">
+      <path d="M246,27 L247.5,27 L247.5,28.5 L249,28.5 L249,30 L247.5,30
+               L247.5,31.5 L246,31.5 L246,30 L244.5,30 L244.5,28.5 L246,28.5 Z"/>
+    </g>
+
+    <!-- Ground line -->
+    <line x1="10" y1="120" x2="250" y2="120" stroke-width="2" opacity="0.5"/>
+
+    <!-- Warning markers / cones -->
+    <g stroke-width="1.5">
+      <path d="M30,120 L34,108 L38,120"/>
+      <path d="M222,120 L226,108 L230,120"/>
+    </g>
+
+    <!-- Hangar details: exhaust stack -->
+    <rect x="50" y="22" width="8" height="15" stroke-width="1.5"/>
+  </g>
+
+</svg>

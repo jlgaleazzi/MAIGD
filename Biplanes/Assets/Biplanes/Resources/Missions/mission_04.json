@@ -1,0 +1,31 @@
+{
+  "id": 4,
+  "title": "Destroy the Enemy Base",
+  "briefing": "Go deep into enemy territory. Pop the barrage balloons, destroy the AAA guns, and finally drop a bomb on their hangar base!",
+  "scrollSpeed": 3.0,
+  "length": 600.0,
+  "playerStart": { "x": -6.0, "y": -4.0, "onRunway": false },
+  "background": "enemyland",
+  "terrain": [
+    { "atX": 0, "height": 0.0 },
+    { "atX": 120, "height": 1.5 },
+    { "atX": 300, "height": 2.5 },
+    { "atX": 500, "height": 1.0 }
+  ],
+  "spawns": [
+    { "atX": 40, "type": "barrageBalloon", "y": 3.0, "count": 2, "spacing": 5.0, "pattern": "drift", "id": "", "escortOf": "" },
+    { "atX": 100, "type": "aaa", "y": 0.0, "count": 3, "spacing": 4.0, "pattern": "static", "id": "", "escortOf": "" },
+    { "atX": 120, "type": "fighter", "y": -2.0, "count": 3, "spacing": 1.0, "pattern": "straight", "id": "", "escortOf": "" },
+    { "atX": 180, "type": "barrageBalloon", "y": 4.0, "count": 2, "spacing": 6.0, "pattern": "drift", "id": "", "escortOf": "" },
+    { "atX": 230, "type": "healthBalloon", "y": 1.5, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" },
+    { "atX": 280, "type": "aaa", "y": 0.0, "count": 2, "spacing": 3.0, "pattern": "static", "id": "", "escortOf": "" },
+    { "atX": 340, "type": "fighter", "y": 2.5, "count": 4, "spacing": 1.0, "pattern": "sine", "id": "", "escortOf": "" },
+    { "atX": 400, "type": "barrageBalloon", "y": 3.5, "count": 2, "spacing": 5.0, "pattern": "drift", "id": "", "escortOf": "" },
+    { "atX": 460, "type": "enemyBase", "y": 0.0, "count": 1, "spacing": 0, "pattern": "static", "id": "enemy_base_01", "escortOf": "" },
+    { "atX": 520, "type": "fighter", "y": -3.0, "count": 2, "spacing": 0, "pattern": "straight", "id": "", "escortOf": "" }
+  ],
+  "objectives": [
+    { "id": "pop_all_balloons", "type": "destroyAllOfType", "targetType": "barrageBalloon", "targetId": "", "failAtX": -1 },
+    { "id": "bomb_base", "type": "bombTarget", "targetType": "enemyBase", "targetId": "enemy_base_01", "failAtX": -1 }
+  ]
+}

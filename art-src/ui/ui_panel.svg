@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="120" viewBox="0 0 640 120">
+  <g id="panel" fill="none" stroke="#E8F1FA" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- outer border -->
+    <rect x="20" y="10" width="600" height="100" rx="6"/>
+    <!-- inner wireframe -->
+    <rect x="30" y="20" width="580" height="80" rx="4" stroke-width="1.5" opacity="0.5"/>
+    <!-- corner anchors (blueprint feel) -->
+    <line x1="20" y1="25" x2="20" y2="40"/>
+    <line x1="20" y1="25" x2="35" y2="25"/>
+    <line x1="620" y1="25" x2="620" y2="40"/>
+    <line x1="620" y1="25" x2="605" y2="25"/>
+    <line x1="20" y1="95" x2="20" y2="110"/>
+    <line x1="20" y1="110" x2="35" y2="110"/>
+    <line x1="620" y1="95" x2="620" y2="110"/>
+    <line x1="620" y1="110" x2="605" y2="110"/>
+  </g>
+</svg>

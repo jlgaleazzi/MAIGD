@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="32" viewBox="0 0 320 32">
+  <g id="frame" fill="none" stroke="#E8F1FA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- outer border -->
+    <rect x="4" y="4" width="312" height="24" rx="2"/>
+    <!-- inner dashed wireframe (blueprint feel) -->
+    <rect x="10" y="8" width="300" height="16" rx="1" stroke-width="1" stroke-dasharray="4 4" opacity="0.5"/>
+    <!-- tick marks for scale -->
+    <line x1="20" y1="4" x2="20" y2="8" stroke-width="1.5"/>
+    <line x1="60" y1="4" x2="60" y2="8" stroke-width="1.5"/>
+    <line x1="100" y1="4" x2="100" y2="8" stroke-width="1.5"/>
+    <line x1="140" y1="4" x2="140" y2="8" stroke-width="1.5"/>
+    <line x1="180" y1="4" x2="180" y2="8" stroke-width="1.5"/>
+    <line x1="220" y1="4" x2="220" y2="8" stroke-width="1.5"/>
+    <line x1="260" y1="4" x2="260" y2="8" stroke-width="1.5"/>
+    <line x1="300" y1="4" x2="300" y2="8" stroke-width="1.5"/>
+  </g>
+</svg>

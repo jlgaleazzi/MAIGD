@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <g id="burst" stroke="#E8F1FA" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- center point -->
+    <circle cx="64" cy="64" r="6" stroke-width="3"/>
+    <!-- radial shards (inner ring) -->
+    <line x1="64" y1="64" x2="56" y2="50"/>
+    <line x1="64" y1="64" x2="72" y2="50"/>
+    <line x1="64" y1="64" x2="52" y2="58"/>
+    <line x1="64" y1="64" x2="76" y2="58"/>
+    <line x1="64" y1="64" x2="48" y2="66"/>
+    <line x1="64" y1="64" x2="80" y2="66"/>
+    <line x1="64" y1="64" x2="52" y2="74"/>
+    <line x1="64" y1="64" x2="76" y2="74"/>
+    <line x1="64" y1="64" x2="56" y2="80"/>
+    <line x1="64" y1="64" x2="72" y2="80"/>
+  </g>
+</svg>

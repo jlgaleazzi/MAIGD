@@ -1,0 +1,40 @@
+{
+  "name": "com.biplanes.art",
+  "displayName": "Biplanes Art Assets",
+  "version": "1.0.0",
+  "unity": "2022.3",
+  "description": "Blueprint-styled art assets for the Biplanes WWI side-scrolling shooter. Includes wireframe aircraft sprites, pencil-hatched backgrounds, FX explosions, and blueprint UI elements.",
+  "dependencies": {
+    "com.unity.ugui": "1.0.0"
+  },
+  "main": "Biplanes/Assets/Biplanes/Resources/Sprites",
+  "exports": {
+    "./sprites/fx/explosion_0": "Biplanes/Assets/Biplanes/Resources/Sprites/fx/explosion_0.png",
+    "./sprites/fx/explosion_1": "Biplanes/Assets/Biplanes/Resources/Sprites/fx/explosion_1.png",
+    "./sprites/fx/explosion_2": "Biplanes/Assets/Biplanes/Resources/Sprites/fx/explosion_2.png",
+    "./sprites/fx/explosion_3": "Biplanes/Assets/Biplanes/Resources/Sprites/fx/explosion_3.png",
+    "./sprites/fx/explosion_4": "Biplanes/Assets/Biplanes/Resources/Sprites/fx/explosion_4.png",
+    "./sprites/fx/explosion_5": "Biplanes/Assets/Biplanes/Resources/Sprites/fx/explosion_5.png",
+    "./sprites/fx/smoke_puff": "Biplanes/Assets/Biplanes/Resources/Sprites/fx/smoke_puff.png",
+    "./sprites/fx/flak_burst_0": "Biplanes/Assets/Biplanes/Resources/Sprites/fx/flak_burst_0.png",
+    "./sprites/fx/flak_burst_1": "Biplanes/Assets/Biplanes/Resources/Sprites/fx/flak_burst_1.png",
+    "./sprites/fx/flak_burst_2": "Biplanes/Assets/Biplanes/Resources/Sprites/fx/flak_burst_2.png",
+    "./sprites/fx/flak_burst_3": "Biplanes/Assets/Biplanes/Resources/Sprites/fx/flak_burst_3.png",
+    "./sprites/pickups/health_balloon": "Biplanes/Assets/Biplanes/Resources/Sprites/pickups/health_balloon.png",
+    "./sprites/ui/bomb_icon": "Biplanes/Assets/Biplanes/Resources/Sprites/ui/ui_bomb_icon.png",
+    "./sprites/ui/damage_frame": "Biplanes/Assets/Biplanes/Resources/Sprites/ui/ui_damage_frame.png",
+    "./sprites/ui/panel": "Biplanes/Assets/Biplanes/Resources/Sprites/ui/ui_panel.png",
+    "./sprites/ui/button": "Biplanes/Assets/Biplanes/Resources/Sprites/ui/ui_button.png",
+    "./sprites/ui/title_logo": "Biplanes/Assets/Biplanes/Resources/Sprites/ui/title_logo.png",
+    "./sprites/backgrounds/frontline_far": "Biplanes/Assets/Biplanes/Resources/Sprites/backgrounds/bg_frontline_far.png",
+    "./sprites/backgrounds/frontline_mid": "Biplanes/Assets/Biplanes/Resources/Sprites/backgrounds/bg_frontline_mid.png",
+    "./sprites/backgrounds/frontline_near": "Biplanes/Assets/Biplanes/Resources/Sprites/backgrounds/bg_frontline_near.png",
+    "./sprites/backgrounds/enemyland_far": "Biplanes/Assets/Biplanes/Resources/Sprites/backgrounds/bg_enemyland_far.png",
+    "./sprites/backgrounds/enemyland_mid": "Biplanes/Assets/Biplanes/Resources/Sprites/backgrounds/bg_enemyland_mid.png",
+    "./sprites/backgrounds/enemyland_near": "Biplanes/Assets/Biplanes/Resources/Sprites/backgrounds/bg_enemyland_near.png",
+    "./sprites/backgrounds/stormsky_far": "Biplanes/Assets/Biplanes/Resources/Sprites/backgrounds/bg_stormsky_far.png",
+    "./sprites/backgrounds/stormsky_mid": "Biplanes/Assets/Biplanes/Resources/Sprites/backgrounds/bg_stormsky_mid.png",
+    "./sprites/backgrounds/stormsky_near": "Biplanes/Assets/Biplanes/Resources/Sprites/backgrounds/bg_stormsky_near.png"
+  },
+  "type": "module"
+}

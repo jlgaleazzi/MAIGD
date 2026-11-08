@@ -1,0 +1,47 @@
+{
+  "player": {
+    "speed": 5.0,
+    "fireRate": 8.0,
+    "bulletSpeed": 14.0,
+    "bulletDamage": 25.0,
+    "bombCapacity": 7,
+    "bombDamage": 100.0,
+    "smokeThreshold": 70.0
+  },
+  "damageTaken": {
+    "fighterBullet": 8.0,
+    "flak": 15.0,
+    "bomberGunner": 10.0,
+    "zeppelinTurret": 12.0,
+    "collision": 100.0
+  },
+  "healthBalloonRestore": 30.0,
+  "enemyHealth": {
+    "fighter": 25.0,
+    "bomber": 200.0,
+    "aaa": 100.0,
+    "barrageBalloon": 50.0,
+    "zeppelinTurret": 75.0,
+    "zeppelinHull": 1000.0,
+    "enemyBase": 100.0
+  },
+  "score": {
+    "fighter": 100,
+    "barrageBalloon": 75,
+    "aaa": 150,
+    "zeppelinTurret": 200,
+    "bomber": 500,
+    "enemyBase": 1000,
+    "zeppelin": 2500
+  },
+  "hullVulnerableEarly": false,
+  "background": {
+    "farFactor": 0.1,
+    "midFactor": 0.3,
+    "nearFactor": 0.6
+  },
+  "enemySpeed": {
+    "fighter": 3.0,
+    "bomber": 1.5
+  }
+}

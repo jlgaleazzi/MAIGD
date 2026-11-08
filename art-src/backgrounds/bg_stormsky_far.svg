@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <pattern id="hatch-storm-far" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="10" stroke="#9DB4CC" stroke-width="0.5" opacity="0.4"/>
+    </pattern>
+  </defs>
+  <rect width="1920" height="1080" fill="#0F2A4A"/>
+  <rect width="1920" height="1080" fill="url(#grid-storm-far)" opacity="0.5">
+    <defs>
+      <pattern id="grid-storm-far" width="32" height="32" patternUnits="userSpaceOnUse">
+        <path d="M 32 0 L 0 0 L 0 32" fill="none" stroke="#1C3F66" stroke-width="0.5"/>
+      </pattern>
+    </defs>
+  </rect>
+  <!-- massive storm cloud shapes (must tile: closed paths or same y at edges) -->
+  <g stroke="#9DB4CC" fill="url(#hatch-storm-far)" opacity="0.6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- main cloud mass - top, curves down to match at edges -->
+    <path d="M 0 300 C 80 280, 160 260, 240 270
+             C 320 280, 400 250, 480 260
+             C 560 270, 640 240, 720 255
+             C 800 270, 880 230, 960 245
+             C 1040 260, 1120 230, 1200 245
+             C 1280 260, 1360 225, 1440 240
+             C 1520 255, 1600 230, 1680 245
+             C 1760 260, 1840 250, 1920 300"/>
+    <!-- lower cloud band -->
+    <path d="M 0 400 C 120 380, 240 390, 360 370
+             C 480 350, 600 380, 720 360
+             C 840 340, 960 370, 1080 350
+             C 1200 330, 1320 360, 1440 345
+             C 1560 330, 1680 355, 1800 340
+             C 1860 335, 1900 345, 1920 400"/>
+    <!-- very distant mountain range -->
+    <path d="M 0 550 L 200 510 L 400 530 L 600 490 L 800 520 L 1000 480
+             L 1200 510 L 1400 470 L 1600 500 L 1800 470 L 1920 550"/>
+  </g>
+  <!-- lightning bolts -->
+  <g stroke="#F2C14E" fill="none" opacity="0.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 850 300 L 830 360 L 870 380 L 840 440"/>
+    <path d="M 1500 280 L 1480 340 L 1520 360 L 1490 420"/>
+  </g>
+  <!-- pencil overlap -->
+  <g stroke="#9DB4CC" fill="none" opacity="0.4" stroke-width="1" stroke-linecap="round">
+    <path d="M 0 302 C 80 282, 160 262, 240 272
+             C 320 282, 400 252, 480 262
+             C 560 272, 640 242, 720 257
+             C 800 272, 880 232, 960 247
+             C 1040 262, 1120 232, 1200 247
+             C 1280 262, 1360 227, 1440 242
+             C 1520 257, 1600 232, 1680 247
+             C 1760 262, 1840 252, 1920 300"/>
+    <path d="M 0 402 C 120 382, 240 392, 360 372
+             C 480 352, 600 382, 720 362
+             C 840 342, 960 372, 1080 352
+             C 1200 332, 1320 362, 1440 347
+             C 1560 332, 1680 357, 1800 342
+             C 1860 337, 1900 347, 1920 400"/>
+  </g>
+</svg>

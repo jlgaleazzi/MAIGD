@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- bg_farmland_mid.svg — Farmland mid-parallax layer: rolling hills + tree lines -->
+<!-- Pencil strokes on blueprint-blue paper. Tileable left↔right. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+
+  <!-- ===== Rolling hills (main silhouettes) — 3 contours each ===== -->
+
+  <!-- Hill group 1: wide low swell, base ~y=650 -->
+  <g id="hill1" stroke="#9DB4CC" fill="none" opacity="0.7">
+    <path d="M-20,680 C100,610 300,590 500,620 C700,650 900,640 1100,610 C1300,580 1500,590 1700,620 C1900,650 1980,640 2000,630"
+          stroke-width="1.5"/>
+    <path d="M-20,682 C102,612 300,593 502,622 C700,652 898,642 1098,612 C1298,582 1498,592 1698,622 C1898,652 1982,642 2000,632"
+          stroke-width="1.0" opacity="0.5"/>
+    <path d="M-20,678 C98,608 298,588 498,618 C698,648 898,638 1098,608 C1298,578 1498,588 1698,618 C1898,648 1978,638 2000,628"
+          stroke-width="1.0" opacity="0.5"/>
+    <!-- light hatching on hill faces -->
+    <g opacity="0.25">
+      <line x1="100" y1="650" x2="120" y2="670"/>
+      <line x1="200" y1="630" x2="225" y2="660"/>
+      <line x1="350" y1="610" x2="380" y2="645"/>
+      <line x1="550" y1="640" x2="575" y2="668"/>
+      <line x1="700" y1="648" x2="720" y2="670"/>
+      <line x1="850" y1="635" x2="875" y2="665"/>
+      <line x1="1000" y1="625" x2="1025" y2="658"/>
+      <line x1="1150" y1="632" x2="1175" y2="662"/>
+      <line x1="1300" y1="640" x2="1320" y2="665"/>
+      <line x1="1450" y1="618" x2="1475" y2="650"/>
+      <line x1="1600" y1="635" x2="1620" y2="665"/>
+    </g>
+  </g>
+
+  <!-- Hill group 2: mid-swell, base ~y=710 -->
+  <g id="hill2" stroke="#9DB4CC" fill="none" opacity="0.65">
+    <path d="M-20,720 C80,670 250,640 420,660 C600,680 780,710 950,700 C1100,690 1250,660 1420,680 C1580,700 1750,720 1900,710 C1960,705 1990,700 2000,695"
+          stroke-width="1.5"/>
+    <path d="M-20,723 C82,672 250,642 422,662 C600,683 778,712 948,702 C1098,692 1248,662 1418,682 C1578,702 1748,722 1898,712 C1958,707 1988,702 2000,698"
+          stroke-width="1.0" opacity="0.45"/>
+    <path d="M-20,717 C78,668 248,638 418,658 C598,678 778,708 948,698 C1098,688 1248,658 1418,678 C1578,698 1748,718 1898,708 C1958,703 1988,698 2000,692"
+          stroke-width="1.0" opacity="0.45"/>
+    <!-- light hatching -->
+    <g opacity="0.2">
+      <line x1="150" y1="695" x2="175" y2="720"/>
+      <line x1="350" y1="685" x2="378" y2="718"/>
+      <line x1="550" y1="690" x2="575" y2="718"/>
+      <line x1="700" y1="700" x2="720" y2="725"/>
+      <line x1="850" y1="695" x2="875" y2="723"/>
+      <line x1="1050" y1="700" x2="1072" y2="725"/>
+      <line x1="1200" y1="690" x2="1225" y2="718"/>
+      <line x1="1400" y1="685" x2="1425" y2="715"/>
+      <line x1="1600" y1="705" x2="1620" y2="730"/>
+    </g>
+  </g>
+
+  <!-- Hill group 3: gentle swell, base ~y=780 -->
+  <g id="hill3" stroke="#9DB4CC" fill="none" opacity="0.55">
+    <path d="M-20,780 C120,730 320,700 520,720 C720,740 900,760 1100,750 C1300,740 1480,710 1680,730 C1850,750 1940,755 2000,750"
+          stroke-width="1.5"/>
+    <path d="M-20,783 C122,732 320,702 522,722 C720,743 900,762 1098,752 C1298,742 1478,712 1678,732 C1848,752 1938,757 2000,753"
+          stroke-width="1.0" opacity="0.4"/>
+    <path d="M-20,777 C118,728 318,698 518,718 C718,738 898,758 1098,748 C1298,738 1478,708 1678,728 C1848,748 1938,753 2000,747"
+          stroke-width="1.0" opacity="0.4"/>
+    <!-- light hatching -->
+    <g opacity="0.18">
+      <line x1="200" y1="755" x2="230" y2="785"/>
+      <line x1="400" y1="740" x2="432" y2="775"/>
+      <line x1="600" y1="745" x2="628" y2="778"/>
+      <line x1="800" y1="755" x2="825" y2="783"/>
+      <line x1="1000" y1="750" x2="1028" y2="780"/>
+      <line x1="1200" y1="745" x2="1228" y2="778"/>
+      <line x1="1400" y1="738" x2="1430" y2="772"/>
+      <line x1="1600" y1="745" x2="1628" y2="778"/>
+    </g>
+  </g>
+
+  <!-- ===== Tree lines along hill crests (more distinct on closer hills) ===== -->
+  <g id="trees" stroke="#9DB4CC" fill="none" opacity="0.75">
+    <!-- Trees on Hill 1 crest (further, smaller) -->
+    <!-- Cluster around x=300 -->
+    <path d="M280,630 L285,600 L290,630 M283,600 L290,590 M282,605 L288,595" stroke-width="1.2"/>
+    <path d="M280,630 L284,602 L290,630 M283,600 L289,592" stroke-width="0.8" opacity="0.5"/>
+    <!-- Cluster around x=700 -->
+    <path d="M680,648 L685,615 L690,635 M688,615 L696,605 M686,620 L692,610" stroke-width="1.2"/>
+    <path d="M680,648 L684,618 L690,638 M688,615 L694,608" stroke-width="0.8" opacity="0.5"/>
+    <!-- Cluster around x=1200 -->
+    <path d="M1180,625 L1185,595 L1190,615 M1188,595 L1196,585" stroke-width="1.2"/>
+    <path d="M1180,625 L1184,597 L1190,618" stroke-width="0.8" opacity="0.5"/>
+    <!-- Cluster around x=1600 -->
+    <path d="M1580,630 L1585,600 L1590,620 M1588,600 L1596,590" stroke-width="1.2"/>
+    <path d="M1580,630 L1584,602 L1590,622" stroke-width="0.8" opacity="0.5"/>
+
+    <!-- Trees on Hill 2 crest (closer, larger) -->
+    <!-- Cluster around x=150 -->
+    <path d="M130,685 L140,640 L150,670 L155,645 L160,665" stroke-width="1.5"/>
+    <path d="M135,640 L142,630 M150,648 L158,638 M155,646 L162,635" stroke-width="1.0" opacity="0.6"/>
+    <!-- Cluster around x=500 -->
+    <path d="M470,695 L480,645 L490,675 L498,650 L508,670" stroke-width="1.5"/>
+    <path d="M475,645 L482,635 M490,652 L498,642 M498,650 L505,640" stroke-width="1.0" opacity="0.6"/>
+    <!-- Cluster around x=900 -->
+    <path d="M870,708 L880,655 L890,685 L898,660 L908,680" stroke-width="1.5"/>
+    <path d="M875,655 L882,645 M890,662 L898,652 M898,660 L905,650" stroke-width="1.0" opacity="0.6"/>
+    <!-- Cluster around x=1300 -->
+    <path d="M1270,698 L1280,648 L1290,678 L1298,652 L1308,672" stroke-width="1.5"/>
+    <path d="M1275,648 L1282,638 M1290,655 L1298,645 M1298,652 L1305,642" stroke-width="1.0" opacity="0.6"/>
+    <!-- Cluster around x=1700 -->
+    <path d="M1680,715 L1690,665 L1700,695 L1708,670 L1718,690" stroke-width="1.5"/>
+    <path d="M1685,665 L1692,655 M1700,672 L1708,662 M1708,670 L1715,660" stroke-width="1.0" opacity="0.6"/>
+
+    <!-- Trees on Hill 3 crest (closest, largest) -->
+    <!-- Cluster around x=350 -->
+    <path d="M320,748 L335,695 L350,730 L358,705 L370,728" stroke-width="1.8"/>
+    <path d="M325,695 L335,682 M350,700 L360,688 M358,698 L366,685" stroke-width="1.2" opacity="0.6"/>
+    <!-- Cluster around x=750 -->
+    <path d="M720,755 L735,702 L750,735 L758,710 L770,732" stroke-width="1.8"/>
+    <path d="M725,702 L735,690 M750,708 L760,696 M758,705 L766,692" stroke-width="1.2" opacity="0.6"/>
+    <!-- Cluster around x=1150 -->
+    <path d="M1120,748 L1135,695 L1150,728 L1158,703 L1170,725" stroke-width="1.8"/>
+    <path d="M1125,695 L1135,682 M1150,700 L1160,688 M1158,698 L1166,685" stroke-width="1.2" opacity="0.6"/>
+    <!-- Cluster around x=1550 -->
+    <path d="M1520,742 L1535,690 L1550,725 L1558,700 L1570,722" stroke-width="1.8"/>
+    <path d="M1525,690 L1535,678 M1550,695 L1560,682 M1558,692 L1566,680" stroke-width="1.2" opacity="0.6"/>
+
+    <!-- Lone/distant trees scattered on crests -->
+    <path d="M450,660 L453,635 L456,655" stroke-width="1.0" opacity="0.5"/>
+    <path d="M620,705 L624,678 L628,700" stroke-width="1.0" opacity="0.5"/>
+    <path d="M1050,720 L1053,695 L1056,715" stroke-width="1.0" opacity="0.5"/>
+    <path d="M1400,725 L1404,700 L1408,722" stroke-width="1.0" opacity="0.5"/>
+    <path d="M1830,735 L1834,710 L1838,732" stroke-width="1.0" opacity="0.5"/>
+  </g>
+
+  <!-- ===== Fence rows along hills (subtle linear elements) ===== -->
+  <g id="fences" stroke="#9DB4CC" fill="none" opacity="0.5">
+    <!-- Fence on hill 2 near x=400-600 -->
+    <line x1="380" y1="705" x2="580" y2="710" stroke-width="0.8"/>
+    <line x1="400" y1="698" x2="402" y2="710"/>
+    <line x1="440" y1="701" x2="442" y2="713"/>
+    <line x1="480" y1="704" x2="482" y2="716"/>
+    <line x1="520" y1="707" x2="522" y2="719"/>
+    <line x1="560" y1="709" x2="562" y2="721"/>
+
+    <!-- Fence on hill 3 near x=1000-1300 -->
+    <line x1="1000" y1="745" x2="1300" y2="740" stroke-width="0.8"/>
+    <line x1="1030" y1="738" x2="1032" y2="750"/>
+    <line x1="1080" y1="741" x2="1082" y2="753"/>
+    <line x1="1130" y1="743" x2="1132" y2="755"/>
+    <line x1="1180" y1="742" x2="1182" y2="754"/>
+    <line x1="1230" y1="741" x2="1232" y2="753"/>
+  </g>
+
+  <!-- ===== Very faint hatching bands (shading for depth) ===== -->
+  <defs>
+    <pattern id="hatch-mid" width="16" height="16" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="0" y2="16" stroke="#9DB4CC" stroke-width="0.5" opacity="0.1"/>
+    </pattern>
+  </defs>
+
+  <!-- Hatching patch on hill 2 (mid-ground shade) -->
+  <g opacity="0.3">
+    <path d="M300,680 Q400,660 500,670 L500,720 Q400,730 300,720 Z" fill="url(#hatch-mid)" stroke="none"/>
+  </g>
+
+  <!-- Hatching patch on hill 3 -->
+  <g opacity="0.2">
+    <path d="M800,745 Q950,720 1100,735 L1100,780 Q950,795 800,785 Z" fill="url(#hatch-mid)" stroke="none"/>
+  </g>
+
+</svg>

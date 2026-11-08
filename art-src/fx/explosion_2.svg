@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <g id="burst" stroke="#E8F1FA" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="64" cy="64" r="20" stroke-dasharray="4 4"/>
+    <!-- expanded shards -->
+    <line x1="64" y1="64" x2="36" y2="28"/>
+    <line x1="64" y1="64" x2="92" y2="28"/>
+    <line x1="64" y1="64" x2="28" y2="50"/>
+    <line x1="64" y1="64" x2="100" y2="50"/>
+    <line x1="64" y1="64" x2="24" y2="64"/>
+    <line x1="64" y1="64" x2="104" y2="64"/>
+    <line x1="64" y1="64" x2="28" y2="78"/>
+    <line x1="64" y1="64" x2="100" y2="78"/>
+    <line x1="64" y1="64" x2="36" y2="96"/>
+    <line x1="64" y1="64" x2="92" y2="96"/>
+  </g>
+</svg>

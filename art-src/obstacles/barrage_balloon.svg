@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- barrage_balloon - Large defensive balloon tethered to ground -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 140" width="90" height="140">
+
+  <!-- Balloon envelope -->
+  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Main balloon shape (tall oval) -->
+    <ellipse cx="45" cy="38" rx="28" ry="34"/>
+
+    <!-- Balloon segmentation lines (horizontal rings) -->
+    <g stroke-width="1.5">
+      <path d="M25,20 C30,18 37,16 45,16 C53,16 60,18 65,20"/>
+      <path d="M22,30 C28,27 36,25 45,25 C54,25 62,27 68,30"/>
+      <path d="M24,42 C30,39 37,37 45,37 C53,37 60,39 66,42"/>
+    </g>
+
+    <!-- Balloon vertical seams -->
+    <g stroke-width="1.5">
+      <path d="M45,4 C45,18 45,30 45,72"/>
+      <path d="M35,6 C38,20 38,40 38,70"/>
+      <path d="M55,6 C52,20 52,40 52,70"/>
+    </g>
+
+    <!-- Balloon tip -->
+    <line x1="45" y1="4" x2="45" y2="0"/>
+
+    <!-- Tether cable (zigzag to ground) -->
+    <path d="M45,72 L38,90 L52,108 L35,126 L45,140" stroke-width="1.5" stroke-dasharray="4 2"/>
+
+    <!-- Ground anchor point -->
+    <line x1="40" y1="140" x2="50" y2="140" stroke-width="2"/>
+    <circle cx="45" cy="138" r="3" fill="#E8F1FA" stroke-width="1.5"/>
+
+    <!-- Small fins at balloon base -->
+    <g stroke-width="1.5">
+      <path d="M30,72 L22,82 L34,76"/>
+      <path d="M60,72 L68,82 L56,76"/>
+    </g>
+  </g>
+
+</svg>

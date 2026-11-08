@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#9DB4CC" stroke-width="0.8" opacity="0.7"/>
+    </pattern>
+  </defs>
+  <!-- overlapping puff shapes with slight offset (pencil style) -->
+  <g stroke="#9DB4CC" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="26" cy="24" r="14" opacity="0.7"/>
+    <circle cx="25" cy="24.5" r="13.5" opacity="0.8"/>
+  </g>
+  <!-- hatched fill -->
+  <g fill="url(#hatch)">
+    <circle cx="26" cy="24" r="14" opacity="0.5"/>
+  </g>
+  <!-- extra puffs for volume -->
+  <circle cx="20" cy="20" r="8" stroke="#9DB4CC" fill="url(#hatch)" opacity="0.3" stroke-width="1"/>
+  <circle cx="32" cy="26" r="7" stroke="#9DB4CC" fill="url(#hatch)" opacity="0.25" stroke-width="1"/>
+</svg>

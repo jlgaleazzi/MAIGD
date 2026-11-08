@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- airfield - Friendly airfield with markings -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" width="400" height="100">
+
+  <!-- Ground / tarmac area -->
+  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Runway strip -->
+    <path d="M5,95 L395,95 C400,94 402,90 400,88 L0,88 C-2,90 0,94 5,95"/>
+
+    <!-- Runway center markings (dashed) -->
+    <g stroke="#E8F1FA" stroke-width="2" stroke-dasharray="8 6">
+      <line x1="30" y1="91" x2="370" y2="91"/>
+    </g>
+
+    <!-- Runway edge lines -->
+    <line x1="10" y1="95" x2="390" y2="95" stroke-width="2"/>
+    <line x1="8" y1="88" x2="392" y2="88" stroke-width="2"/>
+
+    <!-- Landing grid lines (horizontal) -->
+    <g stroke-width="1.5" opacity="0.6">
+      <line x1="10" y1="75" x2="390" y2="75"/>
+      <line x1="10" y1="60" x2="390" y2="60"/>
+    </g>
+
+    <!-- Landing grid lines (vertical) -->
+    <g stroke-width="1.5" opacity="0.6">
+      <line x1="100" y1="40" x2="70" y2="88"/>
+      <line x1="200" y1="35" x2="200" y2="88"/>
+      <line x1="300" y1="40" x2="330" y2="88"/>
+    </g>
+
+    <!-- Hangar silhouette (left) -->
+    <path d="M5,88 L5,55 C5,45 15,35 35,35 L55,35
+             C75,35 85,45 85,55 L85,88" stroke-width="2"/>
+    <line x1="30" y1="88" x2="60" y2="88" stroke-width="1.5"/>
+
+    <!-- Fuel shed (right) -->
+    <path d="M340,88 L340,60 C340,52 348,48 355,48
+             C362,48 370,52 370,60 L370,88" stroke-width="1.5"/>
+
+    <!-- Hangar door -->
+    <path d="M25,88 L25,60 C25,55 30,52 35,52 C40,52 45,55 45,60 L45,88" stroke-width="1.5"/>
+
+    <!-- Hangar rib lines -->
+    <g stroke-width="1">
+      <path d="M15,75 C15,62 22,50 35,45"/>
+      <path d="M45,75 C45,62 38,50 35,45"/>
+    </g>
+
+    <!-- Tents (center-left) -->
+    <path d="M120,88 L130,60 L140,88" stroke-width="1.5"/>
+    <line x1="130" y1="88" x2="130" y2="60" stroke-width="1"/>
+
+    <!-- Tents (center-right) -->
+    <path d="M270,88 L280,58 L290,88" stroke-width="1.5"/>
+    <line x1="280" y1="88" x2="280" y2="58" stroke-width="1"/>
+
+    <!-- Tie-down rings (circular ground marks) -->
+    <g stroke-width="1.5">
+      <circle cx="150" cy="78" r="3"/>
+      <circle cx="250" cy="76" r="3"/>
+      <circle cx="310" cy="78" r="3"/>
+    </g>
+
+    <!-- Directional arrow -->
+    <line x1="190" y1="45" x2="210" y2="45" stroke-width="2"/>
+    <path d="M210,45 L205,41 L205,49 Z" fill="#E8F1FA" stroke-width="1.5"/>
+
+    <!-- Friendly mark (small) near hangar -->
+    <circle cx="60" cy="72" r="4" fill="#F2C14E" stroke-width="1"/>
+  </g>
+
+</svg>

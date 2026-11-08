@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <pattern id="hatch-storm-mid" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#9DB4CC" stroke-width="0.8" opacity="0.6"/>
+    </pattern>
+  </defs>
+  <rect width="1920" height="1080" fill="#0F2A4A"/>
+  <rect width="1920" height="1080" fill="url(#grid-storm-mid)" opacity="0.5">
+    <defs>
+      <pattern id="grid-storm-mid" width="32" height="32" patternUnits="userSpaceOnUse">
+        <path d="M 32 0 L 0 0 L 0 32" fill="none" stroke="#1C3F66" stroke-width="0.5"/>
+      </pattern>
+    </defs>
+  </rect>
+  <!-- mid-layer: storm clouds with more density, distant wind streaks -->
+  <g stroke="#9DB4CC" fill="url(#hatch-storm-mid)" opacity="0.65" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- cloud layer 1 -->
+    <path d="M 0 500 C 100 480, 200 490, 300 470
+             C 400 450, 500 480, 600 460
+             C 700 440, 800 470, 900 450
+             C 1000 430, 1100 460, 1200 440
+             C 1300 420, 1400 450, 1500 430
+             C 1600 410, 1700 440, 1800 420
+             C 1860 415, 1900 430, 1920 500"/>
+    <!-- cloud layer 2 (lower) -->
+    <path d="M 0 580 C 80 560, 160 570, 240 555
+             C 320 540, 400 560, 480 545
+             C 560 530, 640 555, 720 540
+             C 800 525, 880 550, 960 535
+             C 1040 520, 1120 545, 1200 530
+             C 1280 515, 1360 540, 1440 525
+             C 1520 510, 1600 535, 1680 520
+             C 1760 505, 1840 530, 1920 580"/>
+  </g>
+  <!-- wind streaks -->
+  <g stroke="#9DB4CC" fill="none" opacity="0.45" stroke-width="1" stroke-linecap="round">
+    <path d="M 0 600 L 300 585 L 600 600 L 900 585 L 1200 600 L 1500 585 L 1800 600 L 1920 590"/>
+    <path d="M 0 700 C 200 690, 400 705, 600 690 C 800 675, 1000 695, 1200 680
+             C 1400 665, 1600 690, 1800 675 L 1920 690"/>
+    <!-- more wind streaks -->
+    <path d="M 0 450 L 400 435 C 600 425, 800 440, 1000 430 C 1200 420, 1400 440, 1600 430
+             L 1920 445" opacity="0.3"/>
+  </g>
+  <!-- pencil overlap -->
+  <g stroke="#9DB4CC" fill="none" opacity="0.4" stroke-width="1" stroke-linecap="round">
+    <path d="M 0 502 C 100 482, 200 492, 300 472
+             C 400 452, 500 482, 600 462
+             C 700 442, 800 472, 900 452
+             C 1000 432, 1100 462, 1200 442
+             C 1300 422, 1400 452, 1500 432
+             C 1600 412, 1700 442, 1800 422
+             C 1860 417, 1900 432, 1920 500"/>
+  </g>
+</svg>

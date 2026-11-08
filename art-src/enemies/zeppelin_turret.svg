@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- zeppelin_turret - Gun turret mounted on zeppelin hull -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40" width="60" height="40">
+
+  <!-- Base mount ring -->
+  <g stroke="#E8F1FA" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="30" cy="28" rx="18" ry="6"/>
+    <line x1="12" y1="28" x2="12" y2="34"/>
+    <line x1="48" y1="28" x2="48" y2="34"/>
+
+    <!-- Turret cupola -->
+    <path d="M18,28 C18,16 20,10 30,10 C40,10 42,16 42,28"/>
+    <line x1="18" y1="28" x2="42" y2="28" stroke-width="2"/>
+
+    <!-- Gun barrel (angled up-right) -->
+    <line x1="30" y1="16" x2="52" y2="6" stroke-width="3"/>
+    <circle cx="52" cy="6" r="2.5" fill="#E8F1FA" stroke-width="1.5"/>
+
+    <!-- Mount bolts -->
+    <circle cx="22" cy="30" r="1.5" fill="#E8F1FA" stroke-width="1"/>
+    <circle cx="38" cy="30" r="1.5" fill="#E8F1FA" stroke-width="1"/>
+
+    <!-- Turret support ribs -->
+    <g stroke-width="1">
+      <line x1="24" y1="18" x2="16" y2="22"/>
+      <line x1="36" y1="18" x2="44" y2="22"/>
+    </g>
+  </g>
+
+</svg>
