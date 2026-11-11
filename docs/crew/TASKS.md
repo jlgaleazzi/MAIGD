@@ -101,3 +101,4 @@ _(The orchestrator adds a 5-line summary here at the end of each milestone.)_
 | T915 | M1 | mechanics | Propeller animation: alternate player_biplane / player_biplane_frame2 (same pivot, from T909) on PlayerPlane | T909 | TODO |
 | T916 | M1 | mechanics | Check zeppelin_turret placement on the hull (curved saddle, base at y≈37 of 40) and enemy_base ground line (now y=116 of 120) against spawn alignment | T910,T912 | TODO |
 | T917 | M1 | qa | PNG palette spot-check for blueprint-sourced sprites (rasterize --check covers SVGs only); verify the fx sequences animate smoothly in game | T909,T913 | TODO |
+| T918 | M1 | art | Faction marks back to ink white (user decision): importer roundel/crosses, aaa_gun, zeppelin, bomber, enemy_base, airfield, player_hq | T909 | DONE |

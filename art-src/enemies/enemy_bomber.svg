@@ -108,13 +108,13 @@
   </g>
 
   <!-- Iron Cross on fuselage center -->
-  <g fill="#E4572E" stroke="#E8F1FA" stroke-width="0.8">
+  <g fill="#E8F1FA" stroke="#E8F1FA" stroke-width="0.8">
     <path d="M159,67 L161,67 L161,69 L163,69 L163,71 L161,71 L161,73 L159,73
              L159,71 L157,71 L157,69 L159,69 Z"/>
   </g>
 
   <!-- Iron Cross on tail fin -->
-  <g fill="#E4572E" stroke="#E8F1FA" stroke-width="0.6">
+  <g fill="#E8F1FA" stroke="#E8F1FA" stroke-width="0.6">
     <path d="M31,28 L32.5,28 L32.5,30 L34,30 L34,31 L32.5,31 L32.5,33 L31,33
              L31,31 L29.5,31 L29.5,30 L31,30 Z"/>
   </g>

@@ -142,5 +142,5 @@
   </g>
 
   <!-- faction mark on the shield -->
-  <use href="#cross" transform="translate(67.2,41) scale(1.25)" fill="#E4572E" stroke="#E8F1FA" stroke-width="0.4"/>
+  <use href="#cross" transform="translate(67.2,41) scale(1.25)" fill="#E8F1FA" stroke="#E8F1FA" stroke-width="0.4"/>
 </svg>

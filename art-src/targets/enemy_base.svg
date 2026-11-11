@@ -76,7 +76,7 @@
     </g>
 
     <!-- FACTION MARKS: hostile Iron Crosses (drawn last) -->
-    <g fill="#E4572E" stroke-width="0.75">
+    <g fill="#E8F1FA" stroke-width="0.75">
       <use href="#cross" x="110" y="52" transform="translate(110 52) scale(1.1) translate(-110 -52)"/>
       <use href="#cross" x="240" y="24" transform="translate(240 24) scale(0.75) translate(-240 -24)"/>
     </g>

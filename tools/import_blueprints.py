@@ -22,8 +22,8 @@ script is their "rasterize" step. For each entry in SPRITES it:
   opaque and hide the blueprint's own ink mark underneath.
 
 Mark styles:
-- ("roundel", cx, cy, r): bullseye friendly / paper / friendly with an ink outline.
-- ("cross", cx, cy, h, w0, w1): cross pattee filled hostile with an ink outline. h = arm
+- ("roundel", cx, cy, r): bullseye ink / paper / ink (MARK_FRIENDLY) with an ink outline.
+- ("cross", cx, cy, h, w0, w1): cross pattee filled MARK_HOSTILE (ink) with an ink outline. h = arm
   length from the centre, w0 = arm half-width at the centre, w1 = at the arm end.
 - ("prop", cx, cy, rx, ry, blade_ry): dashed propeller disc (ink, 0.75 px) plus a
   foreshortened blade (an ink outlined lens of half-height blade_ry).
@@ -49,6 +49,9 @@ INK = (0xE8, 0xF1, 0xFA)
 PAPER = (0x0F, 0x2A, 0x4A)
 FRIENDLY = (0xF2, 0xC1, 0x4E)
 HOSTILE = (0xE4, 0x57, 0x2E)
+# Faction marks are drawn in ink (user decision: white marks, not friendly/hostile).
+MARK_FRIENDLY = INK
+MARK_HOSTILE = INK
 PADDING = 2
 WORK_SCALE = 4   # line processing happens on a 4x upsampled copy of the source
 SUPERSAMPLE = 8  # marks are drawn at 8x final size, then reduced
@@ -157,9 +160,9 @@ def _draw_marks(spec, size, unit, to_final):
             R = r * unit * S
             o = MARK_OUTLINE * S
             disc(cx, cy, R + o / 2, INK)
-            disc(cx, cy, R - o / 2, FRIENDLY)
+            disc(cx, cy, R - o / 2, MARK_FRIENDLY)
             disc(cx, cy, R * 0.62, PAPER)
-            disc(cx, cy, R * 0.30, FRIENDLY)
+            disc(cx, cy, R * 0.30, MARK_FRIENDLY)
         elif kind == "cross":
             _, x, y, h, w0, w1 = mark
             cx, cy = P(x, y)
@@ -169,7 +172,7 @@ def _draw_marks(spec, size, unit, to_final):
             d.polygon(_cross_points(cx, cy, h * k + o / 2, w0 * k + o / 2, w1 * k + o / 2),
                       fill=INK + (255,))
             d.polygon(_cross_points(cx, cy, h * k - o / 2, max(0.5, w0 * k - o / 2),
-                                    w1 * k - o / 2), fill=HOSTILE + (255,))
+                                    w1 * k - o / 2), fill=MARK_HOSTILE + (255,))
         elif kind == "prop":
             _, x, y, rx, ry, bry = mark
             cx, cy = P(x, y)

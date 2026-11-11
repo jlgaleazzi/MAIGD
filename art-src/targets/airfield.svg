@@ -117,9 +117,9 @@
 
     <!-- FACTION MARK: friendly roundel on the hangar gable (drawn last) -->
     <g id="roundel" stroke-width="0.75">
-      <circle cx="70" cy="40" r="7.5" fill="#F2C14E"/>
+      <circle cx="70" cy="40" r="7.5" fill="#E8F1FA"/>
       <circle cx="70" cy="40" r="4.6" fill="#0F2A4A"/>
-      <circle cx="70" cy="40" r="2" fill="#F2C14E"/>
+      <circle cx="70" cy="40" r="2" fill="#E8F1FA"/>
     </g>
   </g>
 </svg>

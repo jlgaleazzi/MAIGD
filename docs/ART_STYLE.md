@@ -10,12 +10,13 @@ Owner: art agent. Per the GDD: duotone. Main elements (hero, enemies, targets) a
 | `paper-grid` | `#1C3F66` | Blueprint grid lines, 1px, 32px spacing |
 | `ink` | `#E8F1FA` | All wireframe strokes (near-white chalk) |
 | `pencil` | `#9DB4CC` | Background pencil strokes (mountains, buildings, clouds) |
-| `friendly` | `#F2C14E` | Player bullseye fill and player bullets only |
-| `hostile` | `#E4572E` | Iron Cross, enemy tracers, flak bursts only |
+| `friendly` | `#F2C14E` | Player bullets only |
+| `hostile` | `#E4572E` | Enemy tracers and flak bursts only |
 | `heal` | `#7BD389` | Health balloon cross only |
 
-Don't use any color outside this table. Accents are used only for faction marks and
-projectiles, so the screen stays duotone.
+Don't use any color outside this table. Accents are used only for projectiles, flak and
+the health cross, so the screen stays duotone. **Faction marks are ink white** (user
+decision, T918).
 
 ## Blueprint detail style (sprites)
 This replaces the old wireframe stroke rules (3 / 1.5 px). The target look is the user's
@@ -30,12 +31,12 @@ blueprint-sourced sprites alike.
   wheel spokes and hubs, hatching for shading, and small serial or label marks drawn as
   tiny stroked paths (no `<text>`). Propeller: a dashed disc plus a blade line.
 - Dimension and callout lines are optional on large sprites (bomber, zeppelin).
-- **No 3 px strokes, and no fills** except faction marks and accents.
-- Accents (only these): `friendly` #F2C14E for player marks, `hostile` #E4572E for Iron
-  Crosses and enemy marks, `heal` #7BD389 for the health cross.
-- Faction marks: player roundel = bullseye with concentric fills friendly / paper /
-  friendly, ink outline. Enemy Iron Cross (cross pattee) = hostile fill, ink outline, on
-  the fuselage and on the tail where visible.
+- **No 3 px strokes, and no fills** except faction marks (ink) and accents.
+- Accents (only these): `friendly` #F2C14E for player bullets, `hostile` #E4572E for
+  enemy tracers and flak, `heal` #7BD389 for the health cross.
+- Faction marks are **ink white**: player roundel = bullseye ink / paper / ink; enemy
+  Iron Cross = a true cross pattee (arms narrow at the centre, flared at the ends) filled
+  ink, on the fuselage and on the tail where visible.
 - Line-weight check: blueprint-sourced sprites are normalized to the same stroke metric
   (see "Blueprint-sourced sprites"); SVG sprites should look the same weight beside them.
 - **Every aircraft faces right** (+x). Code flips enemies that fly left.
@@ -52,9 +53,9 @@ blueprint-sourced sprites alike.
 ## Asset list (name = file name; size in px)
 | Category | Name | Size | Notes |
 |---|---|---|---|
-| player | `player_biplane` | 160×80 | **From `blueprints/airplane_blueprint_256px.png`** via `tools/import_blueprints.py` (not SVG). "U" plus roundel bullseye on the fuselage; the roundel is coloured friendly / paper / friendly by the importer |
+| player | `player_biplane` | 160×80 | **From `blueprints/airplane_blueprint_256px.png`** via `tools/import_blueprints.py` (not SVG). "U" plus roundel bullseye on the fuselage; the roundel is redrawn ink / paper / ink by the importer |
 | player | `player_biplane_frame2` | 160×80 | Propeller animation frame 2. **From the same blueprint** via `tools/import_blueprints.py`: identical to `player_biplane` (same crop and pivot) except the propeller, which is a dashed disc with a short foreshortened blade |
-| enemies | `enemy_fighter` | 150×75 | **From `blueprints/fokker_blueprint_transparent_256px.png`** via `tools/import_blueprints.py` (not SVG), mirrored to face right. Iron Crosses on fuselage and tail, coloured hostile with ink outline by the importer; line weight normalized to the player |
+| enemies | `enemy_fighter` | 150×75 | **From `blueprints/fokker_blueprint_transparent_256px.png`** via `tools/import_blueprints.py` (not SVG), mirrored to face right. Iron Crosses on fuselage and tail, redrawn as ink crosses pattee by the importer; line weight normalized to the player |
 | enemies | `enemy_bomber` | 320×140 | Twin engine, gunner positions, Iron Crosses |
 | enemies | `zeppelin_hull` | 900×220 | Rib lines, gondola, Iron Cross on the tail fin |
 | enemies | `zeppelin_turret` | 60×40 | Separate sprite, mounted on the hull |
@@ -90,8 +91,8 @@ sprite in the `SPRITES` table must not also have an SVG in `art-src/`.
 coordinates of the blueprint (before mirroring): `roundel` (centre, radius), `cross`
 (centre, arm length, half-width at centre and at the arm end) and `prop` (propeller disc
 for animation frames). The importer draws them vector-style at final size (8x
-supersampled) on top of the line art: opaque palette fills (friendly / paper / friendly
-bullseye; hostile cross) with a 1.25 px ink outline, so the blueprint's own white mark is
+supersampled) on top of the line art: opaque fills (ink / paper / ink bullseye; ink
+cross, colours set by `MARK_FRIENDLY` / `MARK_HOSTILE`) with a 1.25 px ink outline, so the blueprint's own white mark is
 covered. No PNG is hand-painted; re-running the importer reproduces every sprite. An
 `erase` list (source-px boxes) removes parts before the overlay, for example the blurred
 propeller in `player_biplane_frame2`. Frames of one blueprint share its crop box, so they

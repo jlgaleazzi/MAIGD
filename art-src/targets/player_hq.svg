@@ -100,9 +100,9 @@
 
     <!-- FACTION MARK: friendly roundel on the roof (drawn last) -->
     <g id="roundel" stroke-width="0.75">
-      <circle cx="130" cy="37" r="6.5" fill="#F2C14E"/>
+      <circle cx="130" cy="37" r="6.5" fill="#E8F1FA"/>
       <circle cx="130" cy="37" r="4" fill="#0F2A4A"/>
-      <circle cx="130" cy="37" r="1.8" fill="#F2C14E"/>
+      <circle cx="130" cy="37" r="1.8" fill="#E8F1FA"/>
     </g>
   </g>
 </svg>

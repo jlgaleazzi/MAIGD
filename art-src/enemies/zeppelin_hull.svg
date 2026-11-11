@@ -187,7 +187,7 @@
   </g>
 
   <!-- faction marks: Iron Crosses on the upper and lower fins -->
-  <g fill="#E4572E" stroke="#E8F1FA" stroke-width="0.75">
+  <g fill="#E8F1FA" stroke="#E8F1FA" stroke-width="0.75">
     <use href="#cross" transform="translate(98,46) scale(1.25)"/>
     <use href="#cross" transform="translate(98,154) scale(1.25)"/>
   </g>
