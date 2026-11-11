@@ -1,73 +1,125 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- airfield - Friendly airfield with markings -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" width="400" height="100">
+<!-- airfield - Friendly airfield: truss hangar, runway, windsock, roundel. Blueprint detail style. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="100" viewBox="0 0 400 100">
+  <defs>
+    <pattern id="hatch" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="3" stroke="#E8F1FA" stroke-width="0.5" opacity="0.55"/>
+    </pattern>
+    <pattern id="planks" width="6" height="40" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="0" y2="40" stroke="#E8F1FA" stroke-width="0.5" opacity="0.6"/>
+    </pattern>
+    <pattern id="runseam" x="12" width="24" height="10" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="0" y2="10" stroke="#E8F1FA" stroke-width="0.5" opacity="0.5"/>
+    </pattern>
+    <circle id="rivet" r="0.55" fill="#E8F1FA" stroke="none"/>
+    <path id="drum" d="M0,0 L0,-7 M5,0 L5,-7 M0,-7 C0,-8.2 5,-8.2 5,-7 M0,-7 C0,-5.8 5,-5.8 5,-7 M0,-2.5 L5,-2.5 M0,-4.8 L5,-4.8"/>
+    <path id="thresh" d="M0,90 L0,95"/>
+  </defs>
 
-  <!-- Ground / tarmac area -->
-  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Runway strip -->
-    <path d="M5,95 L395,95 C400,94 402,90 400,88 L0,88 C-2,90 0,94 5,95"/>
+  <g stroke="#E8F1FA" fill="none" stroke-linecap="round" stroke-linejoin="round">
 
-    <!-- Runway center markings (dashed) -->
-    <g stroke="#E8F1FA" stroke-width="2" stroke-dasharray="8 6">
-      <line x1="30" y1="91" x2="370" y2="91"/>
+    <!-- RUNWAY: flat ground at the bottom (top surface y=88) -->
+    <g id="runway">
+      <rect x="2" y="88" width="396" height="9" fill="url(#runseam)" stroke="none"/>
+      <line x1="1" y1="88" x2="399" y2="88" stroke-width="1.25"/>
+      <line x1="2" y1="97" x2="398" y2="97" stroke-width="0.75"/>
+      <line x1="150" y1="92.5" x2="330" y2="92.5" stroke-width="0.75" stroke-dasharray="7 5"/>
+      <g stroke-width="0.75">
+        <use href="#thresh" x="340"/><use href="#thresh" x="343"/><use href="#thresh" x="346"/>
+        <use href="#thresh" x="349"/><use href="#thresh" x="352"/><use href="#thresh" x="355"/>
+      </g>
+      <!-- touchdown arrows -->
+      <path d="M362,92.5 L376,92.5 M372,90.5 L376,92.5 L372,94.5" stroke-width="0.75"/>
+      <path d="M380,92.5 L394,92.5 M390,90.5 L394,92.5 L390,94.5" stroke-width="0.75" opacity="0.7"/>
+      <!-- ground tufts beneath runway edge -->
+      <path d="M12,99 l2,-1.5 l2,1.5 M70,99 l2,-1.5 l2,1.5 M200,99 l2,-1.5 l2,1.5 M300,99 l2,-1.5 l2,1.5" stroke-width="0.5" opacity="0.6"/>
     </g>
 
-    <!-- Runway edge lines -->
-    <line x1="10" y1="95" x2="390" y2="95" stroke-width="2"/>
-    <line x1="8" y1="88" x2="392" y2="88" stroke-width="2"/>
-
-    <!-- Landing grid lines (horizontal) -->
-    <g stroke-width="1.5" opacity="0.6">
-      <line x1="10" y1="75" x2="390" y2="75"/>
-      <line x1="10" y1="60" x2="390" y2="60"/>
+    <!-- HANGAR (left) -->
+    <g id="hangar">
+      <!-- wall planking and shaded side bay -->
+      <rect x="12" y="50" width="116" height="38" fill="url(#planks)" stroke="none"/>
+      <rect x="112" y="50" width="16" height="38" fill="url(#hatch)" stroke="none"/>
+      <!-- outline: walls + gable roof with eaves -->
+      <path d="M12,88 L12,50 L128,50 L128,88" stroke-width="1.25"/>
+      <path d="M6,52 L70,24 L134,52" stroke-width="1.25"/>
+      <!-- roof truss (Pratt): bottom chord, king post, verticals, diagonals -->
+      <g stroke-width="0.75">
+        <line x1="12" y1="50" x2="128" y2="50"/>
+        <line x1="70" y1="25" x2="70" y2="50"/>
+        <path d="M27,50 L27,43.5 M42,50 L42,37 M56,50 L56,30.5 M84,50 L84,30.5 M98,50 L98,37 M113,50 L113,43.5"/>
+        <path d="M27,50 L42,37 M42,50 L56,30.5 M56,50 L70,25 M113,50 L98,37 M98,50 L84,30.5 M84,50 L70,25"/>
+      </g>
+      <!-- roof purlins (fine) -->
+      <path d="M10,53 L10,51 M20,46.5 L22,47.5 M35,40 L37,41 M50,33.5 L52,34.5 M90,34.5 L92,33.5 M105,41 L107,40 M120,47.5 L122,46.5" stroke-width="0.5" opacity="0.8"/>
+      <!-- rivets along the bottom chord -->
+      <use href="#rivet" x="27" y="50"/><use href="#rivet" x="42" y="50"/><use href="#rivet" x="56" y="50"/>
+      <use href="#rivet" x="70" y="50"/><use href="#rivet" x="84" y="50"/><use href="#rivet" x="98" y="50"/>
+      <use href="#rivet" x="113" y="50"/>
+      <!-- sliding doors with X bracing -->
+      <rect x="30" y="56" width="80" height="32" stroke-width="0.75"/>
+      <line x1="70" y1="56" x2="70" y2="88" stroke-width="0.75"/>
+      <line x1="28" y1="54" x2="112" y2="54" stroke-width="0.75"/>
+      <path d="M30,56 L70,88 M70,56 L30,88 M70,56 L110,88 M110,56 L70,88" stroke-width="0.5" opacity="0.75"/>
+      <line x1="30" y1="72" x2="110" y2="72" stroke-width="0.5" opacity="0.75"/>
+      <!-- door rollers -->
+      <circle cx="35" cy="54" r="1" stroke-width="0.5"/><circle cx="65" cy="54" r="1" stroke-width="0.5"/>
+      <circle cx="75" cy="54" r="1" stroke-width="0.5"/><circle cx="105" cy="54" r="1" stroke-width="0.5"/>
+      <!-- side window -->
+      <rect x="15" y="60" width="9" height="7" stroke-width="0.5"/>
+      <path d="M19.5,60 L19.5,67 M15,63.5 L24,63.5" stroke-width="0.5" opacity="0.8"/>
+      <!-- label mark "H-1" on the wall -->
+      <path d="M115,58 L115,63 M118,58 L118,63 M115,60.5 L118,60.5 M120,60.5 L122,60.5 M124,58.5 L125,58 L125,63" stroke-width="0.5" opacity="0.85"/>
     </g>
 
-    <!-- Landing grid lines (vertical) -->
-    <g stroke-width="1.5" opacity="0.6">
-      <line x1="100" y1="40" x2="70" y2="88"/>
-      <line x1="200" y1="35" x2="200" y2="88"/>
-      <line x1="300" y1="40" x2="330" y2="88"/>
+    <!-- DIMENSION LINE above the hangar -->
+    <g stroke-width="0.5" opacity="0.7">
+      <path d="M6,52 L6,16 M134,52 L134,16"/>
+      <path d="M6,18 L134,18"/>
+      <path d="M6,18 L10,16.5 M6,18 L10,19.5 M134,18 L130,16.5 M134,18 L130,19.5"/>
+      <!-- tiny label tick marks "30m" -->
+      <path d="M62,14 L64,13 L65,14 L64,15 L65,16 L64,17 L62,16 M67,13 L67,17 L69,17 L69,13 Z M71,17 L71,14 L72.5,15.5 L74,14 L74,17"/>
     </g>
 
-    <!-- Hangar silhouette (left) -->
-    <path d="M5,88 L5,55 C5,45 15,35 35,35 L55,35
-             C75,35 85,45 85,55 L85,88" stroke-width="2"/>
-    <line x1="30" y1="88" x2="60" y2="88" stroke-width="1.5"/>
-
-    <!-- Fuel shed (right) -->
-    <path d="M340,88 L340,60 C340,52 348,48 355,48
-             C362,48 370,52 370,60 L370,88" stroke-width="1.5"/>
-
-    <!-- Hangar door -->
-    <path d="M25,88 L25,60 C25,55 30,52 35,52 C40,52 45,55 45,60 L45,88" stroke-width="1.5"/>
-
-    <!-- Hangar rib lines -->
-    <g stroke-width="1">
-      <path d="M15,75 C15,62 22,50 35,45"/>
-      <path d="M45,75 C45,62 38,50 35,45"/>
+    <!-- FUEL HUT + DRUMS -->
+    <g id="hut">
+      <rect x="150" y="68" width="30" height="20" stroke-width="1.25"/>
+      <path d="M147,69 L165,60 L183,69" stroke-width="1.25"/>
+      <rect x="150" y="68" width="30" height="20" fill="url(#hatch)" stroke="none"/>
+      <rect x="158" y="74" width="9" height="14" stroke-width="0.75"/>
+      <path d="M158,74 L167,88" stroke-width="0.5" opacity="0.8"/>
+      <rect x="170" y="73" width="6" height="5" stroke-width="0.5"/>
+      <g stroke-width="0.5">
+        <use href="#drum" x="186" y="88"/><use href="#drum" x="192" y="88"/><use href="#drum" x="189" y="80.5"/>
+      </g>
     </g>
 
-    <!-- Tents (center-left) -->
-    <path d="M120,88 L130,60 L140,88" stroke-width="1.5"/>
-    <line x1="130" y1="88" x2="130" y2="60" stroke-width="1"/>
-
-    <!-- Tents (center-right) -->
-    <path d="M270,88 L280,58 L290,88" stroke-width="1.5"/>
-    <line x1="280" y1="88" x2="280" y2="58" stroke-width="1"/>
-
-    <!-- Tie-down rings (circular ground marks) -->
-    <g stroke-width="1.5">
-      <circle cx="150" cy="78" r="3"/>
-      <circle cx="250" cy="76" r="3"/>
-      <circle cx="310" cy="78" r="3"/>
+    <!-- WINDSOCK (right) -->
+    <g id="windsock">
+      <line x1="372" y1="88" x2="372" y2="28" stroke-width="1.25"/>
+      <path d="M368,88 L372,82 L376,88" stroke-width="0.75"/>
+      <!-- guy wires -->
+      <path d="M372,40 L356,88 M372,40 L388,88" stroke-width="0.5" opacity="0.7"/>
+      <path d="M372,60 L362,88 M372,60 L382,88" stroke-width="0.5" opacity="0.5"/>
+      <!-- mast ladder rungs -->
+      <path d="M370.5,80 L373.5,80 M370.5,74 L373.5,74 M370.5,68 L373.5,68 M370.5,62 L373.5,62 M370.5,56 L373.5,56 M370.5,50 L373.5,50 M370.5,44 L373.5,44" stroke-width="0.5" opacity="0.7"/>
+      <circle cx="372" cy="27" r="1.2" stroke-width="0.75"/>
+      <!-- sock: tapered cone blowing right, with bands -->
+      <ellipse cx="373" cy="31" rx="1.5" ry="4" stroke-width="0.75"/>
+      <path d="M373,27 C380,27.5 388,29 396,30.5 L396,33.5 C388,34 380,34.5 373,35" stroke-width="1.25"/>
+      <path d="M379,27.5 C379.8,30 379.8,32.5 379,34.6 M385,28.4 C385.7,30.5 385.7,32.5 385,34.2 M391,29.5 C391.5,31 391.5,32.5 391,33.8" stroke-width="0.5"/>
+      <path d="M379,27.5 L385,34.2 M385,28.4 L391,33.8" stroke-width="0.5" opacity="0.5"/>
     </g>
 
-    <!-- Directional arrow -->
-    <line x1="190" y1="45" x2="210" y2="45" stroke-width="2"/>
-    <path d="M210,45 L205,41 L205,49 Z" fill="#E8F1FA" stroke-width="1.5"/>
+    <!-- small field marker cones by the runway -->
+    <path d="M220,88 L223,82 L226,88 M290,88 L293,82 L296,88" stroke-width="0.75"/>
+    <path d="M221.5,85 L224.5,85 M291.5,85 L294.5,85" stroke-width="0.5"/>
 
-    <!-- Friendly mark (small) near hangar -->
-    <circle cx="60" cy="72" r="4" fill="#F2C14E" stroke-width="1"/>
+    <!-- FACTION MARK: friendly roundel on the hangar gable (drawn last) -->
+    <g id="roundel" stroke-width="0.75">
+      <circle cx="70" cy="40" r="7.5" fill="#F2C14E"/>
+      <circle cx="70" cy="40" r="4.6" fill="#0F2A4A"/>
+      <circle cx="70" cy="40" r="2" fill="#F2C14E"/>
+    </g>
   </g>
-
 </svg>

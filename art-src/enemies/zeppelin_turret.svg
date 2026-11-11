@@ -1,30 +1,74 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- zeppelin_turret - Gun turret mounted on zeppelin hull -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40" width="60" height="40">
+<!-- zeppelin_turret: hull-top machine-gun mount, blueprint detail style. Faces right. 60x40 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40" viewBox="0 0 60 40">
+  <defs>
+    <circle id="rivet" r="0.45"/>
+    <line id="post" x1="0" y1="0" x2="0" y2="-6"/>
+  </defs>
 
-  <!-- Base mount ring -->
-  <g stroke="#E8F1FA" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-    <ellipse cx="30" cy="28" rx="18" ry="6"/>
-    <line x1="12" y1="28" x2="12" y2="34"/>
-    <line x1="48" y1="28" x2="48" y2="34"/>
+  <g stroke="#E8F1FA" fill="none" stroke-linecap="round" stroke-linejoin="round">
 
-    <!-- Turret cupola -->
-    <path d="M18,28 C18,16 20,10 30,10 C40,10 42,16 42,28"/>
-    <line x1="18" y1="28" x2="42" y2="28" stroke-width="2"/>
+    <!-- saddle plate that sits on the curved hull top -->
+    <g id="saddle">
+      <path d="M4,37 Q30,31 56,37 L54,33.5 Q30,28.5 6,33.5 Z" stroke-width="1.25"/>
+      <g stroke-width="0.5" opacity="0.7">
+        <line x1="12" y1="34.6" x2="11" y2="32"/>
+        <line x1="20" y1="33.4" x2="19" y2="30.9"/>
+        <line x1="40" y1="33.4" x2="41" y2="30.9"/>
+        <line x1="48" y1="34.6" x2="49" y2="32"/>
+      </g>
+      <g fill="#E8F1FA" stroke="none">
+        <use href="#rivet" x="9" y="34.8"/>
+        <use href="#rivet" x="16" y="33.7"/>
+        <use href="#rivet" x="24" y="33.1"/>
+        <use href="#rivet" x="36" y="33.1"/>
+        <use href="#rivet" x="44" y="33.7"/>
+        <use href="#rivet" x="51" y="34.8"/>
+      </g>
+    </g>
 
-    <!-- Gun barrel (angled up-right) -->
-    <line x1="30" y1="16" x2="52" y2="6" stroke-width="3"/>
-    <circle cx="52" cy="6" r="2.5" fill="#E8F1FA" stroke-width="1.5"/>
+    <!-- ring mount and guard rail -->
+    <g id="ring">
+      <ellipse cx="30" cy="30" rx="17" ry="3.2" stroke-width="1.25"/>
+      <ellipse cx="30" cy="30" rx="14.5" ry="2.2" stroke-width="0.5" opacity="0.8"/>
+      <path d="M13,30 L13,24.5 Q30,21.5 47,24.5 L47,30" stroke-width="0.75"/>
+      <use href="#post" x="19.5" y="31.8" stroke-width="0.5"/>
+      <use href="#post" x="26" y="32.5" stroke-width="0.5"/>
+      <use href="#post" x="34" y="32.5" stroke-width="0.5"/>
+      <use href="#post" x="40.5" y="31.8" stroke-width="0.5"/>
+      <path d="M13,27.5 Q30,25 47,27.5" stroke-width="0.5" opacity="0.7"/>
+    </g>
 
-    <!-- Mount bolts -->
-    <circle cx="22" cy="30" r="1.5" fill="#E8F1FA" stroke-width="1"/>
-    <circle cx="38" cy="30" r="1.5" fill="#E8F1FA" stroke-width="1"/>
+    <!-- pedestal post with brace -->
+    <g id="pedestal">
+      <path d="M28,29 L28.6,20 L31.4,20 L32,29" stroke-width="1"/>
+      <line x1="24" y1="29" x2="28.8" y2="23" stroke-width="0.5"/>
+      <line x1="36" y1="29" x2="31.2" y2="23" stroke-width="0.5"/>
+    </g>
 
-    <!-- Turret support ribs -->
-    <g stroke-width="1">
-      <line x1="24" y1="18" x2="16" y2="22"/>
-      <line x1="36" y1="18" x2="44" y2="22"/>
+    <!-- machine gun on a pivot, 25 degrees of elevation -->
+    <g id="gun" transform="translate(28.5,19.5) rotate(-25) scale(1.1)">
+      <!-- receiver -->
+      <path d="M-10,-2.2 L7,-2.2 L7,2.4 L-10,2.4 Z" stroke-width="1.25"/>
+      <line x1="-4" y1="-2.2" x2="-4" y2="2.4" stroke-width="0.5" opacity="0.8"/>
+      <!-- butt stock and grip -->
+      <path d="M-10,-1.4 L-16,-0.2 L-16,3.2 L-10,2.4" stroke-width="1"/>
+      <path d="M-7,2.4 L-8.4,6" stroke-width="0.75"/>
+      <!-- ammunition drum -->
+      <circle cx="-2" cy="-4.6" r="3" stroke-width="0.75"/>
+      <circle cx="-2" cy="-4.6" r="1" stroke-width="0.5"/>
+      <!-- cooling jacket with vent holes -->
+      <path d="M7,-1.8 L22,-1.6 L22,1.8 L7,2" stroke-width="1"/>
+      <g stroke-width="0.6" stroke-dasharray="0.4 2.2" opacity="0.85">
+        <line x1="8.5" y1="0" x2="21" y2="0"/>
+      </g>
+      <!-- barrel, muzzle and ring sight -->
+      <line x1="22" y1="0" x2="27" y2="0" stroke-width="1"/>
+      <path d="M27,-1 L28.5,-1.2 L28.5,1.2 L27,1" stroke-width="0.75"/>
+      <circle cx="14" cy="-4.4" r="1.8" stroke-width="0.5"/>
+      <line x1="14" y1="-2.6" x2="14" y2="-1.6" stroke-width="0.5"/>
+      <!-- pivot pin -->
+      <circle cx="0" cy="0.2" r="1.3" stroke-width="0.5"/>
     </g>
   </g>
-
 </svg>

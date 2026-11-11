@@ -89,3 +89,15 @@ _(The orchestrator adds a 5-line summary here at the end of each milestone.)_
 | T078 | M1 | mechanics | Missions: ParallaxBackground (3 layers × 2 tiles, LateUpdate offset formula) + Balance.json `background` factors + GameBalance BackgroundData. Files: ParallaxBackground.cs, Balance.json, GameBalance.cs | none | DONE |
 | T079 | M1 | mechanics | Wire world into missions: MissionRunner creates ParallaxBackground + TerrainStrip after ScrollController and uses HeightAt for spawns; ProjectBuilder camera clears to paper #0F2A4A. Files: MissionRunner.cs, ProjectBuilder.cs | T076,T078 | DONE |
 | T080 | M1 | qa | Verify ground + background: EditMode tests for TerrainStrip.HeightAt (before/between/after keyframes, empty) and the parallax offset formula; playtest checklist for missions 1–5 (theme, scrolling, crash on ground, bombs burst on ground) | T077,T079 | TODO |
+| T906 | M1 | mechanics | Launch crash, controls, sprite import and UI paths fix (direct fix) | none | DONE |
+| T907 | M1 | mechanics | Bullet hits, ramming, enemy HP, enemySpeed, randomized plane entry, ground spawn timing (direct fix) | T906 | DONE |
+| T908 | M1 | art | Player and enemy fighter sprites from user blueprints (tools/import_blueprints.py) | none | DONE |
+| T909 | M1 | art | Blueprint importer: palette faction marks (roundel friendly, Iron Cross hostile), Fokker line weight matched to player, player_biplane_frame2 from blueprint, ART_STYLE "blueprint detail" rules | T908 | DONE |
+| T910 | M1 | art | Restyle enemies to blueprint detail: aaa_gun, zeppelin_hull, zeppelin_turret (bomber waits for user blueprint) | T908 | DONE |
+| T911 | M1 | art | Restyle obstacles and pickups to blueprint detail: barrage_balloon, building_barn, building_house, tree_a, tree_b, health_balloon | T908 | DONE |
+| T912 | M1 | art | Restyle targets to blueprint detail: airfield, enemy_base, player_hq | T908 | DONE |
+| T913 | M1 | art | Restyle fx to blueprint detail: explosion_0..5, flak_burst_0..3, smoke_puff | T908 | DONE |
+| T914 | M2 | art | enemy_bomber from user blueprint (waiting on the user's file) | T909 | BLOCKED |
+| T915 | M1 | mechanics | Propeller animation: alternate player_biplane / player_biplane_frame2 (same pivot, from T909) on PlayerPlane | T909 | TODO |
+| T916 | M1 | mechanics | Check zeppelin_turret placement on the hull (curved saddle, base at y≈37 of 40) and enemy_base ground line (now y=116 of 120) against spawn alignment | T910,T912 | TODO |
+| T917 | M1 | qa | PNG palette spot-check for blueprint-sourced sprites (rasterize --check covers SVGs only); verify the fx sequences animate smoothly in game | T909,T913 | TODO |

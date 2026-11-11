@@ -4,7 +4,12 @@
     python tools/rasterize.py --all     re-render every SVG
     python tools/rasterize.py --check   check only (QA): sizes, palette, names, missing PNGs
 
-Needs: pip install cairosvg pillow   (Linux/DGX: libcairo2 is usually already installed)
+Folders whose name starts with "_" (for example art-src/_retired/) are skipped.
+Sprites made from blueprints/ PNGs are handled by tools/import_blueprints.py; this script
+runs it too (same --check flag), so one command covers every sprite.
+
+Needs: pip install pillow, plus cairosvg (Linux/DGX: libcairo2 is usually installed)
+       or resvg-py (Windows, no native libraries needed).
 """
 import re
 import sys
@@ -43,11 +48,24 @@ def check_svg(svg: Path) -> list:
 
 
 def render(svg: Path) -> None:
-    import cairosvg
+    """Render with cairosvg when its native cairo library loads, else with resvg.
+
+    cairosvg needs libcairo (standard on Linux/macOS, missing on Windows). resvg_py
+    (`pip install resvg-py`) is a self-contained fallback that works everywhere.
+    """
     scale = UI_SCALE if svg.parent.name == "ui" else 1
     dest = out_path(svg)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    cairosvg.svg2png(url=str(svg), write_to=str(dest), scale=scale)
+    try:
+        import cairosvg
+    except (ImportError, OSError):
+        cairosvg = None
+    if cairosvg is not None:
+        cairosvg.svg2png(url=str(svg), write_to=str(dest), scale=scale)
+        return
+    import resvg_py
+    data = resvg_py.svg_to_bytes(svg_path=str(svg), zoom=float(scale))
+    dest.write_bytes(bytes(data))
 
 
 def preview(pngs: list) -> None:
@@ -71,7 +89,8 @@ def preview(pngs: list) -> None:
 def main(argv: list) -> int:
     check_only = "--check" in argv
     force = "--all" in argv
-    svgs = sorted(SRC.rglob("*.svg")) if SRC.exists() else []
+    svgs = sorted(s for s in SRC.rglob("*.svg")
+                  if not any(part.startswith("_") for part in s.relative_to(SRC).parts))         if SRC.exists() else []
     if not svgs:
         print("No SVGs in art-src/ yet.")
         return 0
@@ -88,11 +107,20 @@ def main(argv: list) -> int:
                 problems.append(f"render failed: {exc}")
         if not dest.exists() and not problems:
             problems.append("PNG missing (run without --check)")
+        elif not problems and dest.stat().st_mtime < svg.stat().st_mtime:
+            problems.append("PNG older than its SVG (stale render; run without --check)")
         if problems:
             failed += 1
             print(f"FAIL {rel}: " + "; ".join(problems))
         else:
             print(f"OK   {rel}")
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import import_blueprints
+        if import_blueprints.main(argv):
+            failed += 1
+    except ImportError as exc:
+        print(f"Blueprint import skipped: {exc}")
     if not check_only:
         try:
             preview(sorted(OUT.rglob("*.png")))

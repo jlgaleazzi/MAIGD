@@ -1,65 +1,84 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- enemy_base - Enemy airfield base hangar with flag -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 120" width="260" height="120">
+<!-- enemy_base - Enemy hangar with arched truss, flag and Iron Cross. Blueprint detail style. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="260" height="120" viewBox="0 0 260 120">
+  <defs>
+    <pattern id="hatch" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="3" stroke="#E8F1FA" stroke-width="0.5" opacity="0.55"/>
+    </pattern>
+    <pattern id="planks" width="5" height="50" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="0" y2="50" stroke="#E8F1FA" stroke-width="0.5" opacity="0.55"/>
+    </pattern>
+    <clipPath id="archclip"><path d="M28,116 L28,70 A82,40 0 0 1 192,70 L192,116 Z"/></clipPath>
+    <circle id="rivet" r="0.55" fill="#E8F1FA" stroke="none"/>
+    <path id="cross" d="M-1.2,-1.2 L-6,-10 L6,-10 L1.2,-1.2 L10,-6 L10,6 L1.2,1.2 L6,10 L-6,10 L-1.2,1.2 L-10,6 L-10,-6 Z"/>
+    <path id="crate" d="M0,0 L0,-8 L9,-8 L9,0 M0,-8 L9,0 M0,0 L9,-8"/>
+  </defs>
 
-  <!-- Hangar body (large arched structure) -->
-  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Hangar arch -->
-    <path d="M40,120 L40,55 C40,20 70,10 130,10
-             C190,10 220,20 220,55 L220,120"/>
+  <g stroke="#E8F1FA" fill="none" stroke-linecap="round" stroke-linejoin="round">
 
-    <!-- Hangar floor line -->
-    <line x1="40" y1="120" x2="220" y2="120" stroke-width="2.5"/>
+    <!-- GROUND -->
+    <line x1="2" y1="116" x2="258" y2="116" stroke-width="1.25"/>
+    <path d="M8,118.5 l2,-1.5 l2,1.5 M70,118.5 l2,-1.5 l2,1.5 M150,118.5 l2,-1.5 l2,1.5 M240,118.5 l2,-1.5 l2,1.5" stroke-width="0.5" opacity="0.6"/>
 
-    <!-- Hangar rib lines (arched ribs across width) -->
-    <g stroke-width="1.5">
-      <path d="M60,120 L60,58 C60,30 90,18 130,14"/>
-      <path d="M100,120 L100,52 C100,28 125,16 130,10"/>
-      <path d="M160,120 L160,52 C160,28 135,16 130,10"/>
-      <path d="M200,120 L200,58 C200,30 170,18 130,14"/>
+    <!-- HANGAR -->
+    <g id="hangar">
+      <!-- front face planking, shaded right bay -->
+      <rect x="28" y="28" width="164" height="88" fill="url(#planks)" stroke="none" clip-path="url(#archclip)"/>
+      <rect x="170" y="28" width="22" height="88" fill="url(#hatch)" stroke="none" clip-path="url(#archclip)"/>
+      <!-- outer and inner arch with walls -->
+      <path d="M20,116 L20,70 A90,48 0 0 1 200,70 L200,116" stroke-width="1.25"/>
+      <path d="M28,116 L28,70 A82,40 0 0 1 192,70 L192,116" stroke-width="0.75"/>
+      <!-- arched lattice truss -->
+      <path d="M20.0,70.0 L30.1,61.1 L28.9,49.2 L45.9,45.1 L53.9,32.5 L74.4,34.0 L90.0,23.2 L110.0,30.0 L130.0,23.2 L145.6,34.0 L166.1,32.5 L174.1,45.1 L191.1,49.2 L189.9,61.1 L200.0,70.0" stroke-width="0.5" opacity="0.85"/>
+      <path d="M22.3,59.3 L30.1,61.1 M28.9,49.2 L36.1,52.6 M39.6,40.1 L45.9,45.1 M53.9,32.5 L58.9,38.7 M71.0,26.8 L74.4,34.0 M90.0,23.2 L91.8,31.0 M110.0,22.0 L110.0,30.0 M130.0,23.2 L128.2,31.0 M149.0,26.8 L145.6,34.0 M166.1,32.5 L161.1,38.7 M180.4,40.1 L174.1,45.1 M191.1,49.2 L183.9,52.6 M197.7,59.3 L189.9,61.1" stroke-width="0.5" opacity="0.7"/>
+      <path d="M20,78 L28,86 M28,78 L20,86 M20,94 L28,102 M28,94 L20,102 M200,78 L192,86 M192,78 L200,86 M200,94 L192,102 M192,94 L200,102" stroke-width="0.5" opacity="0.7"/>
+      <use href="#rivet" x="30.1" y="61.1"/><use href="#rivet" x="36.1" y="52.6"/><use href="#rivet" x="45.9" y="45.1"/><use href="#rivet" x="58.9" y="38.7"/><use href="#rivet" x="74.4" y="34.0"/><use href="#rivet" x="91.8" y="31.0"/><use href="#rivet" x="110.0" y="30.0"/><use href="#rivet" x="128.2" y="31.0"/><use href="#rivet" x="145.6" y="34.0"/><use href="#rivet" x="161.1" y="38.7"/><use href="#rivet" x="174.1" y="45.1"/><use href="#rivet" x="183.9" y="52.6"/><use href="#rivet" x="189.9" y="61.1"/>
+      <!-- tie beam under the arch -->
+      <path d="M28,70 L192,70" stroke-width="0.75"/>
+      <path d="M50,70 L60,52 M85,70 L90,46 M135,70 L130,46 M170,70 L160,52 M60,52 L90,46 L130,46 L160,52" stroke-width="0.5" opacity="0.6"/>
+      <!-- doors: four leaves on a top track -->
+      <path d="M44,76 L176,76" stroke-width="0.75"/>
+      <rect x="46" y="78" width="128" height="38" stroke-width="0.75"/>
+      <path d="M78,78 L78,116 M110,78 L110,116 M142,78 L142,116" stroke-width="0.75"/>
+      <path d="M46,97 L174,97" stroke-width="0.5" opacity="0.8"/>
+      <path d="M46,78 L78,97 M78,78 L46,97 M142,78 L174,97 M174,78 L142,97 M46,97 L78,116 M78,97 L46,116 M142,97 L174,116 M174,97 L142,116" stroke-width="0.4" opacity="0.6"/>
+      <circle cx="52" cy="76" r="1" stroke-width="0.5"/><circle cx="104" cy="76" r="1" stroke-width="0.5"/>
+      <circle cx="116" cy="76" r="1" stroke-width="0.5"/><circle cx="168" cy="76" r="1" stroke-width="0.5"/>
+      <!-- small side window + label mark "B-4" -->
+      <rect x="32" y="82" width="8" height="7" stroke-width="0.5"/>
+      <path d="M36,82 L36,89 M32,85.5 L40,85.5" stroke-width="0.4" opacity="0.8"/>
+      <path d="M180,84 L180,89 C183,89 183,86.5 180,86.5 C182.5,86.5 182.5,84 180,84 M184,86.5 L185.5,86.5 M188.5,89 L188.5,84 L186.5,87.5 L189.5,87.5" stroke-width="0.5" opacity="0.85"/>
+      <!-- stove pipe -->
+      <path d="M58,33 L58,24 M62,31 L62,24 M57,24 L63,24" stroke-width="0.75"/>
     </g>
 
-    <!-- Hangar doors (large double doors) -->
-    <path d="M95,120 L95,60 C95,50 105,45 130,45 C155,45 165,50 165,60 L165,120"/>
-    <line x1="130" y1="45" x2="130" y2="120" stroke-width="2"/>
-
-    <!-- Door rivets -->
-    <g fill="#E8F1FA" stroke-width="1">
-      <circle cx="110" cy="70" r="1.5"/>
-      <circle cx="150" cy="70" r="1.5"/>
-      <circle cx="110" cy="95" r="1.5"/>
-      <circle cx="150" cy="95" r="1.5"/>
+    <!-- SUPPLY CRATES -->
+    <g stroke-width="0.5">
+      <use href="#crate" x="4" y="116"/><use href="#crate" x="8.5" y="108"/>
+      <path d="M4,116 L4,108 L13,108 L13,116 Z M8.5,108 L8.5,100 L17.5,100 L17.5,108" stroke-width="0.75"/>
     </g>
 
-    <!-- Hangar support struts -->
-    <g stroke-width="1.5">
-      <line x1="80" y1="120" x2="80" y2="85"/>
-      <line x1="180" y1="120" x2="180" y2="85"/>
+    <!-- FLAG POLE + FLAG -->
+    <g id="flag">
+      <line x1="226" y1="116" x2="226" y2="12" stroke-width="1.25"/>
+      <path d="M222,116 L226,110 L230,116" stroke-width="0.75"/>
+      <circle cx="226" cy="11" r="1.2" stroke-width="0.75"/>
+      <path d="M226,30 L212,116 M226,30 L240,116" stroke-width="0.5" opacity="0.6"/>
+      <path d="M226,14 C234,12 242,17 254,14 L254,34 C242,37 234,32 226,34 Z" stroke-width="1.25"/>
+      <path d="M233,13.2 L233,33.4 M240,14.6 L240,34.8 M247,15.3 L247,35.4" stroke-width="0.4" opacity="0.5"/>
     </g>
 
-    <!-- Flag pole (right side) -->
-    <line x1="235" y1="90" x2="235" y2="20"/>
-
-    <!-- Flag with Iron Cross -->
-    <path d="M235,24 L260,28 L260,36 L235,34"/>
-
-    <!-- Small Iron Cross on flag -->
-    <g fill="#E4572E" stroke="#E8F1FA" stroke-width="0.6">
-      <path d="M246,27 L247.5,27 L247.5,28.5 L249,28.5 L249,30 L247.5,30
-               L247.5,31.5 L246,31.5 L246,30 L244.5,30 L244.5,28.5 L246,28.5 Z"/>
+    <!-- DIMENSION CALLOUT -->
+    <g stroke-width="0.5" opacity="0.7">
+      <path d="M20,68 L6,68 M8,22 L22,22 M8,22 L8,68"/>
+      <path d="M8,22 L6.6,26 M8,22 L9.4,26 M8,68 L6.6,64 M8,68 L9.4,64"/>
+      <path d="M4,40 L4,48 M4,40 L6,42 L4,44 L6,48"/>
     </g>
 
-    <!-- Ground line -->
-    <line x1="10" y1="120" x2="250" y2="120" stroke-width="2" opacity="0.5"/>
-
-    <!-- Warning markers / cones -->
-    <g stroke-width="1.5">
-      <path d="M30,120 L34,108 L38,120"/>
-      <path d="M222,120 L226,108 L230,120"/>
+    <!-- FACTION MARKS: hostile Iron Crosses (drawn last) -->
+    <g fill="#E4572E" stroke-width="0.75">
+      <use href="#cross" x="110" y="52" transform="translate(110 52) scale(1.1) translate(-110 -52)"/>
+      <use href="#cross" x="240" y="24" transform="translate(240 24) scale(0.75) translate(-240 -24)"/>
     </g>
-
-    <!-- Hangar details: exhaust stack -->
-    <rect x="50" y="22" width="8" height="15" stroke-width="1.5"/>
   </g>
-
 </svg>

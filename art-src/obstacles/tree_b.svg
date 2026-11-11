@@ -1,41 +1,56 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- tree_b - Round canopy / broadleaf tree -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 120" width="80" height="120">
+<!-- tree_b: broadleaf tree, technical-illustration trunk and limb structure, hatched canopy outline -->
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="120" viewBox="0 0 80 120">
+  <defs>
+    <pattern id="ht" width="2.4" height="2.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="2.4" stroke="#E8F1FA" stroke-width="0.5" opacity="0.7"/>
+    </pattern>
+    <clipPath id="canopy">
+      <path d="M16,62 A9,9 0 0 1 10,46 A10,10 0 0 1 14,28 A12,12 0 0 1 30,12 A12,12 0 0 1 50,10 A11,11 0 0 1 66,24 A11,11 0 0 1 70,44 A10,10 0 0 1 64,62 A10,10 0 0 1 48,72 A9,9 0 0 1 32,72 A10,10 0 0 1 16,62 Z"/>
+    </clipPath>
+  </defs>
 
-  <!-- Tree trunk and canopy -->
-  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Trunk -->
-    <path d="M35,118 C36,90 37,65 38,42 L42,42 C43,65 44,90 45,118"/>
+  <g fill="none" stroke="#E8F1FA" stroke-linecap="round" stroke-linejoin="round">
+    <!-- shading hatch: lower right of the canopy -->
+    <path d="M50,4 Q76,20 74,50 Q70,78 30,80 Q58,64 60,40 Q62,20 50,4 Z" fill="url(#ht)" stroke="none" clip-path="url(#canopy)"/>
 
-    <!-- Ground line at base -->
-    <line x1="30" y1="118" x2="50" y2="118" stroke-width="2"/>
-
-    <!-- Main canopy (bubbly circles cluster) -->
-    <circle cx="40" cy="25" r="22"/>
-    <circle cx="30" cy="35" r="16"/>
-    <circle cx="50" cy="33" r="17"/>
-    <circle cx="25" cy="48" r="12"/>
-    <circle cx="55" cy="46" r="13"/>
-
-    <!-- Canopy inner detail lines -->
-    <g stroke-width="1.5">
-      <path d="M22,25 C28,22 35,20 40,22"/>
-      <path d="M58,25 C52,22 45,20 40,22"/>
-      <path d="M25,38 C30,35 36,33 40,35"/>
-      <path d="M55,36 C50,33 44,31 40,35"/>
-      <path d="M30,44 C34,42 37,40 40,42"/>
+    <!-- inner foliage clump contours -->
+    <g stroke-width="0.5" opacity="0.7">
+      <path d="M18,40 A9,9 0 0 1 32,30 A9,9 0 0 1 44,26"/>
+      <path d="M48,30 A8,8 0 0 1 62,36"/>
+      <path d="M22,56 A8,8 0 0 1 34,50"/>
+      <path d="M46,52 A8,8 0 0 1 58,54"/>
+      <path d="M30,20 A8,8 0 0 1 44,16"/>
     </g>
 
-    <!-- Branch details -->
-    <g stroke-width="1.5">
-      <path d="M38,42 L28,30"/>
-      <path d="M42,42 L52,32"/>
-      <path d="M39,50 L32,44"/>
+    <!-- limb structure inside the canopy -->
+    <g stroke-width="0.75">
+      <path d="M37.5,80 Q37,70 30,62 Q24,55 20,44"/>
+      <path d="M42.5,80 Q43,70 50,62 Q56,55 60,42"/>
+      <path d="M39,76 Q38,60 36,46 Q35,34 32,22"/>
+      <path d="M41,76 Q42,62 45,50 Q47,38 48,24"/>
+    </g>
+    <g stroke-width="0.5" opacity="0.8">
+      <path d="M30,62 L22,60 M26,56 L18,54 M23,50 L15,40 M50,62 L58,60 M54,57 L64,52 M57,50 L62,34"/>
+      <path d="M36,46 L27,40 M35,38 L26,28 M33,28 L38,16 M45,50 L54,46 M46,40 L56,32 M47.5,30 L42,18"/>
     </g>
 
-    <!-- Small leaf clusters -->
-    <circle cx="38" cy="18" r="6" stroke-width="1.5"/>
-    <circle cx="44" cy="20" r="7" stroke-width="1.5"/>
+    <!-- canopy outline (scalloped) -->
+    <path d="M16,62 A9,9 0 0 1 10,46 A10,10 0 0 1 14,28 A12,12 0 0 1 30,12 A12,12 0 0 1 50,10 A11,11 0 0 1 66,24 A11,11 0 0 1 70,44 A10,10 0 0 1 64,62 A10,10 0 0 1 48,72 A9,9 0 0 1 32,72 A10,10 0 0 1 16,62 Z" stroke-width="1.25"/>
+
+    <!-- trunk with root flare, bark lines and shade -->
+    <path d="M36.5,73 Q37.5,90 36,106 Q35,110 30,113 M43.5,73 Q42.5,90 44,106 Q45,110 50,113" stroke-width="1.25"/>
+    <path d="M38.5,82 L38.3,90 M40,78 L40,84 M40,88 L40.2,100 M41.6,86 L41.8,96 M38.4,96 L38.2,104" stroke-width="0.5" opacity="0.75"/>
+    <path d="M42.5,76 Q41.8,90 43,106 Q44,110 47,112 L42,112 Z" fill="url(#ht)" stroke="none"/>
+    <path d="M37,108 L33,113 M43,108 L47,113 M40,110 L40,113" stroke-width="0.5" opacity="0.8"/>
+    <!-- knot -->
+    <path d="M39,93 Q40.5,91.5 41.2,93 Q40.4,94.5 39,93 Z" stroke-width="0.5"/>
+
+    <!-- ground line with grass ticks -->
+    <path d="M14,113 L66,113" stroke-width="1.25"/>
+    <path d="M20,113 L19,111 M26,113 L27,111 M54,113 L53,111 M60,113 L61,111" stroke-width="0.5" opacity="0.7"/>
+
+    <!-- small label mark "B" -->
+    <path d="M70,99 L70,104 M70,99 L72,99 Q73,100.2 72,101.5 L70,101.5 M72,101.5 Q73.4,102.8 72,104 L70,104" stroke-width="0.5" opacity="0.8"/>
   </g>
-
 </svg>

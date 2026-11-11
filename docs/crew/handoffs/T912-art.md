@@ -1,0 +1,8 @@
+TASK: T912
+AGENT: art
+STATUS: PARTIAL
+FILES: art-src/targets/airfield.svg, art-src/targets/enemy_base.svg, art-src/targets/player_hq.svg, docs/crew/handoffs/T912-art.md
+SUMMARY: I redrew all three targets in the blueprint detail style at the same sizes (400x100, 400x100, 260x120). Strokes are 1.25/0.75/0.5. The art has trusses, planking, hatching, rivets, stroked labels and dimension lines, with filled faction marks drawn last. The airfield runway top is still flat ground at y=88.
+  The PNGs were NOT re-rendered: `rasterize.py` fails on every SVG with "No module named 'cairosvg'" (no installed Python has it). So the sprites in Resources are still the old art. For self-review I rendered the SVGs with headless Chrome next to the player/Fokker PNGs on #0F2A4A at 1x and 2x. I fixed the dimension callout on the HQ (it overlapped the sandbags; moved it above the roof), removed a leftover hidden sandbag, and changed a meaningless "FLA" label to "40M". Line weight and density match the planes, and nothing is clipped.
+VERIFY: `pip install cairosvg` (plus the cairo DLL on Windows), then `python tools/rasterize.py` and `python tools/rasterize.py --check`. The three targets must report OK; `--check` already passes them on palette, size and element count (129/94/114). Then open Sprites/targets/{airfield,player_hq,enemy_base}.png on #0F2A4A and check that the runway top sits at y=88 in airfield.png.
+REQUESTS: Orchestrator/env: make cairosvg importable for `python` (or point `rasterize.py` at a working renderer). 28 SVGs across the art groups currently fail to render for this reason. Mechanics: the enemy_base ground line moved from y=120 (clipped at the edge) to y=116; check that nothing aligns the base to the old bottom edge.

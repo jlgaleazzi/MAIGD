@@ -92,6 +92,9 @@ namespace Biplanes.Enemies {
                     + "using 1×1 white placeholder.");
                 _sr.sprite = CreateFallbackSprite();
             }
+            // Aircraft sprites face right (ART_STYLE); fighters fly left, so mirror them.
+            _sr.flipX = true;
+            _sr.sortingOrder = 5; // ARCHITECTURE §3 draw order: enemies
 
             // Resolve escort target once at start (no per-frame Find* calls).
             if (!string.IsNullOrEmpty(escortOf)) {

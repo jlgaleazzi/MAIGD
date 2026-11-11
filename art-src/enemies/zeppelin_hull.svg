@@ -1,88 +1,194 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- zeppelin_hull - Enemy airship hull with rib lines -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 220" width="900" height="220">
+<!-- zeppelin_hull: WWI rigid airship, blueprint detail style. Nose faces right. 900x220 -->
+<!-- generated from a small script; edit coordinates here directly if needed -->
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="220" viewBox="0 0 900 220">
+  <defs>
+    <clipPath id="hullClip"><path d="M884,100 C884,62 850,28 770,26 L270,26 C180,26 100,62 36,98 L36,102 C100,138 180,174 270,174 L770,174 C850,172 884,138 884,100 Z"/></clipPath>
+    <pattern id="ribs" x="0" y="0" width="30" height="220" patternUnits="userSpaceOnUse">
+      <line x1="15" y1="0" x2="15" y2="220" stroke="#E8F1FA" stroke-width="0.5" opacity="0.55"/>
+    </pattern>
+    <pattern id="hatch" x="0" y="0" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#E8F1FA" stroke-width="0.5" opacity="0.45"/>
+    </pattern>
+    <rect id="cell" x="0" y="36" width="52" height="128" rx="14"/>
+    <rect id="win" width="5" height="5" rx="0.8"/>
+    <circle id="rivet" r="0.6"/>
+    <path id="cross" d="M-1.2,-1.2 L-6,-10 L6,-10 L1.2,-1.2 L10,-6 L10,6 L1.2,1.2 L6,10 L-6,10 L-1.2,1.2 L-10,6 L-10,-6 Z"/>
+  </defs>
 
-  <!-- Main hull outline (large teardrop) -->
-  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Hull top arc -->
-    <path d="M780,110 C780,60 740,30 660,25
-             C550,18 350,18 200,30
-             C120,38 70,65 45,95 C30,115 25,120 25,120
-             C25,120 30,115 45,95"/>
-
-    <!-- Hull bottom arc -->
-    <path d="M780,110 C780,160 740,190 660,195
-             C550,202 350,202 200,190
-             C120,182 70,155 45,125 C30,105 25,100 25,100"/>
-
-    <!-- Horizontal spine -->
-    <line x1="40" y1="110" x2="780" y2="110" stroke-width="1.5" opacity="0.4"/>
-
-    <!-- Rib lines (vertical arcs across hull) -->
-    <g stroke-width="1.5">
-      <path d="M70,80 C70,95 68,115 70,140"/>
-      <path d="M120,55 C120,75 118,110 120,165"/>
-      <path d="M180,38 C180,60 178,110 180,182"/>
-      <path d="M250,26 C250,50 248,110 250,194"/>
-      <path d="M340,20 C340,45 338,110 340,200"/>
-      <path d="M440,19 C440,44 438,110 440,201"/>
-      <path d="M540,21 C540,46 538,110 540,199"/>
-      <path d="M640,30 C640,55 638,110 640,190"/>
+  <g stroke="#E8F1FA" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- cruciform tail: upper and lower fins with rudders, edge-on elevators -->
+    <g id="fins">
+      <path d="M170,37 L104,18 L58,18 L50,86" stroke-width="1.25"/>
+      <path d="M170,163 L104,182 L58,182 L50,114" stroke-width="1.25"/>
+      <path d="M72,18 L66,82 M72,182 L66,118" stroke-width="0.75" stroke-dasharray="3 2"/>
+      <g stroke-width="0.5" opacity="0.7">
+        <line x1="86" y1="18" x2="86" y2="72.1"/>
+        <line x1="86" y1="182" x2="86" y2="127.9"/>
+        <line x1="114" y1="20.9" x2="114" y2="59.6"/>
+        <line x1="114" y1="179.1" x2="114" y2="140.4"/>
+        <line x1="128" y1="24.9" x2="128" y2="54"/>
+        <line x1="128" y1="175.1" x2="128" y2="146"/>
+        <line x1="142" y1="28.9" x2="142" y2="48.9"/>
+        <line x1="142" y1="171.1" x2="142" y2="151.1"/>
+        <line x1="156" y1="33" x2="156" y2="44.4"/>
+        <line x1="156" y1="167" x2="156" y2="155.6"/>
+      </g>
+      <path d="M175,97.5 L40,96 L17,97 L17,103 L40,104 L175,102.5" stroke-width="1"/>
+      <line x1="30" y1="96.3" x2="30" y2="103.7" stroke-width="0.5"/>
     </g>
 
-    <!-- Gondola (engine car hanging under hull) -->
-    <path d="M270,194 L268,220 L340,220 L338,194"/>
-    <path d="M275,194 C274,200 276,210 278,220" stroke-width="2"/>
-    <line x1="305" y1="194" x2="305" y2="220" stroke-width="1.5"/>
+    <!-- hull outline -->
+    <path d="M884,100 C884,62 850,28 770,26 L270,26 C180,26 100,62 36,98 L36,102 C100,138 180,174 270,174 L770,174 C850,172 884,138 884,100 Z" stroke-width="1.25"/>
 
-    <!-- Gondola windows -->
-    <g stroke-width="1">
-      <circle cx="285" cy="207" r="4"/>
-      <circle cx="298" cy="207" r="4"/>
-      <circle cx="311" cy="207" r="4"/>
-      <circle cx="324" cy="207" r="4"/>
+    <!-- intermediate ring frames and underside hatching, clipped to the hull -->
+    <g clip-path="url(#hullClip)">
+      <rect x="40" y="20" width="840" height="160" fill="url(#ribs)" stroke="none"/>
+      <rect x="40" y="148" width="840" height="32" fill="url(#hatch)" stroke="none"/>
+    </g>
+    <!-- gas cells -->
+    <g id="gascells" stroke-width="0.5" stroke-dasharray="4 3" opacity="0.6">
+      <use href="#cell" x="274"/>
+      <use href="#cell" x="334"/>
+      <use href="#cell" x="394"/>
+      <use href="#cell" x="454"/>
+      <use href="#cell" x="514"/>
+      <use href="#cell" x="574"/>
+      <use href="#cell" x="634"/>
+      <use href="#cell" x="694"/>
+    </g>
+    <!-- main ring frames -->
+    <g id="frames" stroke-width="0.75">
+      <line x1="150" y1="46.3" x2="150" y2="153.7"/>
+      <line x1="210" y1="31.2" x2="210" y2="168.8"/>
+      <line x1="270" y1="26" x2="270" y2="174"/>
+      <line x1="330" y1="26" x2="330" y2="174"/>
+      <line x1="390" y1="26" x2="390" y2="174"/>
+      <line x1="450" y1="26" x2="450" y2="174"/>
+      <line x1="510" y1="26" x2="510" y2="174"/>
+      <line x1="570" y1="26" x2="570" y2="174"/>
+      <line x1="630" y1="26" x2="630" y2="174"/>
+      <line x1="690" y1="26" x2="690" y2="174"/>
+      <line x1="750" y1="26" x2="750" y2="174"/>
+      <line x1="810" y1="30.3" x2="810" y2="169.7"/>
+      <line x1="850" y1="44.8" x2="850" y2="155.2"/>
+    </g>
+    <!-- longitudinal girders (cylinder seen side-on) -->
+    <g id="girders" stroke-width="0.75" opacity="0.9">
+      <path d="M884,100 C884,64.9 850,33.5 770,31.6 L270,31.6 C180,31.6 100,64.9 36,98.2"/>
+      <path d="M884,100 C884,135.1 850,166.5 770,168.4 L270,168.4 C180,168.4 100,135.1 36,101.8"/>
+      <path d="M884,100 C884,73.1 850,49.1 770,47.7 L270,47.7 C180,47.7 100,73.1 36,98.6"/>
+      <path d="M884,100 C884,126.9 850,150.9 770,152.3 L270,152.3 C180,152.3 100,126.9 36,101.4"/>
+      <path d="M884,100 C884,85.5 850,72.4 770,71.7 L270,71.7 C180,71.7 100,85.5 36,99.2"/>
+      <path d="M884,100 C884,114.5 850,127.6 770,128.3 L270,128.3 C180,128.3 100,114.5 36,100.8"/>
+      <line x1="36" y1="100" x2="884" y2="100" stroke-width="0.5" stroke-dasharray="10 3 2 3" opacity="0.7"/>
+    </g>
+    <!-- nose cap and mooring point -->
+    <g stroke-width="0.75">
+      <path d="M872,72 C880,84 880,116 872,128"/>
+      <circle cx="884" cy="100" r="2.5" stroke-width="1"/>
+      <path d="M884,100 L874,80 M884,100 L874,120 M884,100 L870,100" stroke-width="0.5"/>
+    </g>
+    <!-- dorsal hatches -->
+    <g stroke-width="0.5" opacity="0.8">
+      <path d="M300,26 L302,22 L312,22 L314,26"/>
+      <path d="M520,26 L522,22 L532,22 L534,26"/>
+      <path d="M700,26 L702,22 L712,22 L714,26"/>
     </g>
 
-    <!-- Gondola support struts -->
-    <g stroke-width="1.5">
-      <line x1="270" y1="194" x2="268" y2="198"/>
-      <line x1="338" y1="194" x2="340" y2="198"/>
+    <!-- forward control car -->
+    <g id="controlcar">
+      <path d="M648,184 L734,184 C744,186 748,196 740,204 L658,204 C652,200 649,192 648,184 Z" stroke-width="1.25"/>
+      <line x1="650" y1="196" x2="744" y2="196" stroke-width="0.5" opacity="0.8"/>
+      <g stroke-width="0.5">
+        <use href="#win" x="656" y="187.5"/>
+        <use href="#win" x="665" y="187.5"/>
+        <use href="#win" x="674" y="187.5"/>
+        <use href="#win" x="683" y="187.5"/>
+        <use href="#win" x="692" y="187.5"/>
+        <use href="#win" x="701" y="187.5"/>
+        <use href="#win" x="710" y="187.5"/>
+        <use href="#win" x="719" y="187.5"/>
+        <use href="#win" x="728" y="187.5"/>
+      </g>
+      <path d="M656,184 L646,174 M726,184 L736,174 M690,184 L690,174" stroke-width="0.75"/>
+      <path d="M656,184 L690,174 M690,184 L656,174 M690,184 L726,174 M726,184 L690,174" stroke-width="0.5" opacity="0.7"/>
+      <g stroke-width="0.5" opacity="0.6">
+        <line x1="662" y1="203.5" x2="667" y2="197.5"/>
+        <line x1="670" y1="203.5" x2="675" y2="197.5"/>
+        <line x1="678" y1="203.5" x2="683" y2="197.5"/>
+        <line x1="686" y1="203.5" x2="691" y2="197.5"/>
+        <line x1="694" y1="203.5" x2="699" y2="197.5"/>
+        <line x1="702" y1="203.5" x2="707" y2="197.5"/>
+        <line x1="710" y1="203.5" x2="715" y2="197.5"/>
+        <line x1="718" y1="203.5" x2="723" y2="197.5"/>
+        <line x1="726" y1="203.5" x2="731" y2="197.5"/>
+        <line x1="734" y1="203.5" x2="739" y2="197.5"/>
+      </g>
+    </g>
+    <!-- aft engine car with pusher propeller -->
+    <g>
+      <path d="M256,186 L308,186 C314,188 314,200 306,206 L260,206 C254,202 252,192 256,186 Z" stroke-width="1.25"/>
+      <path d="M290,190 L306,190 L306,202 L290,202 Z" stroke-width="0.5"/>
+      <path d="M293,190 L293,202 M296,190 L296,202 M299,190 L299,202 M302,190 L302,202" stroke-width="0.5" opacity="0.8"/>
+      <use href="#win" x="264" y="190" stroke-width="0.5"/>
+      <use href="#win" x="272" y="190" stroke-width="0.5"/>
+      <path d="M260,186 L252,174 M304,186 L312,174 M260,186 L304,174 M304,186 L260,174" stroke-width="0.75"/>
+      <line x1="252" y1="196" x2="242" y2="196" stroke-width="0.75"/>
+      <ellipse cx="241" cy="196" rx="2.5" ry="12" stroke-width="0.75" stroke-dasharray="3 2"/>
+      <line x1="241" y1="186" x2="241" y2="206" stroke-width="0.75"/>
+      <g fill="#E8F1FA" stroke="none">
+        <use href="#rivet" x="262" y="203.5"/>
+        <use href="#rivet" x="270" y="203.5"/>
+        <use href="#rivet" x="278" y="203.5"/>
+        <use href="#rivet" x="286" y="203.5"/>
+        <use href="#rivet" x="294" y="203.5"/>
+      </g>
+    </g>
+    <!-- midships wing engine car -->
+    <g>
+      <path d="M476,186 L528,186 C534,188 534,200 526,206 L480,206 C474,202 472,192 476,186 Z" stroke-width="1.25"/>
+      <path d="M510,190 L526,190 L526,202 L510,202 Z" stroke-width="0.5"/>
+      <path d="M513,190 L513,202 M516,190 L516,202 M519,190 L519,202 M522,190 L522,202" stroke-width="0.5" opacity="0.8"/>
+      <use href="#win" x="484" y="190" stroke-width="0.5"/>
+      <use href="#win" x="492" y="190" stroke-width="0.5"/>
+      <path d="M480,186 L472,174 M524,186 L532,174 M480,186 L524,174 M524,186 L480,174" stroke-width="0.75"/>
+      <line x1="472" y1="196" x2="462" y2="196" stroke-width="0.75"/>
+      <ellipse cx="461" cy="196" rx="2.5" ry="12" stroke-width="0.75" stroke-dasharray="3 2"/>
+      <line x1="461" y1="186" x2="461" y2="206" stroke-width="0.75"/>
+      <g fill="#E8F1FA" stroke="none">
+        <use href="#rivet" x="482" y="203.5"/>
+        <use href="#rivet" x="490" y="203.5"/>
+        <use href="#rivet" x="498" y="203.5"/>
+        <use href="#rivet" x="506" y="203.5"/>
+        <use href="#rivet" x="514" y="203.5"/>
+      </g>
     </g>
 
-    <!-- Tail fin -->
-    <path d="M50,95 L30,30 L60,90"/>
-    <path d="M50,125 L30,190 L60,130" stroke-width="2"/>
-
-    <!-- Horizontal tail plane -->
-    <path d="M40,92 L18,75 L45,95" stroke-width="2"/>
-    <path d="M40,128 L18,145 L45,125" stroke-width="2"/>
-
-    <!-- Tail fins (vertical stabilizers) -->
-    <path d="M35,85 L32,50 L42,82" stroke-width="2"/>
-    <path d="M35,135 L32,170 L42,138" stroke-width="2"/>
-
-    <!-- Engine nacelles under gondola -->
-    <g stroke-width="2">
-      <path d="M275,220 C275,228 278,232 282,230 L285,210 C282,208 278,210 275,214"/>
-      <path d="M325,220 C325,228 322,232 318,230 L315,210 C318,208 322,210 325,214"/>
+    <!-- registration L 59 on the hull, stroked glyphs -->
+    <g stroke-width="1" opacity="0.9">
+      <path d="M780,52 L780,70 L790,70"/>
+      <path d="M808,52 L799,52 L799,60 C806,58 811,62 809,66 C807,71 801,71 799,68"/>
+      <path d="M826,68 C830,72 836,66 835,58 C834,51 826,51 825,56 C824,61 831,63 835,58"/>
     </g>
 
-    <!-- Propeller discs on engines -->
-    <ellipse cx="290" cy="220" rx="6" ry="8" stroke-dasharray="4 4" stroke-width="1.5"/>
-    <ellipse cx="310" cy="220" rx="6" ry="8" stroke-dasharray="4 4" stroke-width="1.5"/>
+    <!-- dimension line and callouts -->
+    <g stroke-width="0.5" opacity="0.6">
+      <path d="M36,92 L36,10 M884,90 L884,10"/>
+      <path d="M38,13 L882,13"/>
+      <path d="M38,13 L44,11 M38,13 L44,15 M882,13 L876,11 M882,13 L876,15"/>
+      <path d="M440,8 L440,11.5 M444,8 L448,8 L446,11.5 M452,8 L456,8 L456,11.5 L452,11.5 M460,8 L460,11.5" stroke-width="0.6"/>
+      <path d="M598,64 L620,44 L650,44"/>
+      <circle cx="656" cy="44" r="5"/>
+      <path d="M655,41.5 L656.5,40.5 L656.5,47.5" stroke-width="0.6"/>
+      <path d="M744,200 L752,208 L790,208"/>
+      <path d="M794,205.5 L798,205.5 L796,211 M800,205.5 L800,211" stroke-width="0.6"/>
+    </g>
   </g>
 
-  <!-- Iron Cross on tail fin -->
-  <g fill="#E4572E" stroke="#E8F1FA" stroke-width="0.8">
-    <path d="M35,60 L36.5,60 L36.5,62 L38,62 L38,63 L36.5,63 L36.5,65 L35,65
-             L35,63 L33.5,63 L33.5,62 L35,62 Z"/>
+  <!-- faction marks: Iron Crosses on the upper and lower fins -->
+  <g fill="#E4572E" stroke="#E8F1FA" stroke-width="0.75">
+    <use href="#cross" transform="translate(98,46) scale(1.25)"/>
+    <use href="#cross" transform="translate(98,154) scale(1.25)"/>
   </g>
-
-  <!-- Dimension line callout for blueprint flavor -->
-  <g stroke="#9DB4CC" opacity="0.6" stroke-width="0.8">
-    <line x1="30" y1="14" x2="780" y2="14"/>
-    <line x1="30" y1="11" x2="30" y2="17"/>
-    <line x1="780" y1="11" x2="780" y2="17"/>
-  </g>
-
 </svg>

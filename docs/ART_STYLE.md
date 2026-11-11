@@ -17,14 +17,27 @@ Owner: art agent. Per the GDD: duotone. Main elements (hero, enemies, targets) a
 Don't use any color outside this table. Accents are used only for faction marks and
 projectiles, so the screen stays duotone.
 
-## Wireframe rules (sprites)
+## Blueprint detail style (sprites)
+This replaces the old wireframe stroke rules (3 / 1.5 px). The target look is the user's
+blueprints in `blueprints/`: dense technical line art. It applies to SVG masters and to
+blueprint-sourced sprites alike.
 - SVG, `viewBox` in pixels at **100 px = 1 Unity unit**. Transparent background.
-- Strokes: `stroke="#E8F1FA"`, `fill="none"`, `stroke-width` 3 (outline), 1.5 (inner
-  structure lines such as struts, ribs and wires), `stroke-linecap="round"`,
-  `stroke-linejoin="round"`.
-- Show the construction: wing ribs, struts, bracing wires and propeller disc as dashed
-  circles (`stroke-dasharray="4 4"`). Add 1 or 2 small dimension-line callouts on large
-  sprites (bomber, zeppelin) for the blueprint flavor.
+- Line widths **at final sprite scale**: outline about **1.25 px**, structure about
+  **0.75 px** (struts, ribs, panel lines, wires), fine detail about **0.5 px**. Strokes are
+  ink `stroke="#E8F1FA"`, `fill="none"`, `stroke-linecap="round"`,
+  `stroke-linejoin="round"`. Fine detail may use `opacity` 0.6 to 0.9.
+- Show the construction detail: panel lines, rivet dots, ribs, struts and bracing wires,
+  wheel spokes and hubs, hatching for shading, and small serial or label marks drawn as
+  tiny stroked paths (no `<text>`). Propeller: a dashed disc plus a blade line.
+- Dimension and callout lines are optional on large sprites (bomber, zeppelin).
+- **No 3 px strokes, and no fills** except faction marks and accents.
+- Accents (only these): `friendly` #F2C14E for player marks, `hostile` #E4572E for Iron
+  Crosses and enemy marks, `heal` #7BD389 for the health cross.
+- Faction marks: player roundel = bullseye with concentric fills friendly / paper /
+  friendly, ink outline. Enemy Iron Cross (cross pattee) = hostile fill, ink outline, on
+  the fuselage and on the tail where visible.
+- Line-weight check: blueprint-sourced sprites are normalized to the same stroke metric
+  (see "Blueprint-sourced sprites"); SVG sprites should look the same weight beside them.
 - **Every aircraft faces right** (+x). Code flips enemies that fly left.
 - Pivot: the sprite's visual center. Keep 8px of padding inside the viewBox.
 
@@ -39,9 +52,9 @@ projectiles, so the screen stays duotone.
 ## Asset list (name = file name; size in px)
 | Category | Name | Size | Notes |
 |---|---|---|---|
-| player | `player_biplane` | 160×80 | Bullseye roundel on the fuselage center (friendly fill) |
-| player | `player_biplane_frame2` | 160×80 | Propeller animation frame |
-| enemies | `enemy_fighter` | 150×75 | Iron Cross on fuselage and tail (hostile) |
+| player | `player_biplane` | 160×80 | **From `blueprints/airplane_blueprint_256px.png`** via `tools/import_blueprints.py` (not SVG). "U" plus roundel bullseye on the fuselage; the roundel is coloured friendly / paper / friendly by the importer |
+| player | `player_biplane_frame2` | 160×80 | Propeller animation frame 2. **From the same blueprint** via `tools/import_blueprints.py`: identical to `player_biplane` (same crop and pivot) except the propeller, which is a dashed disc with a short foreshortened blade |
+| enemies | `enemy_fighter` | 150×75 | **From `blueprints/fokker_blueprint_transparent_256px.png`** via `tools/import_blueprints.py` (not SVG), mirrored to face right. Iron Crosses on fuselage and tail, coloured hostile with ink outline by the importer; line weight normalized to the player |
 | enemies | `enemy_bomber` | 320×140 | Twin engine, gunner positions, Iron Crosses |
 | enemies | `zeppelin_hull` | 900×220 | Rib lines, gondola, Iron Cross on the tail fin |
 | enemies | `zeppelin_turret` | 60×40 | Separate sprite, mounted on the hull |
@@ -60,9 +73,44 @@ projectiles, so the screen stays duotone.
 | ui | `ui_bomb_icon`, `ui_damage_frame`, `ui_panel`, `ui_button` | various | Blueprint-styled |
 | ui | `title_logo` | 1200×300 | "BIPLANES" in blueprint stencil lettering, built from paths (no font dependency) |
 
+## Blueprint-sourced sprites
+Some sprites come from the user's line-art blueprint PNGs in `blueprints/` instead of an
+SVG master. `tools/import_blueprints.py` (its `SPRITES` table is the list) recolours the
+lines to `ink`, mirrors drawings that face left, optionally thickens thin lines, and fits
+them to the asset-list size with 2 px padding. Currently:
+- `player_biplane` <- `blueprints/airplane_blueprint_256px.png`
+- `player_biplane_frame2` <- the same blueprint, propeller erased and redrawn
+- `enemy_fighter` <- `blueprints/fokker_blueprint_transparent_256px.png` (mirrored,
+  alpha gain 2.2)
+
+Their old SVG masters are retired in `art-src/_retired/` (skipped by `rasterize.py`). A
+sprite in the `SPRITES` table must not also have an SVG in `art-src/`.
+
+**Mark colouring.** Each `SPRITES` entry has a `marks` list in *source-pixel*
+coordinates of the blueprint (before mirroring): `roundel` (centre, radius), `cross`
+(centre, arm length, half-width at centre and at the arm end) and `prop` (propeller disc
+for animation frames). The importer draws them vector-style at final size (8x
+supersampled) on top of the line art: opaque palette fills (friendly / paper / friendly
+bullseye; hostile cross) with a 1.25 px ink outline, so the blueprint's own white mark is
+covered. No PNG is hand-painted; re-running the importer reproduces every sprite. An
+`erase` list (source-px boxes) removes parts before the overlay, for example the blurred
+propeller in `player_biplane_frame2`. Frames of one blueprint share its crop box, so they
+line up pixel for pixel.
+
+**Line-weight normalization.** `python tools/import_blueprints.py --metrics` prints, per
+sprite at final size with the marks excluded: the mean effective stroke width (every
+horizontal and vertical run of line pixels with alpha >= 15% and at most 4 px long is a
+cross-section; width = sum(alpha) / 255) and the mean alpha of line pixels. Every
+blueprint sprite must be within 10% of `player_biplane` on both (the reference: about
+0.89 px and 0.44). Tune a sprite with `gain` (alpha multiplier, preferred: keeps lines
+crisp) and only then `grow` (max-filter widening in source px, which gets blobby fast).
+
 ## Pipeline
 1. Write the SVG to `art-src/<category>/<name>.svg`.
 2. Run `python tools/rasterize.py` (renders every changed SVG to
    `Biplanes/Assets/Biplanes/Resources/Sprites/<category>/<name>.png` at 1×, and at 2× for UI).
 3. Check the sprite sheet preview `docs/art/preview.png` the script writes. Open it and
    look at it if your model can read images. Otherwise check the script's report.
+4. Blueprint-sourced sprites: run `python tools/import_blueprints.py` (`rasterize.py`
+   also runs it, so `python tools/rasterize.py --check` covers every sprite). Add
+   `--metrics` to check the line-weight normalization.

@@ -1,41 +1,81 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- barrage_balloon - Large defensive balloon tethered to ground -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 140" width="90" height="140">
+<!-- barrage_balloon: barrage balloon in blueprint detail style, tethered to a ground winch -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="90" height="140" viewBox="0 0 90 140">
+  <defs>
+    <pattern id="ht" width="2.4" height="2.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="2.4" stroke="#E8F1FA" stroke-width="0.5" opacity="0.7"/>
+    </pattern>
+    <clipPath id="envclip">
+      <path d="M45,6 C64,6 75,22 75,38 C75,56 62,72 45,78 C28,72 15,56 15,38 C15,22 26,6 45,6 Z"/>
+    </clipPath>
+    <g id="sidefin">
+      <path d="M27,64 L9,79 L11,86 L32,73" stroke-width="1.25"/>
+      <path d="M26,68 L12,81 M29,70 L13,84 M24,66 L10,80" stroke-width="0.5" opacity="0.8"/>
+      <path d="M19,73 L21,77" stroke-width="0.5" opacity="0.8"/>
+    </g>
+  </defs>
 
-  <!-- Balloon envelope -->
-  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Main balloon shape (tall oval) -->
-    <ellipse cx="45" cy="38" rx="28" ry="34"/>
+  <g fill="none" stroke="#E8F1FA" stroke-linecap="round" stroke-linejoin="round">
+    <!-- shading hatch on the right flank of the envelope -->
+    <path d="M56,7 C70,12 76,26 76,38 C76,58 62,74 45,79 C56,68 63,54 63,38 C63,24 60,14 56,7 Z"
+          fill="url(#ht)" stroke="none" clip-path="url(#envclip)"/>
 
-    <!-- Balloon segmentation lines (horizontal rings) -->
-    <g stroke-width="1.5">
-      <path d="M25,20 C30,18 37,16 45,16 C53,16 60,18 65,20"/>
-      <path d="M22,30 C28,27 36,25 45,25 C54,25 62,27 68,30"/>
-      <path d="M24,42 C30,39 37,37 45,37 C53,37 60,39 66,42"/>
+    <!-- envelope gores (meridian seams) -->
+    <g id="gores" stroke-width="0.75">
+      <path d="M45,6 L45,78" opacity="0.6" stroke-dasharray="3 1.5" stroke-width="0.5"/>
+      <path d="M45,6 C57,20 57,60 45,78"/>
+      <path d="M45,6 C33,20 33,60 45,78"/>
+      <path d="M45,6 C69,20 69,60 45,78" stroke-width="0.5" opacity="0.8"/>
+      <path d="M45,6 C21,20 21,60 45,78" stroke-width="0.5" opacity="0.8"/>
     </g>
 
-    <!-- Balloon vertical seams -->
-    <g stroke-width="1.5">
-      <path d="M45,4 C45,18 45,30 45,72"/>
-      <path d="M35,6 C38,20 38,40 38,70"/>
-      <path d="M55,6 C52,20 52,40 52,70"/>
+    <!-- latitude seams, rigging patch band and rivet dots -->
+    <g id="bands" stroke-width="0.5" opacity="0.85">
+      <path d="M21,22 Q45,27 69,22"/>
+      <path d="M15.5,36 Q45,43 74.5,36" stroke-width="0.75" opacity="1"/>
+      <path d="M15.5,40 Q45,47 74.5,40" stroke-width="0.75" opacity="1"/>
+      <path d="M17,38 Q45,45 73,38" stroke-width="0.9" stroke-dasharray="0 2.6"/>
+      <path d="M21,58 Q45,64 69,58"/>
+      <path d="M38,9 Q45,12 52,9"/>
     </g>
 
-    <!-- Balloon tip -->
-    <line x1="45" y1="4" x2="45" y2="0"/>
+    <!-- crown valve -->
+    <circle cx="45" cy="9.5" r="1.6" stroke-width="0.75"/>
 
-    <!-- Tether cable (zigzag to ground) -->
-    <path d="M45,72 L38,90 L52,108 L35,126 L45,140" stroke-width="1.5" stroke-dasharray="4 2"/>
+    <!-- small label mark "B7" on the envelope, stroked paths -->
+    <path d="M24,47 L24,52 M24,47 L26,47 Q27,48.2 26,49.5 L24,49.5 M26,49.5 Q27.4,50.8 26,52 L24,52 M29,47 L32,47 L30,52"
+          stroke-width="0.5" opacity="0.9"/>
 
-    <!-- Ground anchor point -->
-    <line x1="40" y1="140" x2="50" y2="140" stroke-width="2"/>
-    <circle cx="45" cy="138" r="3" fill="#E8F1FA" stroke-width="1.5"/>
+    <!-- envelope outline -->
+    <path d="M45,6 C64,6 75,22 75,38 C75,56 62,72 45,78 C28,72 15,56 15,38 C15,22 26,6 45,6 Z" stroke-width="1.25"/>
 
-    <!-- Small fins at balloon base -->
-    <g stroke-width="1.5">
-      <path d="M30,72 L22,82 L34,76"/>
-      <path d="M60,72 L68,82 L56,76"/>
+    <!-- stabilising fins: left, mirrored right, ventral lobe -->
+    <use xlink:href="#sidefin"/>
+    <use xlink:href="#sidefin" transform="translate(90,0) scale(-1,1)"/>
+    <path d="M39,75.5 C39,84 42,91 45,91 C48,91 51,84 51,75.5" stroke-width="1.25"/>
+    <path d="M45,78 L45,91 M41,80 Q45,82 49,80 M42,86 Q45,87.5 48,86" stroke-width="0.5" opacity="0.8"/>
+
+    <!-- rigging lines to the load ring -->
+    <g id="rigging" stroke-width="0.5" opacity="0.85">
+      <path d="M22,62 L44,103"/>
+      <path d="M68,62 L46,103"/>
+      <path d="M33,73 L44.5,103"/>
+      <path d="M57,73 L45.5,103"/>
+      <path d="M45,91 L45,103"/>
+      <path d="M11,86 L44,103" opacity="0.6"/>
+      <path d="M79,86 L46,103" opacity="0.6"/>
     </g>
+    <circle cx="45" cy="104.5" r="2" stroke-width="0.75"/>
+
+    <!-- tether cable with marker ticks -->
+    <path d="M45,106.5 C46.2,115 43.8,124 45,131" stroke-width="0.75"/>
+    <path d="M45,106.5 C46.2,115 43.8,124 45,131" stroke-width="2" stroke-dasharray="0.4 5" opacity="0.6"/>
+
+    <!-- ground winch / anchor block -->
+    <path d="M38,131 L52,131 L53,136 L37,136 Z" stroke-width="0.75"/>
+    <path d="M37,136 L53,136" stroke-width="1.25"/>
+    <path d="M40,131 L39.6,136 M50,131 L50.4,136" stroke-width="0.5" opacity="0.7"/>
+    <circle cx="45" cy="133.5" r="1.2" stroke-width="0.5"/>
+    <path d="M32,136 L58,136" stroke-width="0.5" stroke-dasharray="1.5 1.5" opacity="0.6"/>
   </g>
-
 </svg>

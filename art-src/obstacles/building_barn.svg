@@ -1,48 +1,84 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- building_barn - Wireframe barn structure -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 110" width="140" height="110">
-
-  <!-- Barn body and roof -->
-  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Main barn walls -->
-    <path d="M20,110 L20,45 C20,40 25,35 70,10
-             C115,35 120,40 120,45 L120,110"/>
-
-    <!-- Roof peak line -->
-    <line x1="70" y1="10" x2="70" y2="35" stroke-width="2"/>
-
-    <!-- Door (center) -->
-    <path d="M58,110 L58,65 C58,60 62,55 70,55
-             C78,55 82,60 82,65 L82,110" stroke-width="2.5"/>
-
-    <!-- Barn cross-brace (X pattern on doors) -->
-    <g stroke-width="1.5">
-      <line x1="60" y1="68" x2="80" y2="108"/>
-      <line x1="80" y1="68" x2="60" y2="108"/>
+<!-- building_barn: gambrel-roof barn, front elevation with lean-to, blueprint detail style -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="140" height="110" viewBox="0 0 140 110">
+  <defs>
+    <pattern id="boards" width="3.2" height="110" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="0" y2="110" stroke="#E8F1FA" stroke-width="0.5" opacity="0.6"/>
+    </pattern>
+    <pattern id="ht" width="2.4" height="2.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="2.4" stroke="#E8F1FA" stroke-width="0.5" opacity="0.7"/>
+    </pattern>
+    <g id="zdoor">
+      <path d="M0,0 L14,0 L14,38 L0,38 Z" stroke-width="0.75"/>
+      <path d="M0,3 L14,3 M0,19 L14,19 M0,35 L14,35" stroke-width="0.75"/>
+      <path d="M1,4 L13,18 M1,20 L13,34" stroke-width="0.75"/>
+      <path d="M3.5,0 L3.5,38 M7,0 L7,38 M10.5,0 L10.5,38" stroke-width="0.5" opacity="0.6"/>
     </g>
+  </defs>
 
-    <!-- Hay loft windows (round) -->
-    <circle cx="55" cy="30" r="7" stroke-width="2"/>
-    <line x1="48" y1="30" x2="62" y2="30" stroke-width="1"/>
-    <line x1="55" y1="23" x2="55" y2="37" stroke-width="1"/>
+  <g fill="none" stroke="#E8F1FA" stroke-linecap="round" stroke-linejoin="round">
+    <!-- board-and-batten siding on the gable wall -->
+    <path d="M24,104 L24,54 L35,34 L66,16 L97,34 L108,54 L108,104 Z" fill="url(#boards)" stroke="none"/>
+    <!-- lean-to siding -->
+    <path d="M108,104 L108,66 L128,77 L128,104 Z" fill="url(#boards)" stroke="none"/>
 
-    <circle cx="85" cy="30" r="7" stroke-width="2"/>
-    <line x1="78" y1="30" x2="92" y2="30" stroke-width="1"/>
-    <line x1="85" y1="23" x2="85" y2="37" stroke-width="1"/>
+    <!-- shading: under the eaves and the lean-to shadow side -->
+    <path d="M24,54 L35,34 L66,16 L97,34 L108,54 L108,60 L97,40 L66,22 L35,40 L24,60 Z" fill="url(#ht)" stroke="none"/>
+    <path d="M118,71.5 L128,77 L128,104 L118,104 Z" fill="url(#ht)" stroke="none"/>
 
-    <!-- Barn siding lines -->
-    <g stroke-width="1.5">
-      <line x1="30" y1="50" x2="30" y2="110"/>
-      <line x1="45" y1="48" x2="45" y2="110"/>
-      <line x1="95" y1="48" x2="95" y2="110"/>
-      <line x1="110" y1="50" x2="110" y2="110"/>
-    </g>
+    <!-- gambrel roof: bargeboard outer and inner line, shingle butts along the roof band -->
+    <path d="M17,57 L31,31 L66,11 L101,31 L115,57" stroke-width="1.25"/>
+    <path d="M24,54 L35,34 L66,16 L97,34 L108,54" stroke-width="0.75"/>
+    <path d="M20.5,55.5 L33,32.5 L66,13.5 L99,32.5 L111.5,55.5" stroke-width="2" stroke-dasharray="0.4 1.8" opacity="0.7"/>
+    <path d="M31,31 L35,34 M101,31 L97,34 M66,11 L66,16" stroke-width="0.5"/>
+    <!-- hay hood and hoist beam at the ridge -->
+    <path d="M60,19.5 L66,15 L72,19.5 M66,15 L66,9 M62,9 L70,9" stroke-width="0.75"/>
+    <path d="M66,9 L66,4.5" stroke-width="0.5"/>
+    <path d="M64.5,6 L67.5,6" stroke-width="0.5"/>
 
-    <!-- Foundation / base line -->
-    <line x1="18" y1="110" x2="122" y2="110" stroke-width="2.5"/>
+    <!-- timber frame: corner posts, sill, plate, girts -->
+    <path d="M24,54 L24,104 M108,54 L108,104" stroke-width="1.25"/>
+    <path d="M27,52 L27,104 M105,52 L105,104" stroke-width="0.75"/>
+    <path d="M24,56 L108,56 M24,59 L108,59" stroke-width="0.75"/>
+    <path d="M24,100 L108,100" stroke-width="0.75"/>
+    <path d="M27,78 L51,78 M81,78 L105,78" stroke-width="0.5" opacity="0.8"/>
+    <path d="M27,59 L37,69 M105,59 L95,69" stroke-width="0.5" opacity="0.8"/>
 
-    <!-- Gable end triangle detail -->
-    <path d="M60,45 L70,20 L80,45" stroke-width="1.5"/>
+    <!-- hay loft door with cross brace -->
+    <path d="M56,24 L76,24 L76,48 L56,48 Z" stroke-width="0.75"/>
+    <path d="M58,26 L74,26 L74,46 L58,46 Z M58,26 L74,46 M74,26 L58,46" stroke-width="0.5"/>
+
+    <!-- loft vents -->
+    <path d="M38,42 L46,42 L46,50 L38,50 Z M86,42 L94,42 L94,50 L86,50 Z" stroke-width="0.75"/>
+    <path d="M38,44.5 L46,44.5 M38,47 L46,47 M86,44.5 L94,44.5 M86,47 L94,47" stroke-width="0.5" opacity="0.8"/>
+
+    <!-- main double doors (Z-braced) on the track rail -->
+    <path d="M50,62 L82,62" stroke-width="0.75"/>
+    <path d="M51,62 L51,60.5 M66,62 L66,60.5 M81,62 L81,60.5" stroke-width="0.5"/>
+    <use xlink:href="#zdoor" transform="translate(52,64)"/>
+    <use xlink:href="#zdoor" transform="translate(80,64) scale(-1,1)"/>
+    <path d="M51,64 L51,102 L81,102 L81,64" stroke-width="1.25"/>
+    <path d="M64,84 L64,86 M68,84 L68,86" stroke-width="0.9"/>
+
+    <!-- side windows (four lights each) -->
+    <path d="M33,82 L43,82 L43,92 L33,92 Z M38,82 L38,92 M33,87 L43,87" stroke-width="0.75"/>
+    <path d="M89,82 L99,82 L99,92 L89,92 Z M94,82 L94,92 M89,87 L99,87" stroke-width="0.75"/>
+    <path d="M32,93 L44,93 M88,93 L100,93" stroke-width="0.5"/>
+
+    <!-- lean-to: roof, posts, small door -->
+    <path d="M106,63.5 L131,77.5" stroke-width="1.25"/>
+    <path d="M108,66 L128,77" stroke-width="0.75"/>
+    <path d="M107,64.8 L129.5,77.3" stroke-width="2" stroke-dasharray="0.4 1.8" opacity="0.7"/>
+    <path d="M128,77 L128,104" stroke-width="1.25"/>
+    <path d="M113,104 L113,82 L122,82 L122,104 M113,93 L122,93" stroke-width="0.75"/>
+
+    <!-- stone footing and ground line -->
+    <path d="M22,104 L130,104" stroke-width="1.25"/>
+    <path d="M24,102 L128,102" stroke-width="0.5" stroke-dasharray="4 1.2" opacity="0.7"/>
+    <path d="M10,104 L20,104 M132,104 L134,104" stroke-width="0.5" opacity="0.6"/>
+
+    <!-- small label mark: section arrow and "2" on the footing -->
+    <path d="M10,98 L14,98 M12.5,96.5 L14,98 L12.5,99.5 M16,96.5 Q17.6,96 17.8,97.4 Q17.6,98.6 16,100 L18,100"
+          stroke-width="0.5" opacity="0.8"/>
   </g>
-
 </svg>

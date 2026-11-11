@@ -1,21 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- health_balloon: supply balloon pickup, blueprint detail style, heal cross on the envelope -->
 <svg xmlns="http://www.w3.org/2000/svg" width="70" height="100" viewBox="0 0 70 100">
-  <g id="balloon" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <!-- balloon outline -->
-    <ellipse cx="35" cy="28" rx="22" ry="26" stroke="#E8F1FA" stroke-width="2.5"/>
-    <!-- inner structural line (wireframe) -->
-    <line x1="35" y1="4" x2="35" y2="52" stroke="#E8F1FA" stroke-width="1.5" opacity="0.5"/>
-    <ellipse cx="35" cy="28" rx="14" ry="18" stroke="#E8F1FA" stroke-width="1" opacity="0.4"/>
-    <!-- tether line -->
-    <line x1="35" y1="54" x2="35" y2="76" stroke="#9DB4CC" stroke-width="1.5"/>
+  <defs>
+    <pattern id="ht" width="2.4" height="2.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="2.4" stroke="#E8F1FA" stroke-width="0.5" opacity="0.7"/>
+    </pattern>
+    <pattern id="wicker" width="2.5" height="2.5" patternUnits="userSpaceOnUse">
+      <path d="M0,0 L2.5,2.5 M2.5,0 L0,2.5" stroke="#E8F1FA" stroke-width="0.4" opacity="0.7" fill="none"/>
+    </pattern>
+    <clipPath id="envclip">
+      <path d="M35,6 C49,6 59,17 59,30 C59,44 47,54 35,62 C23,54 11,44 11,30 C11,17 21,6 35,6 Z"/>
+    </clipPath>
+  </defs>
+
+  <g fill="none" stroke="#E8F1FA" stroke-linecap="round" stroke-linejoin="round">
+    <!-- shading hatch on the right flank -->
+    <path d="M45,7 C56,11 60,20 60,30 C60,46 46,56 35,63 C44,54 50,44 50,30 C50,20 48,12 45,7 Z" fill="url(#ht)" stroke="none" clip-path="url(#envclip)"/>
+
+    <!-- gores -->
+    <path d="M35,6 C44,18 44,46 35,62 M35,6 C26,18 26,46 35,62" stroke-width="0.75"/>
+    <path d="M35,6 C54,18 54,44 35,62 M35,6 C16,18 16,44 35,62" stroke-width="0.5" opacity="0.8"/>
+
+    <!-- latitude seams, equator load band with rivet dots, crown valve -->
+    <path d="M16,18 Q35,22 54,18 M14.5,44 Q35,49 55.5,44" stroke-width="0.5" opacity="0.8"/>
+    <path d="M11.2,32 Q35,38 58.8,32" stroke-width="0.75"/>
+    <path d="M12,34.5 Q35,40.5 58,34.5" stroke-width="0.9" stroke-dasharray="0 2.6" opacity="0.85"/>
+    <circle cx="35" cy="9" r="1.5" stroke-width="0.75"/>
+
+    <!-- envelope outline -->
+    <path d="M35,6 C49,6 59,17 59,30 C59,44 47,54 35,62 C23,54 11,44 11,30 C11,17 21,6 35,6 Z" stroke-width="1.25"/>
+
+    <!-- appendix neck and load ring -->
+    <path d="M32,60 L33,66 L37,66 L38,60" stroke-width="0.75"/>
+    <circle cx="35" cy="68" r="1.6" stroke-width="0.75"/>
+
+    <!-- rigging lines: envelope to ring, ring to basket corners -->
+    <path d="M15,44 L34,67 M55,44 L36,67 M24,53 L34.5,67 M46,53 L35.5,67" stroke-width="0.5" opacity="0.8"/>
+    <path d="M34,69.5 L27,82 M36,69.5 L43,82 M35,69.6 L35,82 M34.5,69.6 L31,82 M35.5,69.6 L39,82" stroke-width="0.5" opacity="0.85"/>
+
+    <!-- basket: rim, wicker weave, ribs, skid -->
+    <path d="M27,83 L43,83 L42,94 L28,94 Z" fill="url(#wicker)" stroke="none"/>
+    <path d="M26,82 L44,82 L44,84 L26,84 Z" stroke-width="0.75"/>
+    <path d="M27,84 L28,94 L42,94 L43,84" stroke-width="1.25"/>
+    <path d="M31.5,84 L32,94 M35,84 L35,94 M38.5,84 L38,94" stroke-width="0.5" opacity="0.8"/>
+    <path d="M27,96 L43,96" stroke-width="0.5" opacity="0.7"/>
+
+    <!-- small label mark on the basket rim side -->
+    <path d="M46,88 L49,88 M47.5,86.5 L47.5,89.5" stroke-width="0.5" opacity="0.8"/>
   </g>
-  <!-- heal cross on balloon -->
-  <g id="cross" fill="#7BD389" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="27" y="20" width="16" height="4" rx="1"/>
-    <rect x="32" y="15" width="6" height="14" rx="1"/>
-  </g>
-  <!-- small basket -->
-  <g id="basket" stroke="#E8F1FA" fill="none" stroke-width="2" stroke-linejoin="round">
-    <rect x="27" y="76" width="16" height="10" rx="2"/>
-    <line x1="35" y1="54" x2="35" y2="76" stroke-width="1.5"/>
-  </g>
+
+  <!-- heal cross: filled accent, ink outline -->
+  <path d="M31.5,16 L38.5,16 L38.5,23.5 L46,23.5 L46,30.5 L38.5,30.5 L38.5,38 L31.5,38 L31.5,30.5 L24,30.5 L24,23.5 L31.5,23.5 Z"
+        fill="#7BD389" stroke="#E8F1FA" stroke-width="0.75" stroke-linejoin="round"/>
 </svg>

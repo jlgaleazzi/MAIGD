@@ -1,43 +1,74 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- building_house - Wireframe village house -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 110" width="140" height="110">
-
-  <!-- House body and roof -->
-  <g stroke="#E8F1FA" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Main walls (rectangular) -->
-    <path d="M25,110 L25,45 C25,42 28,40 70,25
-             C112,40 115,42 115,45 L115,110" stroke-width="2.5"/>
-
-    <!-- Roof peak -->
-    <path d="M18,48 L70,12 L122,48"/>
-
-    <!-- Chimney -->
-    <path d="M95,20 L95,5 C95,3 97,2 100,2 C103,2 105,3 105,5 L105,45"/>
-
-    <!-- Door -->
-    <path d="M60,110 L60,72 C60,68 64,65 70,65 C76,65 80,68 80,72 L80,110" stroke-width="2.5"/>
-
-    <!-- Door knob -->
-    <circle cx="76" cy="88" r="2" fill="#E8F1FA" stroke-width="1.5"/>
-
-    <!-- Left window -->
-    <path d="M40,60 L40,80 L60,80 L60,60 C60,56 56,54 50,54 C44,54 40,56 40,60" stroke-width="2"/>
-    <line x1="50" y1="54" x2="50" y2="80" stroke-width="1"/>
-    <line x1="40" y1="67" x2="60" y2="67" stroke-width="1"/>
-
-    <!-- Right window -->
-    <path d="M80,60 L80,80 L100,80 L100,60 C100,56 96,54 90,54 C84,54 80,56 80,60" stroke-width="2"/>
-    <line x1="90" y1="54" x2="90" y2="80" stroke-width="1"/>
-    <line x1="80" y1="67" x2="100" y2="67" stroke-width="1"/>
-
-    <!-- Foundation line -->
-    <line x1="22" y1="110" x2="118" y2="110" stroke-width="2.5"/>
-
-    <!-- Roof shingle lines (decorative) -->
-    <g stroke-width="1">
-      <path d="M45,38 L70,18 L95,38"/>
-      <path d="M40,43 L70,22 L100,43"/>
+<!-- building_house: half-timbered village house with hipped shingle roof, blueprint detail style -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="140" height="110" viewBox="0 0 140 110">
+  <defs>
+    <pattern id="shingle" width="6" height="6.8" patternUnits="userSpaceOnUse" y="26">
+      <path d="M0,0.25 L6,0.25 M0,3.65 L6,3.65 M0.25,0.25 L0.25,3.65 M3.25,3.65 L3.25,6.8" stroke="#E8F1FA" stroke-width="0.5" opacity="0.65" fill="none"/>
+    </pattern>
+    <pattern id="ht" width="2.4" height="2.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="2.4" stroke="#E8F1FA" stroke-width="0.5" opacity="0.7"/>
+    </pattern>
+    <g id="window">
+      <path d="M0,0 L12,0 L12,11 L0,11 Z" stroke-width="0.75"/>
+      <path d="M6,0 L6,11 M0,4.5 L12,4.5" stroke-width="0.5"/>
+      <path d="M-1,12 L13,12" stroke-width="0.75"/>
+      <path d="M-4,0 L-1,0 L-1,11 L-4,11 Z M13,0 L16,0 L16,11 L13,11 Z" stroke-width="0.5" opacity="0.85"/>
+      <path d="M-4,0 L-1,11 M16,0 L13,11" stroke-width="0.5" opacity="0.6"/>
     </g>
-  </g>
+    <path id="xbrace" d="M0,0 L24,18 M24,0 L0,18" stroke-width="0.5" opacity="0.85"/>
+  </defs>
 
+  <g fill="none" stroke="#E8F1FA" stroke-linecap="round" stroke-linejoin="round">
+    <!-- chimney on the ridge -->
+    <path d="M92,26 L92,13 L101,13 L101,26" stroke-width="1.25"/>
+    <path d="M90.5,13 L102.5,13 L102.5,10.5 L90.5,10.5 Z" stroke-width="0.75"/>
+    <path d="M92,17 L101,17 M92,21 L101,21 M96.5,13 L96.5,17 M94,17 L94,21 M99,17 L99,21 M96.5,21 L96.5,26" stroke-width="0.5" opacity="0.7"/>
+    <path d="M97,13 L101,13 L101,26 L97,26 Z" fill="url(#ht)" stroke="none"/>
+
+    <!-- hipped roof with shingle courses -->
+    <path d="M12,62 L34,26 L106,26 L128,62 Z" fill="url(#shingle)" stroke="none"/>
+    <path d="M12,62 L34,26 L106,26 L128,62 Z" stroke-width="1.25"/>
+    <path d="M34,28 L106,28" stroke-width="0.75"/>
+    <path d="M13.5,59.5 L126.5,59.5" stroke-width="0.75"/>
+    <!-- dormer -->
+    <path d="M62,48 L62,40 L70,34 L78,40 L78,48" stroke-width="0.75"/>
+    <path d="M65,48 L65,41 L75,41 L75,48 Z M70,41 L70,48" stroke-width="0.5"/>
+    <path d="M60,41.5 L70,33 L80,41.5" stroke-width="1.25"/>
+
+    <!-- shading under the eaves -->
+    <path d="M20,62 L120,62 L120,67 L20,67 Z" fill="url(#ht)" stroke="none"/>
+
+    <!-- wall outline -->
+    <path d="M20,62 L20,104 M120,62 L120,104" stroke-width="1.25"/>
+
+    <!-- timber frame: plate, sill, posts, mid rail -->
+    <path d="M20,65 L120,65 M20,97 L120,97" stroke-width="0.75"/>
+    <path d="M24,65 L24,97 M48,65 L48,97 M58,65 L58,97 M82,65 L82,97 M92,65 L92,97 M116,65 L116,97" stroke-width="0.75"/>
+    <path d="M24,81 L58,81 M82,81 L116,81" stroke-width="0.75"/>
+    <path d="M48,65 L58,81 M58,81 L48,97 M92,65 L82,81 M82,81 L92,97" stroke-width="0.5" opacity="0.85"/>
+    <use xlink:href="#xbrace" transform="translate(24,80)" />
+    <use xlink:href="#xbrace" transform="translate(92,80)" />
+
+    <!-- windows with shutters -->
+    <use xlink:href="#window" transform="translate(30,68)"/>
+    <use xlink:href="#window" transform="translate(98,68)"/>
+
+    <!-- plank door with strap hinges -->
+    <path d="M63,97 L63,74 Q70,69 77,74 L77,97" stroke-width="1.25"/>
+    <path d="M66.5,72 L66.5,97 M70,71 L70,97 M73.5,72 L73.5,97" stroke-width="0.5" opacity="0.7"/>
+    <path d="M63,78 L69,78 M63,91 L69,91" stroke-width="0.75"/>
+    <path d="M74.5,85 L74.5,86.5" stroke-width="1"/>
+    <path d="M61,70.5 Q70,65 79,70.5" stroke-width="0.75"/>
+    <path d="M60,97 L80,97" stroke-width="0.75"/>
+
+    <!-- stone plinth and ground line -->
+    <path d="M20,100.5 L120,100.5" stroke-width="0.5" stroke-dasharray="5 1.4" opacity="0.7"/>
+    <path d="M18,104 L122,104" stroke-width="1.25"/>
+    <path d="M8,104 L15,104 M125,104 L132,104" stroke-width="0.5" opacity="0.6"/>
+
+    <!-- small label mark "H3" and a level tick -->
+    <path d="M8,92 L8,97 M11,92 L11,97 M8,94.5 L11,94.5 M13,92.2 Q15.5,91.6 15.2,93.6 Q14.8,94.4 14,94.5 Q15.6,95 15.2,96.4 Q14.6,97.6 13,96.8"
+          stroke-width="0.5" opacity="0.8"/>
+    <path d="M128,62 L132,62 M130,60.5 L130,63.5" stroke-width="0.5" opacity="0.7"/>
+  </g>
 </svg>
