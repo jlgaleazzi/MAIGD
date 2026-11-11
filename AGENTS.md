@@ -13,6 +13,12 @@ contract lives in `docs/ARCHITECTURE.md`.
 | `mission-design` | subagent | The 5 mission JSON files, mission docs, balance tuning proposals |
 | `qa` | subagent | Tests, compile/build verification, bug reports, playtest checklists |
 
+The crew runs in two harnesses that share this file, the board, the handoffs and the file
+ownership:
+- **opencode** (`.opencode/agents/`) runs on the local model.
+- **Claude Code** (`.claude/agents/`) runs the same four subagents, and the main session
+  plays `orchestrator` (see `CLAUDE.md`). Claude crew tasks may touch up to 6 files.
+
 ## Working rules (this crew runs on a local 35B model, so keep things small and explicit)
 1. **One task at a time.** A task touches **at most 3 files**. If yours needs more, finish
    the first 3, then report `STATUS: PARTIAL` and list what's left.
@@ -45,3 +51,6 @@ Then reply to the orchestrator with only the handoff content.
 - `tools/unity.sh <compile|test|scenes|webgl|windows|mac|all>` runs Unity in batch mode
   when `UNITY_PATH` is set. If it exits with code 3 ("Unity not available"), that's not a
   failure. Note it in the handoff, and QA falls back to static checks.
+- `python tools/compile_check.py` compile-checks both assemblies with dotnet against Unity's
+  compiled DLLs. It works even while the Unity editor has the project open. Exit codes:
+  0 = pass, 1 = errors, 3 = can't run.
