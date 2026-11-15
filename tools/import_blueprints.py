@@ -16,6 +16,8 @@ script is their "rasterize" step. For each entry in SPRITES it:
   (docs/ART_STYLE.md); code flips enemies that fly left;
 - crops it to the drawing, then fits it inside the ART_STYLE size with 2 px padding,
   centred on a transparent canvas;
+- puts an opaque `paper` silhouette under every aircraft (`add_backing`), so no
+  background shows through the plane (opt out per sprite with backing=False);
 - draws the faction `marks` (and other overlays) on top in palette colours. Mark
   coordinates are in SOURCE pixels of the blueprint (before mirroring); they are drawn
   vector-style at final size with 8x supersampling, so they stay crisp. Mark fills are
@@ -57,6 +59,7 @@ WORK_SCALE = 4   # line processing happens on a 4x upsampled copy of the source
 SUPERSAMPLE = 8  # marks are drawn at 8x final size, then reduced
 MARK_OUTLINE = 1.25  # px at final size (ART_STYLE: outline weight)
 FINE = 0.75          # px at final size (ART_STYLE: structure weight)
+BACKING_CLOSE = 7    # px: how far gaps between wings and struts are bridged by the backing
 
 PLAYER_SRC = "airplane_blueprint_256px.png"
 PLAYER_ROUNDEL = ("roundel", 124.5, 53.0, 14.0)
@@ -81,6 +84,14 @@ SPRITES = {
         grow=0.0, gain=2.2, erase=[],
         marks=[("cross", 143.0, 51.3, 11.2, 1.4, 6.6),    # fuselage
                ("cross", 232.5, 35.0, 10.6, 1.3, 6.2)]),  # tail (rudder)
+    # Bomber (T914): two-seat biplane with a rear gunner; 1 px binary lines, faces left.
+    "enemies/enemy_bomber": dict(
+        src="enemy_bomber_blueprint_clean_256px.png", size=(320, 140), mirror=True,
+        grow=0.0, gain=0.65,
+        # The serial "VII" would read "IIV" once mirrored: erase the two I's, keep the V.
+        erase=[(113, 55, 122, 75)],
+        marks=[("cross", 153.5, 66.5, 13.5, 1.7, 8.0),    # fuselage
+               ("cross", 245.0, 42.5, 8.6, 1.1, 5.1)]),   # tail (rudder)
 }
 
 
@@ -213,8 +224,36 @@ def _render(spec):
     return canvas, lines, marks.getchannel("A")
 
 
+def add_backing(img, close=BACKING_CLOSE):
+    """Put an opaque `paper` silhouette under the line art, so nothing behind the sprite
+    (background hatching, other scenery) shows through the plane.
+
+    The silhouette is the drawing's alpha, closed by `close` px (dilate, then erode) so the
+    gaps between wings, struts and wheels are bridged, with every enclosed hole filled.
+    Its edge is softened by half a pixel. The lines themselves are unchanged.
+    """
+    from PIL import Image, ImageDraw, ImageFilter, ImageOps
+
+    pad = close + 4  # room for the flood fill to reach around the dilated outline
+    a = img.getchannel("A").point(lambda v: 255 if v > 40 else 0)
+    a = ImageOps.expand(a, pad, 0)
+    if close > 1:
+        a = a.filter(ImageFilter.MaxFilter(close))
+    ImageDraw.floodfill(a, (0, 0), 128)              # mark the outside
+    solid = a.point(lambda v: 0 if v == 128 else 255)  # everything not outside
+    if close > 1:
+        solid = solid.filter(ImageFilter.MinFilter(close))
+    solid = solid.crop((pad, pad, pad + img.width, pad + img.height))
+    solid = solid.filter(ImageFilter.GaussianBlur(0.5))
+    out = Image.new("RGBA", img.size, PAPER + (0,))
+    out.putalpha(solid)
+    out.alpha_composite(img.convert("RGBA"))
+    return out
+
+
 def build(spec):
-    return _render(spec)[0]
+    img = _render(spec)[0]
+    return add_backing(img) if spec.get("backing", True) else img
 
 
 def metrics(spec):

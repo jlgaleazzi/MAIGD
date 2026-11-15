@@ -64,7 +64,8 @@ namespace Biplanes.Core {
             if (maxHitPoints > 0f) {
                 // Enemy: the value is damage points (bulletDamage, bombDamage). A mid-air or
                 // ground collision always destroys the enemy.
-                actualDamage = src == DamageSource.Collision ? 100f : percent / maxHitPoints * 100f;
+                bool fatal = src == DamageSource.Collision || src == DamageSource.PlaneCollision;
+                actualDamage = fatal ? 100f : percent / maxHitPoints * 100f;
             } else {
                 // Player: percentage scaled by Balance damageTaken for this source.
                 actualDamage = percent * GetDamageMultiplier(src);
@@ -108,18 +109,30 @@ namespace Biplanes.Core {
             var balance = GameBalance.Get();
             if (balance == null || balance.damageTaken == null) {
                 Debug.LogWarning("Health: GameBalance not loaded — using default multipliers.");
-                return 1f; // fallback: raw percent
+                // A plane collision has a code default (B025); everything else uses raw percent.
+                return src == DamageSource.PlaneCollision ? DamageTakenData.DefaultPlaneCollision : 1f;
             }
 
             switch (src) {
                 case DamageSource.Bullet:
                     return balance.damageTaken.fighterBullet;
                 case DamageSource.Bomb:
-                    return balance.damageTaken.fighterBullet; // fallback to default bullet multiplier
+                    // Only bombers drop bombs that can reach the player (EnemyBomb), so a bomb
+                    // hit scales like the bomber's attack (B007).
+                    return balance.damageTaken.bomberGunner;
                 case DamageSource.Flak:
                     return balance.damageTaken.flak;
+                case DamageSource.ZeppelinTurret:
+                    // Flak from a zeppelin turret (FlakShell spawned with this source).
+                    return balance.damageTaken.zeppelinTurret;
                 case DamageSource.Collision:
                     return balance.damageTaken.collision;
+                case DamageSource.PlaneCollision:
+                    // Mid-air contact with a fighter or bomber: heavy but survivable (B025).
+                    return DamageTakenData.PlaneCollisionOrDefault(balance.damageTaken);
+                case DamageSource.Heal:
+                    // Health balloon restore (negative percent): applied 1:1, no scaling.
+                    return 1f;
                 default:
                     Debug.LogWarning($"Health: unknown DamageSource '{src}', using 1x.");
                     return 1f;

@@ -37,3 +37,7 @@ docs/art/preview.png
 # OS
 .DS_Store
 Thumbs.db
+
+# goal agent: saved model prompts and replies (debug output)
+tools/goal_agent/replies/
+tools/goal_agent/__pycache__/

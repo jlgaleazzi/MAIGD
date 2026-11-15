@@ -1,0 +1,9 @@
+TASK: T919
+AGENT: art
+STATUS: DONE
+FILES: art-src/backgrounds/bg_farmland_far.svg, art-src/backgrounds/bg_farmland_mid.svg, art-src/backgrounds/bg_farmland_near.svg, docs/ART_STYLE.md (background rules section + backgrounds asset row), docs/crew/handoffs/T919-art.md; re-rendered by rasterize.py: Biplanes/Assets/Biplanes/Resources/Sprites/backgrounds/bg_farmland_{far,mid,near}.png
+SUMMARY: Farmland redrawn in the engraved-sketch style. far is opaque (paper, grid, faint stains, contour-hatched hills, steeple village, lattice-sail windmill, engraved cumulus). mid (hedged fields, poplar rows, farmhouses, two-arch bridge over a stream) and near (cellular dry-stone wall, hedgerow, beehive haystacks, fence, grass tufts) have alpha 0 everywhere above y 400 and outside their content. All hatch tiles divide 1920, and seams check clean.
+  Fixes after looking (3 rounds): cloud lobes were see-through circles, so they now get an opaque paper fill with only the upper rim stroked, plus underbelly ruling; the big cloud was clipped at the top, so it moved down; haystacks went from eggs/globes to beehives with meridian straw; the wall ends now step down; stains are fainter; one empty field cell now has hatching; the church and windmill are 1.35-1.4x larger.
+  ART_STYLE.md: "Pencil background rules" is now "Engraved-sketch background rules" (technique line, layer table, readability, tiling, SVG technique). The backgrounds row notes that only far is opaque.
+VERIFY: python tools/rasterize.py --check  -> OK for the 3 bg_farmland files (41/41 OK at handoff; element counts 150/115/142). Check PNG alpha with Pillow: far is fully opaque; mid and near have alpha (0,0) in rows 0-400 and a transparent corner pixel. Visually, stack far+mid+near and confirm the flight band y 120-700 is quiet.
+REQUESTS: none. Note for other background agents: rasterize.py's palette regex treats ids like "#cb0" as 3-digit hex colours, so avoid hex-looking ids in url(#...) references.

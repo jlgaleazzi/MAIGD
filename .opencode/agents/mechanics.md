@@ -61,7 +61,7 @@ and editor automation that make the game run.
   `Application.isBatchMode` is true.
 
 ## GDD mechanics checklist (implement faithfully)
-- WASD movement, Space = hold-to-fire machine gun, Enter = drop a bomb (7 per mission).
+- WASD movement, left mouse = hold-to-fire machine gun, Space = drop a bomb (7 per mission).
 - Damage 0→100%. Smoke trail at ≥ 70%. Crash at 100%. Terrain, building or tree contact
   = crash.
 - Health balloons restore `healthBalloonRestore`.

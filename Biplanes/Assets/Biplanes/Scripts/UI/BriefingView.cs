@@ -7,190 +7,261 @@ using Biplanes.Missions;
 namespace Biplanes.UI {
 
     /// <summary>
-    /// Briefing screen view shown between mission selection and gameplay.
-    /// Displays the current mission's title and briefing text, then auto-transitions
-    /// to Playing after ~5 seconds or when the player presses Start / Enter.
+    /// Briefing screen between mission selection and gameplay (UI_SPEC §3.2): the mission's
+    /// title and briefing text from its JSON, and a "Begin Mission" button. The screen fades
+    /// in over 0.5 s, then starts the mission after 5 s, on Space (Enter also works), or on the button,
+    /// through GameManager.StartMission(mission).
     ///
-    /// Canvas background fades in over 0.5s (UI_SPEC §3.2).
-    /// Built entirely from code — no prefabs (ARCHITECTURE §0 rule 1).
+    /// GameManager.ShowBriefing → SetState(Briefing) → BriefingView.Show(n). Runs on
+    /// unscaled time (the briefing freezes the world at timeScale 0). Built from code on
+    /// its own overlay canvas — no prefabs, no scene objects (ARCHITECTURE §0). Every Image
+    /// gets a sprite, every Text gets LegacyRuntime.ttf (B022 UI rules).
     /// </summary>
     public class BriefingView : MonoBehaviour {
 
-        [SerializeField] private int _currentMission = 1;       // mission number (1-5)
-        [SerializeField] private float _autoDelay = 5f;        // seconds before auto-transition
-        [SerializeField] private float _fadeInDuration = 0.5f; // canvas fade-in duration
+        // ── Layout (reference resolution 1280×720, centre anchored) ───────
 
-        /// <summary>Set by the caller (GameManager) before OnEnable to pick which mission.</summary>
-        public int currentMission { get => _currentMission; set => _currentMission = Mathf.Clamp(value, 1, 5); }
+        private const int   CanvasSortingOrder = 105;   // above HUD and menu
+        private const float ReferenceWidth     = 1280f;
+        private const float ReferenceHeight    = 720f;
+        private const float MatchWidthOrHeight = 0.5f;
 
+        private const float PanelWidth    = 760f;
+        private const float PanelHeight   = 440f;
+
+        private const float TitleY        = 150f;
+        private const float TitleWidth    = 680f;
+        private const float TitleHeight   = 56f;
+        private const int   TitleSize     = 32;
+
+        private const float BriefingY     = 20f;
+        private const float BriefingWidth = 660f;
+        private const float BriefingHeight= 180f;
+        private const int   BriefingSize  = 20;
+
+        private const float ButtonY       = -130f;
+        private const float ButtonWidth   = 240f;
+        private const float ButtonHeight  = 56f;
+        private const int   ButtonSize    = 22;
+        private const float LabelPadding  = 6f;
+
+        private const float HintY         = -182f;
+        private const float HintHeight    = 24f;
+        private const int   HintSize      = 14;
+
+        private const float ColorFadeDuration = 0.1f;
+
+        private const string FontResource     = "LegacyRuntime.ttf";
+        private const string PanelSpritePath  = "Sprites/ui/ui_panel";
+        private const string ButtonSpritePath = "Sprites/ui/ui_button";
+
+        // ── Palette (ART_STYLE / UI_SPEC §2) ───────────────────────────────
+
+        private static readonly Color Paper   = new Color(0.059f, 0.165f, 0.29f, 1f); // #0F2A4A
+        private static readonly Color Ink     = new Color(0.91f, 0.945f, 0.98f, 1f); // #E8F1FA
+        private static readonly Color Pencil  = new Color(0.616f, 0.706f, 0.8f, 1f); // #9DB4CC
+        private static readonly Color Hostile = new Color(0.894f, 0.341f, 0.18f, 1f); // #E4572E
+
+        // ── Timing (UI_SPEC §3.2) ──────────────────────────────────────────
+
+        [SerializeField] private float _autoDelay = 5f;        // seconds after the fade-in
+        [SerializeField] private float _fadeInDuration = 0.5f; // canvas fade-in
+
+        // ── State ──────────────────────────────────────────────────────────
+
+        private static BriefingView _instance;
+        private static Sprite _whiteSprite;
+        private static bool _warnedPanel;
+        private static bool _warnedButton;
+
+        private int _currentMission = 1;
         private MissionData _mission;
-        private Image _canvasImage;   // canvas-level image for Color.a fade
+        private Font _font;
+        private CanvasGroup _group;
         private Text _titleText;
         private Text _briefingText;
-        private Button _beginButton;
-        private bool _isReady = false; // true once fade-in completes or is skipped
-        private int _transitionedCount = 0;
+        private float _elapsed;
+        private bool _transitioned;
 
-        // ── Unity lifecycle ────────────────────────────────────────────────
+        /// <summary>Mission (1-5) this briefing starts.</summary>
+        public int currentMission {
+            get => _currentMission;
+            set => _currentMission = Mathf.Clamp(value, 1, GameManager.MissionCount);
+        }
 
-        private void Awake() {
-            // Create a full-canvas background for Color.a fade-in.
-            var bgObj = new GameObject("CanvasBackground");
-            bgObj.transform.SetParent(transform, false);
-            var bgRect = bgObj.GetComponent<RectTransform>() ?? bgObj.AddComponent<RectTransform>();
-            bgRect.anchorMin = Vector2.zero;
-            bgRect.anchorMax = Vector2.one;
-            bgRect.offsetMin = Vector3.zero;
-            bgRect.offsetMax = Vector3.zero;
+        /// <summary>True while a briefing exists.</summary>
+        public static bool IsShowing => _instance != null;
 
-            _canvasImage = bgObj.AddComponent<Image>();
-            // Ink-colour panel tint per UI_SPEC §2 (paper tone).
-            _canvasImage.color = new Color(0.059f, 0.165f, 0.29f, 0f); // #0F2A4A, a=0 initially
-            bgRect.SetAsFirstSibling(); // behind everything
+        // ── Factory ────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Show the briefing for `missionIndex`: creates "BriefingCanvas" (overlay canvas +
+        /// scaler + raycaster + CanvasGroup, plus an EventSystem if the scene has none). An
+        /// existing briefing is replaced.
+        /// </summary>
+        public static BriefingView Show(int missionIndex) {
+            Hide();
+            MainMenuView.EnsureEventSystem();
+
+            var canvasGO = new GameObject("BriefingCanvas");
+            var canvas = canvasGO.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = CanvasSortingOrder;
+
+            var scaler = canvasGO.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(ReferenceWidth, ReferenceHeight);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = MatchWidthOrHeight;
+
+            canvasGO.AddComponent<GraphicRaycaster>();
+
+            var view = canvasGO.AddComponent<BriefingView>();
+            view.Init(missionIndex); // built here, not in Awake, so it also works outside Play mode
+            return view;
+        }
+
+        /// <summary>Destroy the briefing (its whole canvas). Safe when none exists.</summary>
+        public static void Hide() {
+            if (_instance == null) return;
+            var go = _instance.gameObject;
+            _instance = null;
+            if (Application.isPlaying) Destroy(go); else DestroyImmediate(go);
+        }
+
+        private void Init(int missionIndex) {
+            _instance = this;
+            currentMission = missionIndex;
+            _font = Resources.GetBuiltinResource<Font>(FontResource);
+            _group = gameObject.AddComponent<CanvasGroup>();
+            _group.alpha = 0f;
+            _elapsed = 0f;
+            _transitioned = false;
+
+            LoadMissionData(_currentMission);
             BuildVisuals();
         }
 
-        private void OnEnable() {
-            LoadMissionData(_currentMission);
-            // Start the fade-in and auto-timer.
-            if (_canvasImage != null) {
-                StartCoroutine(FadeInCoroutine());
-            }
-            _isReady = false;
-            _transitionedCount = 0;
+        private void OnDestroy() {
+            if (_instance == this) _instance = null;
         }
+
+        // ── Fade, auto-start and skip (unscaled time) ──────────────────────
 
         private void Update() {
-            if (!_isReady) return;
+            if (_transitioned) return;
 
-            // Allow player to skip the briefing with Enter or Space.
-            var kb = Keyboard.current;
-            if (kb != null && (kb.enterKey.wasPressedThisFrame || kb.spaceKey.wasPressedThisFrame)) {
-                TriggerTransition();
+            _elapsed += Time.unscaledDeltaTime;
+            if (_group != null) {
+                _group.alpha = _fadeInDuration > 0f ? Mathf.Clamp01(_elapsed / _fadeInDuration) : 1f;
             }
-        }
 
-        private void OnDestroy() {
-            StopAllCoroutines();
+            bool ready = _elapsed >= _fadeInDuration;
+            if (!ready) return;
+
+            var kb = Keyboard.current;
+            bool skip = kb != null && (kb.enterKey.wasPressedThisFrame
+                                       || kb.numpadEnterKey.wasPressedThisFrame
+                                       || kb.spaceKey.wasPressedThisFrame);
+            if (skip || _elapsed >= _fadeInDuration + _autoDelay) TriggerTransition();
         }
 
         // ── Visual construction (no prefabs) ───────────────────────────────
 
-        /// <summary>
-        /// Build the briefing panel hierarchy: title text, briefing text, begin button.
-        /// Anchored to the canvas center per UI_SPEC §3.2.
-        /// </summary>
         private void BuildVisuals() {
-            // Container panel (paper bg via background sprite).
-            var panel = new GameObject("BriefingPanel");
-            panel.transform.SetParent(transform, false);
+            // Full-screen paper backdrop: hides the world behind the briefing.
+            var backdrop = NewRect("Backdrop", transform);
+            backdrop.anchorMin = Vector2.zero;
+            backdrop.anchorMax = Vector2.one;
+            backdrop.pivot = new Vector2(0.5f, 0.5f);
+            backdrop.anchoredPosition = Vector2.zero;
+            backdrop.sizeDelta = Vector2.zero;
+            var backdropImg = backdrop.gameObject.AddComponent<Image>();
+            backdropImg.sprite = WhiteSprite();
+            backdropImg.color = Paper;
+            backdropImg.raycastTarget = true;
 
-            var rect = panel.GetComponent<RectTransform>() ?? panel.AddComponent<RectTransform>();
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = Vector3.zero;
-            rect.offsetMax = Vector3.zero;
-
-            var panelImg = panel.AddComponent<Image>();
-            // Try loading a background sprite; fall back to white if missing.
-            var bgSprite = Resources.Load<Sprite>("Sprites/ui/ui_panel");
-            if (bgSprite != null) {
-                panelImg.sprite = bgSprite;
+            var panel = NewRect("BriefingPanel", transform);
+            Place(panel, Vector2.zero, new Vector2(PanelWidth, PanelHeight));
+            var panelImg = panel.gameObject.AddComponent<Image>();
+            var panelSprite = Resources.Load<Sprite>(PanelSpritePath);
+            if (panelSprite != null) {
+                panelImg.sprite = panelSprite;
+                panelImg.color = Color.white;
             } else {
-                Debug.LogWarning("BriefingView: Missing sprite 'Sprites/ui/ui_panel', using 1×1 white fallback.");
-                panelImg.sprite = CreateWhiteSprite();
+                if (!_warnedPanel) {
+                    Debug.LogWarning("BriefingView: Missing sprite '" + PanelSpritePath + "', using a solid fallback.");
+                    _warnedPanel = true;
+                }
+                panelImg.sprite = WhiteSprite();
+                panelImg.color = Paper;
             }
-            panelImg.color = Color.white;
             panelImg.raycastTarget = false;
 
-            // Title label.
-            _titleText = CreateLabel("Title", "MISSION 1: TITLE", new Vector3(0f, 60f, 0f), 28);
+            var title = NewRect("Title", transform);
+            Place(title, new Vector2(0f, TitleY), new Vector2(TitleWidth, TitleHeight));
+            _titleText = AddText(title.gameObject, TitleLine(), TitleSize, Ink, TextAnchor.MiddleCenter);
+            _titleText.fontStyle = FontStyle.Bold;
 
-            // Briefing text block.
-            _briefingText = CreateLabel("BriefingText", "", new Vector3(0f, -10f, 0f), 20);
-            _briefingText.lineSpacing = 1.4f;
+            var body = NewRect("BriefingText", transform);
+            Place(body, new Vector2(0f, BriefingY), new Vector2(BriefingWidth, BriefingHeight));
+            _briefingText = AddText(body.gameObject, _mission != null ? _mission.briefing : "",
+                BriefingSize, Ink, TextAnchor.MiddleCenter);
+            _briefingText.lineSpacing = 1.2f;
 
-            // Begin Mission button — build it once with its listener registered.
-            var btnObj = new GameObject("BeginButton");
-            btnObj.transform.SetParent(transform, false);
-            var btnRect = btnObj.GetComponent<RectTransform>() ?? btnObj.AddComponent<RectTransform>();
-            btnRect.anchorMin = new Vector2(0.5f, 0.5f);
-            btnRect.anchorMax = new Vector2(0.5f, 0.5f);
-            btnRect.pivot = new Vector2(0.5f, 0.5f);
-            btnRect.offsetMin = new Vector3(-100f, -100f);
-            btnRect.offsetMax = new Vector3(100f, -60f);
+            var begin = CreateButton("BeginButton", "Begin Mission");
+            begin.onClick.AddListener(TriggerTransition);
 
-            var btnImg = btnObj.AddComponent<Image>();
-            var btnSprite = Resources.Load<Sprite>("Sprites/ui/ui_button");
-            if (btnSprite != null) {
-                btnImg.sprite = btnSprite;
+            var hint = NewRect("BriefingHint", transform);
+            Place(hint, new Vector2(0f, HintY), new Vector2(TitleWidth, HintHeight));
+            AddText(hint.gameObject, "SPACE  begin", HintSize, Pencil, TextAnchor.MiddleCenter);
+        }
+
+        private string TitleLine() {
+            string t = _mission != null && !string.IsNullOrEmpty(_mission.title) ? _mission.title : "";
+            return string.IsNullOrEmpty(t) ? $"Mission {_currentMission}" : $"Mission {_currentMission}: {t}";
+        }
+
+        private Button CreateButton(string name, string label) {
+            var rect = NewRect(name, transform);
+            Place(rect, new Vector2(0f, ButtonY), new Vector2(ButtonWidth, ButtonHeight));
+
+            var img = rect.gameObject.AddComponent<Image>();
+            var sprite = Resources.Load<Sprite>(ButtonSpritePath);
+            if (sprite != null) {
+                img.sprite = sprite;
+                img.color = Color.white;
             } else {
-                Debug.LogWarning("BriefingView: Missing sprite 'Sprites/ui/ui_button', using 1×1 white fallback.");
-                btnImg.sprite = CreateWhiteSprite();
+                if (!_warnedButton) {
+                    Debug.LogWarning("BriefingView: Missing sprite '" + ButtonSpritePath + "', using a solid fallback.");
+                    _warnedButton = true;
+                }
+                img.sprite = WhiteSprite();
+                img.color = Paper;
             }
+            img.raycastTarget = true;
 
-            var btnTextObj = new GameObject("ButtonText");
-            btnTextObj.transform.SetParent(btnObj.transform, false);
-            var txtRect = btnTextObj.GetComponent<RectTransform>() ?? btnTextObj.AddComponent<RectTransform>();
-            txtRect.anchorMin = Vector2.zero;
-            txtRect.anchorMax = Vector2.one;
-            txtRect.offsetMin = new Vector3(8f, 4f);
-            txtRect.offsetMax = new Vector3(-8f, -4f);
+            var btn = rect.gameObject.AddComponent<Button>();
+            btn.targetGraphic = img;
+            var colors = btn.colors;
+            colors.normalColor      = Color.white;
+            colors.highlightedColor = Pencil;   // hover = pencil glow (UI_SPEC §2)
+            colors.selectedColor    = Pencil;
+            colors.pressedColor     = Hostile;  // active = hostile tint (UI_SPEC §2)
+            colors.colorMultiplier  = 1f;
+            colors.fadeDuration     = ColorFadeDuration;
+            btn.colors = colors;
 
-            _beginButton = CreateButton(btnObj, btnImg, "Begin Mission", btnTextObj, txtRect);
-
-            // Centre the button vertically below briefing text.
-            rect.SetAsLastSibling(); // panel on bottom
-        }
-
-        private Text CreateLabel(string name, string initialText, Vector3 localPos, int fontSize) {
-            var obj = new GameObject(name);
-            obj.transform.SetParent(transform, false);
-
-            var txtRect = obj.GetComponent<RectTransform>() ?? obj.AddComponent<RectTransform>();
-            txtRect.anchorMin = new Vector2(0.5f, 0.5f);
-            txtRect.anchorMax = new Vector2(0.5f, 0.5f);
-            txtRect.pivot = new Vector2(0.5f, 0.5f);
-            txtRect.localPosition = localPos;
-            txtRect.sizeDelta = new Vector2(600f, 40f);
-
-            var text = obj.AddComponent<Text>();
-            text.text = initialText;
-            text.fontStyle = FontStyle.Bold;
-            text.alignment = TextAnchor.MiddleCenter;
-            text.fontSize = fontSize;
-            // Ink colour per UI_SPEC §2.
-            text.color = new Color(0.91f, 0.94f, 0.98f, 1f); // #E8F1FA
-
-            return text;
-        }
-
-        private Button CreateButton(GameObject buttonObj, Image buttonImg, string buttonText, GameObject textObj, RectTransform textRect) {
-            var txt = textObj.AddComponent<Text>();
-            txt.text = buttonText;
+            var textRect = NewRect(name + "Text", rect);
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.pivot = new Vector2(0.5f, 0.5f);
+            textRect.anchoredPosition = Vector2.zero;
+            textRect.sizeDelta = new Vector2(-2f * LabelPadding, -2f * LabelPadding);
+            var txt = AddText(textRect.gameObject, label, ButtonSize, Ink, TextAnchor.MiddleCenter);
             txt.fontStyle = FontStyle.Bold;
-            txt.alignment = TextAnchor.MiddleCenter;
-            txt.fontSize = 20;
-            txt.color = new Color(0.91f, 0.94f, 0.98f, 1f);
-
-            textRect.offsetMin = Vector3.zero;
-            textRect.offsetMax = Vector3.zero;
-
-            var btn = buttonObj.GetComponent<Button>() ?? buttonObj.AddComponent<Button>();
-            btn.onClick.AddListener(TriggerTransition);
-            // Raycast on the button image.
-            buttonImg.raycastTarget = true;
 
             return btn;
-        }
-
-        /// <summary>Creates a 1×1 white sprite for fallback when a resource is missing.</summary>
-        private static Sprite CreateWhiteSprite() {
-            var texture = new Texture2D(1, 1);
-            texture.SetPixel(0, 0, Color.white);
-            texture.Apply();
-            return Sprite.Create(texture, new Rect(0, 0, 1, 1), Vector2.one * 0.5f);
         }
 
         // ── Data loading ────────────────────────────────────────────────────
@@ -199,90 +270,70 @@ namespace Biplanes.UI {
         private void LoadMissionData(int missionNumber) {
             var path = $"Missions/mission_{missionNumber:D2}";
             var textAsset = Resources.Load<TextAsset>(path);
-            if (textAsset == null) {
-                Debug.LogWarning($"BriefingView: Mission data not found at '{path}'.");
-                _mission = new MissionData();
-                _mission.id = missionNumber;
-                _mission.title = $"Mission {missionNumber}";
-                _mission.briefing = "No briefing text available.";
-                return;
-            }
-
-            var data = JsonUtility.FromJson<MissionData>(textAsset.text);
+            MissionData data = textAsset != null ? JsonUtility.FromJson<MissionData>(textAsset.text) : null;
             if (data == null) {
-                Debug.LogWarning($"BriefingView: Failed to parse mission JSON at '{path}'.");
+                Debug.LogWarning($"BriefingView: Mission data missing or unreadable at '{path}'.");
                 data = new MissionData();
                 data.id = missionNumber;
                 data.title = $"Mission {missionNumber}";
                 data.briefing = "No briefing text available.";
             }
-
             _mission = data;
-        }
-
-        // ── Coroutine: fade-in ─────────────────────────────────────────────
-
-        /// <summary>Lerp the canvas background Color.a from 0 → target over fadeInDuration.</summary>
-        private System.Collections.IEnumerator FadeInCoroutine() {
-            float elapsed = 0f;
-            while (elapsed < _fadeInDuration) {
-                elapsed += Time.unscaledDeltaTime;
-                float t = Mathf.Clamp01(elapsed / _fadeInDuration);
-                // Lerp color.a as the spec requires.
-                var c = _canvasImage.color;
-                c.a = Mathf.Lerp(0f, 1f, t);
-                _canvasImage.color = c;
-                yield return null;
-            }
-
-            if (_canvasImage != null) {
-                var finalColor = _canvasImage.color;
-                finalColor.a = 1f;
-                _canvasImage.color = finalColor;
-            }
-
-            // Briefing is ready — player can press Enter/Space or wait.
-            _isReady = true;
-
-            // Update label texts now that we have mission data.
-            if (_titleText != null) {
-                _titleText.text = $"Mission {_currentMission:D2}: {_mission?.title ?? ""}";
-            }
-            if (_briefingText != null) {
-                _briefingText.text = _mission?.briefing ?? "";
-            }
-
-            // Start auto-transition timer.
-            StartCoroutine(AutoTransitionCoroutine());
-        }
-
-        // ── Coroutine: auto-transition ─────────────────────────────────────
-
-        /// <summary>Wait for the auto-delay, then transition to gameplay.</summary>
-        private System.Collections.IEnumerator AutoTransitionCoroutine() {
-            yield return new WaitForSeconds(_autoDelay);
-            TriggerTransition();
         }
 
         // ── Transition ──────────────────────────────────────────────────────
 
-        /// <summary>Signal that the briefing is done; raise MissionEnded or transition via GameEvents.</summary>
+        /// <summary>Start the mission once (button, Space/Enter or the 5 s timer). The Space or
+        /// click that starts it never reaches the plane: PlayerInput treats a button held
+        /// across a UI screen as spent until it is released (PlayerInputGate).</summary>
         public void TriggerTransition() {
-            if (_transitionedCount > 0) return;
-            _transitionedCount++;
+            if (_transitioned) return;
+            _transitioned = true;
+            Debug.Log($"[BriefingView] Starting mission {_currentMission}: {_mission?.title}");
+            // StartMission moves GameManager to Playing, which hides this view (or the
+            // MainMenu → Game scene load destroys it).
+            GameManager.Instance.StartMission(_currentMission);
+        }
 
-            // Ensure mission text is up to date.
-            if (_titleText != null && _mission != null) {
-                _titleText.text = $"Mission {_currentMission:D2}: {_mission.title}";
+        // ── Helpers ────────────────────────────────────────────────────────
+
+        private static RectTransform NewRect(string name, Transform parent) {
+            var go = new GameObject(name, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            return (RectTransform)go.transform;
+        }
+
+        /// <summary>Centre anchor and pivot, then position and size. No offsets.</summary>
+        private static void Place(RectTransform rect, Vector2 position, Vector2 size) {
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = size;
+            rect.anchoredPosition = position;
+        }
+
+        private Text AddText(GameObject go, string value, int size, Color color, TextAnchor align) {
+            var txt = go.AddComponent<Text>();
+            txt.font = _font;
+            txt.text = value;
+            txt.fontSize = size;
+            txt.alignment = align;
+            txt.horizontalOverflow = HorizontalWrapMode.Wrap;
+            txt.verticalOverflow = VerticalWrapMode.Overflow;
+            txt.color = color;
+            txt.raycastTarget = false;
+            return txt;
+        }
+
+        /// <summary>A shared 1×1 white sprite, tinted by Image.color.</summary>
+        private static Sprite WhiteSprite() {
+            if (_whiteSprite == null) {
+                var texture = new Texture2D(1, 1);
+                texture.SetPixel(0, 0, Color.white);
+                texture.Apply();
+                _whiteSprite = Sprite.Create(texture, new Rect(0, 0, 1, 1), Vector2.one * 0.5f);
             }
-            if (_briefingText != null && _mission != null) {
-                _briefingText.text = _mission.briefing;
-            }
-
-            // Notify systems that the player has begun this mission.
-            GameEvents.RaiseObjectiveCompleted($"mission_{_currentMission}_begun");
-
-            Debug.LogFormat("[BriefingView] Starting mission {_currentMission}: {0}", _mission?.title);
+            return _whiteSprite;
         }
     }
 }

@@ -48,12 +48,16 @@ attacks. It is marked with a **bullseye (roundel)** on the center of its body.
 - At about **70%** damage, a smoke trail shows behind the plane.
 - **Health balloons** appear at some points on the map. Flying through one restores health.
 
-### Controls (keyboard)
-| Action | Key |
+### Controls (keyboard and mouse)
+| Action | Input |
 |---|---|
-| Move | W A S D |
-| Fire machine gun | Space |
-| Drop bomb | Enter |
+| Climb / dive | W / S |
+| Face and fly left / right (the world scrolls the way you face) | A / D |
+| Fire machine gun (hold to autofire) | Left mouse button |
+| Drop bomb | Space |
+
+### Flight attitude (pitch)
+All airplanes (the player's and the enemies') **pitch** around their lateral axis: the nose tips up while the plane climbs and down while it dives, eased smoothly and limited to a modest angle, and the sprite and its hitboxes rotate with it. Machine-gun bullets (the player's and the fighters') leave the gun along the **nose direction**, so what you see is the way the shot flies. A fighter swings its nose onto you and fires only when you are close to where it points. The bomber's tail gunner is the one exception: it is a swivel gun that fires at you in any direction. Bombs still drop with gravity from the plane's position.
 
 ## Missions (increasing difficulty)
 1. **Destroy incoming airplanes:** the player starts at the airfield as a wave of enemy
@@ -89,3 +93,12 @@ attacks. It is marked with a **bullseye (roundel)** on the center of its body.
 | Date | Change | By |
 |---|---|---|
 | 2026-10-31 | Converted from PDF | setup |
+| 2026-11-10 | Reversible flight (user decision): A/D turn the plane Defender-style, and the world scrolls in the facing direction; mission progress = farthest x reached (T924) | orchestrator |
+| 2026-11-12 | Bombs keep inheriting the plane's real world x-velocity, so a bomb dropped during the post-turn swing can drift against the facing (T925 P2, accepted as physically consistent) | orchestrator |
+| 2026-11-12 | AAA flak cannot fire shallower than 30° above the horizon (FlakShell MinUpward), even though guns now aim at the true intercept: low approaches and planes already past the gun are harder to hit. Accepted as a fairness rule (T929 P2-1) | orchestrator |
+| 2026-11-13 | Mission end and design calls from QA T936: a mission is lost when the camera reaches the end of the map with an objective still open; mission 3 asks for at most 5 bomb-only AAA because the player carries 7 bombs and gets no refill; `failAtX` is the world x a target (bomber, zeppelin) must not reach, and mission 5 puts the HQ on the side the zeppelin flies toward | orchestrator |
+| 2026-11-13 | Applied: M3 has 5 AAA plus extra fighter waves. M2 failAtX 10 (bomber spawns near x 90, about 55 s of flight), AAA removed from M2 (AAA debuts in M3), length 450. M5 length 540, HQ at x 360 = failAtX, zeppelin spawns at x 420 (id `airship_01`, y 4.9 above terrain so the hull centre is near world y 0.9, 1.0 u/s, 60 s to reach the HQ; the camera cannot reach the map end first) | orchestrator |
+| 2026-11-14 | Playtest call: touching an enemy fighter or bomber in mid-air is no longer an instant crash. It destroys the enemy and gives the player a heavy but survivable hit (Balance `damageTaken.planeCollision`, 50%), so damage accumulates as the GDD describes. Terrain, buildings, trees and rammed zeppelin parts stay fatal | orchestrator |
+| 2026-11-14 | Controls changed by the user: machine gun moves from Space to the left mouse button (hold to autofire), bombs move from Enter to Space. Movement stays W/S/A/D | user |
+| 2026-11-15 | New feature requested by the user: airplane pitch (nose follows climb and dive) and machine-gun bullets fired along the nose direction, for the player and the enemies. Side effect to re-check: player bullets were horizontal only, which the zeppelin turret line-of-fire geometry (T939/B021) and the enemy-fire cone assumed | user |
+| 2026-11-15 | Pitch decisions after QA T942: fighters fire along their nose and only when the player is within 10 degrees of it (nose eases toward the player, up to 40 degrees); the bomber's gunner stays a swivel gun and is the documented exception to nose-aligned bullets | orchestrator |

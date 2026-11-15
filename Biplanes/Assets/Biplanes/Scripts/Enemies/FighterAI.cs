@@ -14,6 +14,17 @@ namespace Biplanes.Enemies {
     /// • Supports movement patterns from the mission JSON: static, straight, sine, dive, escort.
     /// • Direct-hit damage model per GDD: "fighters take direct hits only" — one player bullet kills it.
     ///   Health loaded from Balance.json.enemyHealth.fighter.
+    /// • Shoots at the player (B023): an EnemyBullet (DamageSource.Bullet, scaled by
+    ///   damageTaken.fighterBullet) only while the fighter is on screen, the player is alive,
+    ///   and the player is within enemyFire.range and fighterConeDegrees of its flight
+    ///   direction (left). Cadence and the random first-shot delay come from Balance
+    ///   enemyFire; the cooldown runs only on screen.
+    /// • Pitch (GDD Flight attitude, B029): with the player in that cone and range, the nose
+    ///   eases toward the bearing to the player (pitch.easeDegreesPerSecond, clamped to
+    ///   pitch.fighterMaxDegrees); otherwise it follows the climb/dive (pitch.maxDegrees).
+    ///   Shots fly ALONG THE NOSE (± enemyFire.spreadDegrees) and leave from it, and the
+    ///   fighter only fires while the player is within enemyFire.aimToleranceDegrees of the
+    ///   nose. The body turns with Rigidbody2D.MoveRotation, so the hitbox turns too.
     ///
     /// Spawned by MissionRunner from mission JSON via the static factory Spawn(position).
     /// </summary>
@@ -34,11 +45,57 @@ namespace Biplanes.Enemies {
         private SpriteRenderer _sr;
         private TeamTag _teamTag;
 
+        // ── Pitch tracking ───────────────────────────────────────────────
+        private float _prevY;          // Y position from previous FixedUpdate
+        private float _pitchAngle;     // Current pitch angle (degrees, nose up positive)
+        private PitchData _pitch;      // resolved Balance pitch block
+
+        /// <summary>Fighters always fly left: their right-facing art is mirrored (flipX).</summary>
+        private const int Facing = -1;
+
         // ── Runtime state ───────────────────────────────────────────────
 
         private Transform _escortTarget;                                  // cached escort target
         private float _driftPhase;                                        // sine wave phase offset
         private float _originalY;                                         // starting y for dive pattern
+
+        // ── Gun (B023) ──────────────────────────────────────────────────
+
+        /// <summary>Source of a fighter's shots; the player's Health maps it to damageTaken.fighterBullet.</summary>
+        public const DamageSource ShotSource = DamageSource.Bullet;
+
+        /// <summary>Fighters fly left, so "ahead" is -x.</summary>
+        private static readonly Vector2 Forward = Vector2.left;
+
+        /// <summary>Muzzle distance ahead of the centre: half the 1.5-unit hitbox, so the round
+        /// leaves from the nose. Sprite geometry, not a gameplay tunable.</summary>
+        private const float MuzzleOffset = 0.75f;
+
+        /// <summary>Current pitch in degrees, nose up positive (B029).</summary>
+        public float PitchAngle => _pitchAngle;
+
+        /// <summary>The z rotation (degrees) the body is turned to with MoveRotation: -PitchAngle,
+        /// because the sprite is mirrored to fly left.</summary>
+        public float BodyAngle => PlanePitch.BodyAngle(_pitchAngle, Facing);
+
+        /// <summary>World unit vector of the drawn nose at the current pitch: (-cos p, sin p).
+        /// Shots leave along it (± spread).</summary>
+        public Vector2 NoseDirection => PlanePitch.NoseDirection(_pitchAngle, Facing);
+
+        private EnemyFireData _fire;
+        private float _fireCooldown;                                      // seconds on screen until the next shot
+        private Camera _cam;
+        private PlayerPlane _player;
+        private Health _playerHealth;
+
+        /// <summary>The player this fighter shoots at. Found once in Start when not set.</summary>
+        internal PlayerPlane PlayerRef {
+            get => _player;
+            set {
+                _player = value;
+                _playerHealth = value != null ? value.GetComponent<Health>() : null;
+            }
+        }
 
         public Team Team { get; private set; }
         public bool IsDead => _health != null && _health.IsDead;
@@ -70,6 +127,14 @@ namespace Biplanes.Enemies {
             }
 
             _teamTag = GetComponent<TeamTag>();
+
+            _fire = EnemyFireData.Resolve(balance);
+            _fireCooldown = UnityEngine.Random.Range(_fire.firstShotDelayMin, _fire.firstShotDelayMax);
+
+            // Initialise pitch tracking.
+            _pitch = PitchData.Resolve(balance);
+            _prevY = transform.position.y;
+            _pitchAngle = 0f;
         }
 
         void Start() {
@@ -97,21 +162,17 @@ namespace Biplanes.Enemies {
             _sr.sortingOrder = 5; // ARCHITECTURE §3 draw order: enemies
 
             // Resolve escort target once at start (no per-frame Find* calls).
-            if (!string.IsNullOrEmpty(escortOf)) {
-                var allTags = FindObjectsOfType<TeamTag>();
-                foreach (var tag in allTags) {
-                    if (tag.gameObject.name.IndexOf(escortOf, StringComparison.OrdinalIgnoreCase) >= 0) {
-                        _escortTarget = tag.transform;
-                        break;
-                    }
-                }
-            }
+            _escortTarget = FindEscortTarget(escortOf);
 
             // Store original y for dive pattern.
             _originalY = transform.position.y;
 
             // Randomise sine phase.
             _driftPhase = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
+
+            // Gun targets, resolved once (no per-frame Find* calls).
+            _cam = Camera.main;
+            if (_player == null) PlayerRef = FindFirstObjectByType<PlayerPlane>();
         }
 
         void FixedUpdate() {
@@ -170,6 +231,91 @@ namespace Biplanes.Enemies {
                     _rb.MovePosition(pos);
                     break;
             }
+
+            // ----- Pitch: aim at the player in the cone, else follow the climb/dive -----
+            float verticalVelocity = (pos.y - _prevY) / Time.fixedDeltaTime;
+            _prevY = pos.y;
+            UpdatePitch(verticalVelocity, Time.fixedDeltaTime);
+            _rb.MoveRotation(BodyAngle);
+
+            TickFire(Time.fixedDeltaTime);
+        }
+
+        /// <summary>
+        /// Eases the pitch by one tick of `dt` seconds. With a live player inside the firing
+        /// cone and range, the nose turns toward the bearing to the player (limit
+        /// pitch.fighterMaxDegrees); otherwise toward the flight attitude for
+        /// `verticalVelocity` (limit pitch.maxDegrees). Rate: pitch.easeDegreesPerSecond.
+        /// </summary>
+        internal void UpdatePitch(float verticalVelocity, float dt) {
+            if (_pitch == null) _pitch = PitchData.Resolve(GameBalance.Get());
+            if (TryGetAimPitch(out float aimPitch)) {
+                _pitchAngle = PlanePitch.EaseToward(_pitchAngle, aimPitch, _pitch.fighterMaxDegrees,
+                    _pitch.easeDegreesPerSecond, dt);
+            } else {
+                // Coming back from an aim pitch beyond maxDegrees: ease down at the same rate.
+                float target = PlanePitch.TargetFromVerticalSpeed(verticalVelocity, _pitch.maxDegrees,
+                    _pitch.fullPitchSpeed);
+                float limit = Mathf.Max(_pitch.maxDegrees, Mathf.Abs(_pitchAngle));
+                _pitchAngle = PlanePitch.EaseToward(_pitchAngle, target, limit, _pitch.easeDegreesPerSecond, dt);
+            }
+        }
+
+        /// <summary>True when a live player is inside the firing cone and range; `pitch` is
+        /// then the bearing to the player as a pitch (nose up positive).</summary>
+        private bool TryGetAimPitch(out float pitch) {
+            pitch = 0f;
+            if (IsDead || _fire == null || !PlayerTargetable()) return false;
+            Vector2 from = transform.position;
+            Vector2 target = _player.transform.position;
+            if (!EnemyBullet.InFiringCone(from, target, Forward, _fire.fighterConeDegrees, _fire.range)) return false;
+            pitch = PlanePitch.PitchToward(target - from);
+            return true;
+        }
+
+        /// <summary>A player exists, hasn't crashed and isn't dead.</summary>
+        private bool PlayerTargetable() {
+            return _player != null && !_player.HasCrashed && (_playerHealth == null || !_playerHealth.IsDead);
+        }
+
+        // ── Gun (B023) ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Advances the gun by `dt` seconds and fires one EnemyBullet when it may. The cooldown
+        /// only runs while the fighter is on screen and the player is alive; once it has run out
+        /// the fighter fires as soon as the player is in its forward cone, in range, and within
+        /// enemyFire.aimToleranceDegrees of the nose. The shot flies along the nose
+        /// ± spreadDegrees and leaves from it; TickFire never changes the pitch (UpdatePitch
+        /// does). Returns true when a shot was fired. Dead fighters never fire.
+        /// </summary>
+        internal bool TickFire(float dt) {
+            if (IsDead || _fire == null) return false;
+            if (!PlayerTargetable()) return false;
+
+            Vector2 from = transform.position;
+            if (!EnemyBullet.IsOnScreen(_cam, from, 0f)) return false;
+
+            _fireCooldown -= dt;
+            if (_fireCooldown > 0f) return false;
+
+            Vector2 target = _player.transform.position;
+            if (!EnemyBullet.InFiringCone(from, target, Forward, _fire.fighterConeDegrees, _fire.range)) return false;
+
+            // Only fire when the nose is on the player (B029).
+            Vector2 nose = NoseDirection;
+            Vector2 toPlayer = target - from;
+            if (toPlayer.sqrMagnitude > 0.0001f && Vector2.Angle(nose, toPlayer) > _fire.aimToleranceDegrees) return false;
+
+            // Along the nose ± spread (180 = no cone clamp; the nose is already inside the cone).
+            Vector2 dir = EnemyBullet.AimWithinCone(from, from + nose, nose, 180f, _fire.spreadDegrees);
+
+            // Fire from the nose.
+            Vector3 muzzle = transform.position + (Vector3)(nose * MuzzleOffset);
+            // Pool exhausted: keep the expired cooldown and try again next tick.
+            if (EnemyBullet.Spawn(muzzle, dir, ShotSource) == null) return false;
+
+            _fireCooldown = UnityEngine.Random.Range(_fire.fighterIntervalMin, _fire.fighterIntervalMax);
+            return true;
         }
 
         /// <summary>
@@ -179,6 +325,32 @@ namespace Biplanes.Enemies {
         public void Configure(string movePattern, string escortId) {
             if (!string.IsNullOrEmpty(movePattern)) pattern = movePattern;
             escortOf = escortId ?? "";
+        }
+
+        // ── Escort lookup (B020) ──────────────────────────────────────────
+
+        /// <summary>
+        /// True when `go` is the entity with mission spawn id `id` (ARCHITECTURE §5 escortOf).
+        /// Whole ids only: the name must carry the exact "[id]" token (ZeppelinAI, EnemyBase,
+        /// PlayerHQ name themselves "type [id]"), or the object is a BomberAI spawned with that
+        /// id (its name stays "bomber" because Health raises EntityDestroyed with the name).
+        /// So "zep" never matches "zeppelinTurret" or "zeppelin [zep2]".
+        /// </summary>
+        public static bool IsEscortTarget(GameObject go, string id) {
+            if (go == null || string.IsNullOrEmpty(id)) return false;
+            if (go.name.IndexOf("[" + id + "]", StringComparison.Ordinal) >= 0) return true;
+            var bomber = go.GetComponent<BomberAI>();
+            return bomber != null && bomber.SpawnId == id;
+        }
+
+        /// <summary>The live Team.Enemy-tagged entity whose spawn id is `id`, or null. Runs a
+        /// scene search, so call it once (Start), never per frame.</summary>
+        public static Transform FindEscortTarget(string id) {
+            if (string.IsNullOrEmpty(id)) return null;
+            foreach (var tag in FindObjectsOfType<TeamTag>()) {
+                if (IsEscortTarget(tag.gameObject, id)) return tag.transform;
+            }
+            return null;
         }
 
         // ── IDamageable ───────────────────────────────────────────────────

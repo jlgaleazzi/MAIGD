@@ -21,6 +21,10 @@ OUT = ROOT / "Biplanes" / "Assets" / "Biplanes" / "Resources" / "Sprites"
 PREVIEW = ROOT / "docs" / "art" / "preview.png"
 
 PALETTE = {"#0f2a4a", "#1c3f66", "#e8f1fa", "#9db4cc", "#f2c14e", "#e4572e", "#7bd389"}
+# SVG aircraft that get the same opaque paper silhouette as the blueprint planes
+# (import_blueprints.add_backing), keyed by path under art-src without extension.
+# Empty since T914: every plane now comes from a blueprint via import_blueprints.py.
+BACKED = set()
 UI_SCALE = 2  # UI sprites are rendered at 2x for crisp text-like strokes
 HEX = re.compile(r"#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b")
 SIZE = re.compile(r'<svg[^>]*\bwidth="(\d+(?:\.\d+)?)"[^>]*\bheight="(\d+(?:\.\d+)?)"', re.S)
@@ -37,7 +41,9 @@ def check_svg(svg: Path) -> list:
         problems.append("file name must be lower_snake_case")
     if not SIZE.search(text):
         problems.append('<svg> needs explicit width="" and height="" in px')
-    for color in set(c.lower() for c in HEX.findall(text)):
+    # References like url(#cb0) or href="#abc" are element ids, not colours.
+    colours_text = re.sub(r'url\(\s*#[^)]*\)|href="#[^"]*"', "", text)
+    for color in set(c.lower() for c in HEX.findall(colours_text)):
         if len(color) == 4:
             color = "#" + "".join(ch * 2 for ch in color[1:])
         if color not in PALETTE:
@@ -62,10 +68,16 @@ def render(svg: Path) -> None:
         cairosvg = None
     if cairosvg is not None:
         cairosvg.svg2png(url=str(svg), write_to=str(dest), scale=scale)
-        return
-    import resvg_py
-    data = resvg_py.svg_to_bytes(svg_path=str(svg), zoom=float(scale))
-    dest.write_bytes(bytes(data))
+    else:
+        import resvg_py
+        data = resvg_py.svg_to_bytes(svg_path=str(svg), zoom=float(scale))
+        dest.write_bytes(bytes(data))
+    key = svg.relative_to(SRC).with_suffix("").as_posix()
+    if key in BACKED:
+        from PIL import Image
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import import_blueprints
+        import_blueprints.add_backing(Image.open(dest)).save(dest)
 
 
 def preview(pngs: list) -> None:

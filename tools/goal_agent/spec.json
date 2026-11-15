@@ -1,0 +1,861 @@
+{
+  "_doc": "GDD feature -> evidence the code must contain. gdd_anchor must appear in docs/GDD.md (the agent warns when it doesn't). impact/effort are 1..5. See requirements.py for check types. Paths are relative to Biplanes/Assets/Biplanes.",
+  "requirements": [
+    {
+      "id": "PLAYER-GUN",
+      "title": "Player forward machine gun",
+      "gdd_anchor": "forward-facing machine gun",
+      "category": "gameplay",
+      "impact": 5,
+      "effort": 2,
+      "core": true,
+      "checks": [
+        {
+          "type": "class",
+          "name": "Bullet"
+        },
+        {
+          "type": "contains",
+          "path": "Scripts/Player/PlayerPlane.cs",
+          "pattern": "OnFire"
+        }
+      ]
+    },
+    {
+      "id": "PLAYER-BOMBS",
+      "title": "Player carries 7 bombs",
+      "gdd_anchor": "room for 7 bombs",
+      "category": "gameplay",
+      "impact": 5,
+      "effort": 2,
+      "core": true,
+      "checks": [
+        {
+          "type": "class",
+          "name": "BombBay"
+        },
+        {
+          "type": "class",
+          "name": "Bomb"
+        },
+        {
+          "type": "json_key",
+          "path": "Resources/Balance.json",
+          "key": "player.bombCapacity"
+        }
+      ]
+    },
+    {
+      "id": "PLAYER-ROUNDEL",
+      "title": "Player sprite with bullseye roundel",
+      "gdd_anchor": "bullseye (roundel)",
+      "category": "art",
+      "impact": 2,
+      "effort": 2,
+      "writable": false,
+      "owner": "art",
+      "checks": [
+        {
+          "type": "file",
+          "path": "Resources/Sprites/player/player_biplane.png"
+        }
+      ]
+    },
+    {
+      "id": "CONTROLS",
+      "title": "Controls: W/A/S/D, left mouse fire, Space bomb",
+      "gdd_anchor": "Fire machine gun",
+      "extra_anchors": [
+        "Climb / dive",
+        "Face and fly left / right",
+        "Drop bomb",
+        "moves the airplane up, down, left and right"
+      ],
+      "category": "gameplay",
+      "impact": 5,
+      "effort": 2,
+      "core": true,
+      "checks": [
+        {
+          "type": "class",
+          "name": "PlayerInput"
+        },
+        {
+          "type": "contains",
+          "path": "Scripts/Player/PlayerInput.cs",
+          "pattern": "wKey"
+        },
+        {
+          "type": "contains",
+          "path": "Scripts/Player/PlayerInput.cs",
+          "pattern": "spaceKey"
+        },
+        {
+          "type": "contains",
+          "path": "Scripts/Player/PlayerInput.cs",
+          "pattern": "leftButton"
+        }
+      ]
+    },
+    {
+      "id": "ENEMY-FIRE",
+      "title": "Enemy airplanes shoot at the player",
+      "gdd_anchor": "They shoot at the player",
+      "category": "gameplay",
+      "impact": 5,
+      "effort": 3,
+      "core": true,
+      "checks": [
+        {
+          "type": "class",
+          "name": "EnemyBullet"
+        },
+        {
+          "type": "contains",
+          "path": "Scripts/Enemies/FighterAI.cs",
+          "pattern": "EnemyBullet"
+        },
+        {
+          "type": "contains",
+          "path": "Scripts/Enemies/BomberAI.cs",
+          "pattern": "EnemyBullet"
+        }
+      ]
+    },
+    {
+      "id": "DAMAGE-MODEL",
+      "title": "Damage accumulates, destroyed at 100%",
+      "gdd_anchor": "At 100% the airplane is destroyed",
+      "category": "gameplay",
+      "impact": 5,
+      "effort": 2,
+      "core": true,
+      "checks": [
+        {
+          "type": "class",
+          "name": "Health"
+        },
+        {
+          "type": "class",
+          "name": "IDamageable"
+        },
+        {
+          "type": "json_key",
+          "path": "Resources/Balance.json",
+          "key": "damageTaken"
+        }
+      ]
+    },
+    {
+      "id": "DAMAGE-SMOKE",
+      "title": "Smoke trail at about 70% damage",
+      "gdd_anchor": "smoke trail",
+      "category": "gameplay",
+      "impact": 2,
+      "effort": 1,
+      "checks": [
+        {
+          "type": "json_key",
+          "path": "Resources/Balance.json",
+          "key": "player.smokeThreshold"
+        },
+        {
+          "type": "contains",
+          "path": "Scripts/Player/PlayerPlane.cs",
+          "pattern": "_smokeThreshold"
+        }
+      ]
+    },
+    {
+      "id": "CRASH-TERRAIN",
+      "title": "Crash on terrain and buildings",
+      "gdd_anchor": "hits terrain or buildings",
+      "category": "gameplay",
+      "impact": 4,
+      "effort": 2,
+      "core": true,
+      "checks": [
+        {
+          "type": "class",
+          "name": "TerrainStrip"
+        },
+        {
+          "type": "class",
+          "name": "StaticObstacle"
+        }
+      ]
+    },
+    {
+      "id": "SCORING",
+      "title": "Score per kill, harder enemies worth more",
+      "gdd_anchor": "each enemy kill adds points",
+      "category": "gameplay",
+      "impact": 4,
+      "effort": 2,
+      "core": true,
+      "checks": [
+        {
+          "type": "class",
+          "name": "ScoreKeeper"
+        },
+        {
+          "type": "json_key",
+          "path": "Resources/Balance.json",
+          "key": "score.fighter"
+        },
+        {
+          "type": "json_key",
+          "path": "Resources/Balance.json",
+          "key": "score.bomber"
+        }
+      ]
+    },
+    {
+      "id": "OBJECTIVES",
+      "title": "Mission objectives decide win and loss",
+      "gdd_anchor": "completes the stated mission objectives",
+      "category": "gameplay",
+      "impact": 5,
+      "effort": 3,
+      "core": true,
+      "checks": [
+        {
+          "type": "class",
+          "name": "ObjectiveTracker"
+        },
+        {
+          "type": "class",
+          "name": "MissionRunner"
+        },
+        {
+          "type": "contains",
+          "path": "Scripts/Missions/ObjectiveTracker.cs",
+          "pattern": "bombTarget"
+        }
+      ]
+    },
+    {
+      "id": "SAVE-PROGRESS",
+      "title": "Save progress and unlock missions",
+      "gdd_anchor": "Milestones / save progress",
+      "category": "gameplay",
+      "impact": 3,
+      "effort": 2,
+      "checks": [
+        {
+          "type": "class",
+          "name": "SaveSystem"
+        }
+      ]
+    },
+    {
+      "id": "MAIN-MENU",
+      "title": "Main menu with mission select",
+      "gdd_anchor": "Milestones / save progress",
+      "category": "ui",
+      "impact": 3,
+      "effort": 3,
+      "deps": [
+        "SAVE-PROGRESS"
+      ],
+      "new_files": [
+        "Scripts/UI/MainMenuView.cs"
+      ],
+      "context_files": [
+        "Scripts/UI/BriefingView.cs",
+        "Scripts/UI/PauseView.cs",
+        "Scripts/Core/SaveSystem.cs",
+        "Scripts/Core/GameManager.cs"
+      ],
+      "hint": "Mission select shows 5 missions; only those up to SaveSystem's unlocked mission are enabled. Build the UI in code like the other views; no scenes or prefabs.",
+      "checks": [
+        {
+          "type": "class",
+          "name": "MainMenuView"
+        }
+      ]
+    },
+    {
+      "id": "ENEMY-FIGHTER",
+      "title": "Enemy airplanes that shoot, destroyed by direct hits",
+      "gdd_anchor": "Iron Cross",
+      "category": "enemy",
+      "impact": 5,
+      "effort": 3,
+      "core": true,
+      "checks": [
+        {
+          "type": "class",
+          "name": "FighterAI"
+        },
+        {
+          "type": "file",
+          "path": "Resources/Sprites/enemies/enemy_fighter.png"
+        }
+      ]
+    },
+    {
+      "id": "ENEMY-AAA",
+      "title": "AAA fires up, destroyed only by bombs",
+      "gdd_anchor": "Anti-Aircraft Artillery (AAA)",
+      "category": "enemy",
+      "impact": 4,
+      "effort": 3,
+      "checks": [
+        {
+          "type": "class",
+          "name": "AAAGun"
+        },
+        {
+          "type": "class",
+          "name": "FlakShell"
+        },
+        {
+          "type": "contains",
+          "path": "Scripts/Enemies/AAAGun.cs",
+          "pattern": "DamageSource\\.Bomb"
+        }
+      ]
+    },
+    {
+      "id": "ENEMY-BOMBER",
+      "title": "Bombers take multiple hits",
+      "gdd_anchor": "multiple hits to destroy",
+      "category": "enemy",
+      "impact": 4,
+      "effort": 3,
+      "checks": [
+        {
+          "type": "class",
+          "name": "BomberAI"
+        },
+        {
+          "type": "class",
+          "name": "EnemyBomb"
+        },
+        {
+          "type": "json_key",
+          "path": "Resources/Balance.json",
+          "key": "enemyHealth.bomber"
+        }
+      ]
+    },
+    {
+      "id": "ENEMY-ZEPPELIN",
+      "title": "Zeppelin with turrets; hull only damaged once turrets are down",
+      "gdd_anchor": "disable the turrets",
+      "category": "enemy",
+      "impact": 3,
+      "effort": 4,
+      "deps": [
+        "DAMAGE-MODEL"
+      ],
+      "new_files": [
+        "Scripts/Enemies/ZeppelinAI.cs",
+        "Scripts/Enemies/ZeppelinTurret.cs"
+      ],
+      "context_files": [
+        "Scripts/Enemies/BomberAI.cs",
+        "Scripts/Enemies/BarrageBalloon.cs",
+        "Scripts/Enemies/AAAGun.cs",
+        "Scripts/Core/IDamageable.cs",
+        "Scripts/Core/Health.cs"
+      ],
+      "hint": "ARCHITECTURE §3 Enemies: ZeppelinAI is the hull and owns N ZeppelinTurret children. The hull takes damage only after every turret is destroyed, or always when GameBalance hullVulnerableEarly is true. Health comes from enemyHealth.zeppelinHull / zeppelinTurret in Balance.json. Sprites: Resources/Sprites/enemies/zeppelin_hull and zeppelin_turret. Turrets fire at the player like AAAGun (enemy flak, damage damageTaken.zeppelinTurret).",
+      "checks": [
+        {
+          "type": "class",
+          "name": "ZeppelinAI"
+        },
+        {
+          "type": "class",
+          "name": "ZeppelinTurret"
+        },
+        {
+          "type": "contains",
+          "path": "Scripts/Enemies/ZeppelinAI.cs",
+          "pattern": "(?i)hullVulnerableEarly"
+        }
+      ]
+    },
+    {
+      "id": "ENEMY-BASE",
+      "title": "Enemy base: a ground target the player bombs",
+      "gdd_anchor": "drop a bomb on the enemy base",
+      "category": "enemy",
+      "impact": 3,
+      "effort": 2,
+      "deps": [
+        "PLAYER-BOMBS"
+      ],
+      "new_files": [
+        "Scripts/Enemies/EnemyBase.cs"
+      ],
+      "context_files": [
+        "Scripts/Enemies/AAAGun.cs",
+        "Scripts/Enemies/StaticObstacle.cs",
+        "Scripts/Core/IDamageable.cs",
+        "Scripts/Core/Health.cs"
+      ],
+      "hint": "Ground-bound at the terrain height, destroyed by DamageSource.Bomb only, health from enemyHealth.enemyBase, raises EntityDestroyed('enemyBase', Enemy) like the other enemies so the bombTarget objective and score.enemyBase work. Sprite: Resources/Sprites/targets/enemy_base.",
+      "checks": [
+        {
+          "type": "class",
+          "name": "EnemyBase"
+        },
+        {
+          "type": "json_key",
+          "path": "Resources/Balance.json",
+          "key": "enemyHealth.enemyBase"
+        }
+      ]
+    },
+    {
+      "id": "PLAYER-HQ",
+      "title": "Player HQ the zeppelin is heading for",
+      "gdd_anchor": "the player's HQ",
+      "category": "enemy",
+      "impact": 2,
+      "effort": 2,
+      "new_files": [
+        "Scripts/Enemies/PlayerHQ.cs"
+      ],
+      "context_files": [
+        "Scripts/Enemies/StaticObstacle.cs",
+        "Scripts/Core/IDamageable.cs"
+      ],
+      "hint": "A friendly ground structure drawn from Resources/Sprites/targets/player_hq. Mission 5 fails if the zeppelin reaches it (see mission_05.json objectives and BomberAI.targetX for the pattern).",
+      "checks": [
+        {
+          "type": "class",
+          "name": "PlayerHQ"
+        }
+      ]
+    },
+    {
+      "id": "OBST-BALLOON",
+      "title": "Barrage balloons",
+      "gdd_anchor": "Barrage balloons",
+      "category": "obstacle",
+      "impact": 3,
+      "effort": 2,
+      "checks": [
+        {
+          "type": "class",
+          "name": "BarrageBalloon"
+        },
+        {
+          "type": "file",
+          "path": "Resources/Sprites/obstacles/barrage_balloon.png"
+        }
+      ]
+    },
+    {
+      "id": "OBST-BUILDINGS",
+      "title": "Buildings and trees",
+      "gdd_anchor": "Buildings and trees",
+      "category": "obstacle",
+      "impact": 3,
+      "effort": 2,
+      "checks": [
+        {
+          "type": "class",
+          "name": "StaticObstacle"
+        },
+        {
+          "type": "file",
+          "path": "Resources/Sprites/obstacles/building_house.png"
+        },
+        {
+          "type": "file",
+          "path": "Resources/Sprites/obstacles/tree_a.png"
+        }
+      ]
+    },
+    {
+      "id": "HEALTH-BALLOON",
+      "title": "Health balloons restore health",
+      "gdd_anchor": "Health balloons",
+      "category": "obstacle",
+      "impact": 3,
+      "effort": 2,
+      "checks": [
+        {
+          "type": "class",
+          "name": "HealthBalloon"
+        },
+        {
+          "type": "json_key",
+          "path": "Resources/Balance.json",
+          "key": "healthBalloonRestore"
+        }
+      ]
+    },
+    {
+      "id": "SPAWN-ZEPPELIN",
+      "title": "MissionRunner spawns zeppelins",
+      "gdd_anchor": "Enemy Zeppelin",
+      "category": "mission",
+      "impact": 3,
+      "effort": 2,
+      "deps": [
+        "ENEMY-ZEPPELIN"
+      ],
+      "edit_files": [
+        "Scripts/Missions/MissionRunner.cs"
+      ],
+      "context_files": [
+        "Scripts/Enemies/ZeppelinAI.cs"
+      ],
+      "hint": "Add a `case \"zeppelin\":` next to the existing spawn cases, using the Create/Spawn factory ZeppelinAI exposes. Change MissionRunner with PATCH blocks only.",
+      "checks": [
+        {
+          "type": "contains",
+          "path": "Scripts/Missions/MissionRunner.cs",
+          "pattern": "case \"zeppelin\""
+        }
+      ]
+    },
+    {
+      "id": "SPAWN-ENEMYBASE",
+      "title": "MissionRunner spawns the enemy base",
+      "gdd_anchor": "Destroy enemy base",
+      "category": "mission",
+      "impact": 3,
+      "effort": 2,
+      "deps": [
+        "ENEMY-BASE"
+      ],
+      "edit_files": [
+        "Scripts/Missions/MissionRunner.cs"
+      ],
+      "context_files": [
+        "Scripts/Enemies/EnemyBase.cs"
+      ],
+      "hint": "Add a `case \"enemybase\":` next to the existing spawn cases (ground entries stay at world x = atX, see ARCHITECTURE §3 Missions). Change MissionRunner with PATCH blocks only.",
+      "checks": [
+        {
+          "type": "contains",
+          "path": "Scripts/Missions/MissionRunner.cs",
+          "pattern": "case \"enemybase\""
+        }
+      ]
+    },
+    {
+      "id": "SPAWN-HQ",
+      "title": "MissionRunner spawns the player HQ",
+      "gdd_anchor": "its destination, the player's HQ",
+      "category": "mission",
+      "impact": 2,
+      "effort": 2,
+      "deps": [
+        "PLAYER-HQ"
+      ],
+      "edit_files": [
+        "Scripts/Missions/MissionRunner.cs"
+      ],
+      "context_files": [
+        "Scripts/Enemies/PlayerHQ.cs"
+      ],
+      "hint": "Add a `case \"playerhq\":` next to the existing spawn cases. Change MissionRunner with PATCH blocks only.",
+      "checks": [
+        {
+          "type": "contains",
+          "path": "Scripts/Missions/MissionRunner.cs",
+          "pattern": "case \"playerhq\""
+        }
+      ]
+    },
+    {
+      "id": "MISSION-1",
+      "title": "Mission 1: destroy incoming airplanes",
+      "gdd_anchor": "Destroy incoming airplanes",
+      "category": "mission",
+      "impact": 4,
+      "effort": 2,
+      "owner": "mission-design",
+      "checks": [
+        {
+          "type": "file",
+          "path": "Resources/Missions/mission_01.json"
+        },
+        {
+          "type": "contains",
+          "path": "Resources/Missions/mission_01.json",
+          "pattern": "\"fighter\""
+        }
+      ]
+    },
+    {
+      "id": "MISSION-2",
+      "title": "Mission 2: destroy the enemy bomber",
+      "gdd_anchor": "Destroy enemy bomber",
+      "category": "mission",
+      "impact": 4,
+      "effort": 2,
+      "owner": "mission-design",
+      "checks": [
+        {
+          "type": "file",
+          "path": "Resources/Missions/mission_02.json"
+        },
+        {
+          "type": "contains",
+          "path": "Resources/Missions/mission_02.json",
+          "pattern": "\"bomber\""
+        }
+      ]
+    },
+    {
+      "id": "MISSION-3",
+      "title": "Mission 3: destroy enemy defenses",
+      "gdd_anchor": "Destroy enemy defenses",
+      "category": "mission",
+      "impact": 4,
+      "effort": 2,
+      "owner": "mission-design",
+      "checks": [
+        {
+          "type": "file",
+          "path": "Resources/Missions/mission_03.json"
+        },
+        {
+          "type": "contains",
+          "path": "Resources/Missions/mission_03.json",
+          "pattern": "\"aaa\""
+        }
+      ]
+    },
+    {
+      "id": "MISSION-4",
+      "title": "Mission 4: destroy the enemy base",
+      "gdd_anchor": "Destroy enemy base",
+      "category": "mission",
+      "impact": 4,
+      "effort": 2,
+      "owner": "mission-design",
+      "checks": [
+        {
+          "type": "file",
+          "path": "Resources/Missions/mission_04.json"
+        },
+        {
+          "type": "contains",
+          "path": "Resources/Missions/mission_04.json",
+          "pattern": "enemyBase"
+        }
+      ]
+    },
+    {
+      "id": "MISSION-5",
+      "title": "Mission 5: the enemy zeppelin",
+      "gdd_anchor": "Enemy Zeppelin",
+      "category": "mission",
+      "impact": 4,
+      "effort": 2,
+      "owner": "mission-design",
+      "checks": [
+        {
+          "type": "file",
+          "path": "Resources/Missions/mission_05.json"
+        },
+        {
+          "type": "contains",
+          "path": "Resources/Missions/mission_05.json",
+          "pattern": "\"zeppelin\""
+        }
+      ]
+    },
+    {
+      "id": "BUILD-TARGETS",
+      "title": "Playable on PC/Mac and Web",
+      "gdd_anchor": "playable on PC/Mac and Web",
+      "category": "build",
+      "impact": 3,
+      "effort": 2,
+      "checks": [
+        {
+          "type": "class",
+          "name": "ProjectBuilder"
+        },
+        {
+          "type": "contains",
+          "path": "Editor/ProjectBuilder.cs",
+          "pattern": "BuildWebGL"
+        },
+        {
+          "type": "contains",
+          "path": "Editor/ProjectBuilder.cs",
+          "pattern": "StandaloneWindows64"
+        },
+        {
+          "type": "contains",
+          "path": "Editor/ProjectBuilder.cs",
+          "pattern": "StandaloneOSX"
+        }
+      ]
+    },
+    {
+      "id": "PLANE-PITCH-CORE",
+      "title": "PlanePitch helper and the pitch balance block",
+      "gdd_anchor": "the nose tips up while the plane climbs",
+      "category": "gameplay",
+      "impact": 4,
+      "effort": 2,
+      "new_files": [
+        "Scripts/Core/PlanePitch.cs"
+      ],
+      "edit_files": [
+        "Scripts/Core/GameBalance.cs"
+      ],
+      "context_files": [
+        "Scripts/Core/GameBalance.cs"
+      ],
+      "hint": "Three small changes only. (1) New file Scripts/Core/PlanePitch.cs: namespace Biplanes.Core, `public static class PlanePitch` with ONE method: PlanePitch.Step(float currentAngle, float verticalVelocity, float maxDegrees, float dt) -> float is a static method in Scripts/Core/PlanePitch.cs that returns the new eased pitch angle in degrees (nose up positive, clamped to +-maxDegrees). The max comes from GameBalance.Get().pitch.maxDegrees (class PitchData, field maxDegrees, read it with a fallback of 15 when the balance or the block is missing). Ease with Mathf.MoveTowardsAngle or Lerp from the vertical speed (scale it to maxDegrees). It must not declare any other type. (2) PATCH GameBalance.cs: add `[System.Serializable] public class PitchData { public float maxDegrees; }` next to the other data classes AND a public field `public PitchData pitch;` on the GameBalance class (both are needed or nothing compiles). (3) MERGE into Resources/Balance.json: {\"pitch\": {\"maxDegrees\": 15.0}}.",
+      "checks": [
+        {
+          "type": "class",
+          "name": "PlanePitch"
+        },
+        {
+          "type": "contains",
+          "path": "Scripts/Core/GameBalance.cs",
+          "pattern": "PitchData pitch"
+        },
+        {
+          "type": "json_key",
+          "path": "Resources/Balance.json",
+          "key": "pitch.maxDegrees"
+        }
+      ]
+    },
+    {
+      "id": "PLANE-PITCH-PLAYER",
+      "title": "The player's biplane pitches with climb and dive",
+      "gdd_anchor": "the nose tips up while the plane climbs",
+      "category": "gameplay",
+      "impact": 4,
+      "effort": 2,
+      "deps": [
+        "PLANE-PITCH-CORE"
+      ],
+      "edit_files": [
+        "Scripts/Player/PlayerPlane.cs"
+      ],
+      "context_files": [
+        "Scripts/Core/PlanePitch.cs"
+      ],
+      "hint": "Change only PlayerPlane.cs, with small PATCH blocks copied exactly from the file shown. PlanePitch.Step(float currentAngle, float verticalVelocity, float maxDegrees, float dt) -> float is a static method in Scripts/Core/PlanePitch.cs that returns the new eased pitch angle in degrees (nose up positive, clamped to +-maxDegrees). The max comes from GameBalance.Get().pitch.maxDegrees (class PitchData, field maxDegrees, read it with a fallback of 15 when the balance or the block is missing). Keep a float field for the current pitch angle; in the movement step (OnMove) feed it the plane's vertical velocity (Velocity.y) and apply the result as a z-rotation of the SPRITE and its hitboxes (the visual child, not the Rigidbody, so crash-fall code that rotates the body still works), mirrored by _facing so nose-up still points up when facing left. Do not add a second Awake/Start/FixedUpdate: extend the existing ones. Reset the angle to 0 on Create/respawn.",
+      "checks": [
+        {
+          "type": "contains",
+          "path": "Scripts/Player/PlayerPlane.cs",
+          "pattern": "PlanePitch"
+        }
+      ]
+    },
+    {
+      "id": "PLANE-PITCH-FIGHTER",
+      "title": "Enemy fighters pitch with climb and dive",
+      "gdd_anchor": "the nose tips up while the plane climbs",
+      "category": "gameplay",
+      "impact": 3,
+      "effort": 2,
+      "deps": [
+        "PLANE-PITCH-CORE"
+      ],
+      "edit_files": [
+        "Scripts/Enemies/FighterAI.cs"
+      ],
+      "context_files": [
+        "Scripts/Core/PlanePitch.cs"
+      ],
+      "hint": "Change only FighterAI.cs, with small PATCH blocks copied exactly from the file shown. PlanePitch.Step(float currentAngle, float verticalVelocity, float maxDegrees, float dt) -> float is a static method in Scripts/Core/PlanePitch.cs that returns the new eased pitch angle in degrees (nose up positive, clamped to +-maxDegrees). The max comes from GameBalance.Get().pitch.maxDegrees (class PitchData, field maxDegrees, read it with a fallback of 15 when the balance or the block is missing). Derive the fighter's vertical velocity from its y position change per FixedUpdate, apply the angle as a z-rotation of the visual (sprite and hitboxes), mirrored for its facing so nose-up still points up. Do not add a second Awake/Start/FixedUpdate: extend the existing ones.",
+      "checks": [
+        {
+          "type": "contains",
+          "path": "Scripts/Enemies/FighterAI.cs",
+          "pattern": "PlanePitch"
+        }
+      ]
+    },
+    {
+      "id": "PLANE-PITCH-BOMBER",
+      "title": "Enemy bombers pitch with climb and dive",
+      "gdd_anchor": "the nose tips up while the plane climbs",
+      "category": "gameplay",
+      "impact": 2,
+      "effort": 2,
+      "deps": [
+        "PLANE-PITCH-CORE"
+      ],
+      "edit_files": [
+        "Scripts/Enemies/BomberAI.cs"
+      ],
+      "context_files": [
+        "Scripts/Core/PlanePitch.cs"
+      ],
+      "hint": "Change only BomberAI.cs, with small PATCH blocks copied exactly from the file shown. PlanePitch.Step(float currentAngle, float verticalVelocity, float maxDegrees, float dt) -> float is a static method in Scripts/Core/PlanePitch.cs that returns the new eased pitch angle in degrees (nose up positive, clamped to +-maxDegrees). The max comes from GameBalance.Get().pitch.maxDegrees (class PitchData, field maxDegrees, read it with a fallback of 15 when the balance or the block is missing). Same rule as the fighter: vertical velocity from the y change per FixedUpdate, z-rotation of the visual, mirrored for its facing. Bombers fly mostly level, so the angle stays small. Extend the existing Awake/Start/FixedUpdate; do not add second copies.",
+      "checks": [
+        {
+          "type": "contains",
+          "path": "Scripts/Enemies/BomberAI.cs",
+          "pattern": "PlanePitch"
+        }
+      ]
+    },
+    {
+      "id": "BULLET-NOSE-PLAYER",
+      "title": "The player's machine-gun bullets leave along the nose",
+      "gdd_anchor": "leave the gun along the nose direction",
+      "category": "gameplay",
+      "impact": 4,
+      "effort": 2,
+      "deps": [
+        "PLANE-PITCH-PLAYER"
+      ],
+      "edit_files": [
+        "Scripts/Player/PlayerPlane.cs",
+        "Scripts/Weapons/Bullet.cs"
+      ],
+      "context_files": [
+        "Scripts/Weapons/Projectile.cs"
+      ],
+      "hint": "PlayerPlane.cs has a method that fires with Bullet.Spawn(position, rotation, direction). Give PlayerPlane a `public Vector2 NoseDirection` property (cos/sin of the current pitch angle, x mirrored by _facing) and fire along it, rotating the muzzle offset with the nose and passing a matching rotation so the bullet sprite points the way it flies. In Bullet.cs make sure a non-horizontal direction works (velocity along `direction`, sprite rotated to it; a comment mentioning the nose direction is fine). Bombs are unchanged. PATCH only.",
+      "checks": [
+        {
+          "type": "contains",
+          "path": "Scripts/Player/PlayerPlane.cs",
+          "pattern": "NoseDirection"
+        }
+      ]
+    },
+    {
+      "id": "BULLET-NOSE-ENEMY",
+      "title": "Enemy machine-gun bullets leave along the nose",
+      "gdd_anchor": "leave the gun along the nose direction",
+      "category": "gameplay",
+      "impact": 3,
+      "effort": 3,
+      "deps": [
+        "PLANE-PITCH-FIGHTER",
+        "PLANE-PITCH-BOMBER"
+      ],
+      "edit_files": [
+        "Scripts/Enemies/FighterAI.cs",
+        "Scripts/Enemies/BomberAI.cs"
+      ],
+      "context_files": [
+        "Scripts/Weapons/EnemyBullet.cs"
+      ],
+      "hint": "Fighters and bomber gunners already fire EnemyBullet shots at the player. Make the fighter's pitch follow the direction of the shot it is about to fire (within its firing cone) so the nose and the bullet agree, and make shots leave from the nose position. Add a `NoseDirection` property on FighterAI. PATCH only. After this QA must re-check the zeppelin turret line of fire and the enemy-fire cone.",
+      "checks": [
+        {
+          "type": "contains",
+          "path": "Scripts/Enemies/FighterAI.cs",
+          "pattern": "NoseDirection"
+        }
+      ]
+    }
+  ]
+}

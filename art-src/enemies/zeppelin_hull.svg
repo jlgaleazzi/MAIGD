@@ -96,6 +96,22 @@
       <path d="M700,26 L702,22 L712,22 L714,26"/>
     </g>
 
+    <!-- underside turret mount pylon (B021): hull px y 174 down to the turret saddle -->
+    <g id="pylon">
+      <path d="M368,174 L402,174 M370,176.5 L400,176.5" stroke-width="0.75"/>
+      <path d="M373,174 L380,201 M397,174 L390,201" stroke-width="1.25"/>
+      <path d="M376,201 L394,201 L394,205.3 Q385,206.2 376,205.3 Z" stroke-width="1"/>
+      <line x1="376.4" y1="187" x2="393.6" y2="187" stroke-width="0.75"/>
+      <path d="M374.6,180 L391.3,196 M395.4,180 L378.7,196" stroke-width="0.5" opacity="0.7"/>
+      <g fill="#E8F1FA" stroke="none">
+        <use href="#rivet" x="379.5" y="203.2"/>
+        <use href="#rivet" x="385" y="203.2"/>
+        <use href="#rivet" x="390.5" y="203.2"/>
+        <use href="#rivet" x="374" y="175.3"/>
+        <use href="#rivet" x="396" y="175.3"/>
+      </g>
+    </g>
+
     <!-- forward control car -->
     <g id="controlcar">
       <path d="M648,184 L734,184 C744,186 748,196 740,204 L658,204 C652,200 649,192 648,184 Z" stroke-width="1.25"/>

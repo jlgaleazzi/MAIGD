@@ -29,7 +29,7 @@ This document tracks every file, asset, and system delivered during **M0 Foundat
 ### Player Systems
 | File | Purpose |
 |---|---|
-| `PlayerInput.cs` | WASD/LeftStick movement, Space hold autofire, Enter bomb drop |
+| `PlayerInput.cs` | WASD movement, left mouse hold autofire, Space bomb drop |
 | `PlayerPlane.cs` | Kinematic Rigidbody2D, runway/takeoff state, smoke trail logic, ground collision |
 | `BombBay.cs` | Capacity 7, drop logic, event raising |
 

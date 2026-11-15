@@ -55,6 +55,16 @@ namespace Biplanes.Core {
             GameEvents.RaiseScoreChanged(CurrentScore);
         }
 
+        /// <summary>
+        /// Sets the score back to 0 and raises ScoreChanged. MissionRunner calls this at the
+        /// start of every mission, so a mission reached via "Next" (no scene reload) saves only
+        /// its own points as its best score (B006b).
+        /// </summary>
+        public void ResetScore() {
+            CurrentScore = 0;
+            GameEvents.RaiseScoreChanged(CurrentScore);
+        }
+
         #endregion
 
         #region EntityDestroyed handler

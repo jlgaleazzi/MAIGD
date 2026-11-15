@@ -10,7 +10,7 @@ namespace Biplanes.Missions {
     ///   between the mission's terrain keyframes on top of the -4.5 baseline.
     /// - Drawn with SpriteRenderers only (no meshes, materials or Shader.Find): the strip
     ///   is cut into 20-unit chunks, each a runtime Texture2D at 32 px per unit.
-    ///   Only chunks near the camera exist.
+    ///   Only chunks within KeepRange of the camera (both ways; the plane can turn back) exist.
     /// - Has no collider. PlayerPlane and Bomb compare their y against HeightAt.
     /// </summary>
     public class TerrainStrip : MonoBehaviour {
@@ -25,8 +25,7 @@ namespace Biplanes.Missions {
         private const float ChunkBottomY    = -5f;    // camera bottom edge
         private const float ChunkTopPadding = 0.5f;   // space above the highest point
         private const int   RidgePixels     = 2;      // pencil line under the surface
-        private const float KeepBehind      = 10f;    // keep chunks this far left of camera
-        private const float KeepAhead       = 30f;    // and this far right of camera
+        private const float KeepRange       = 30f;    // keep chunks this far either side of the camera
         private const int   SortingOrder    = 0;      // §3 Draw order: terrain
 
         // ART_STYLE palette.
@@ -75,8 +74,8 @@ namespace Biplanes.Missions {
 
             // Initial window, built synchronously.
             float camX = strip.CameraX();
-            int first = ChunkIndex(camX - KeepBehind);
-            int last  = ChunkIndex(camX + KeepAhead);
+            int first = ChunkIndex(camX - KeepRange);
+            int last  = ChunkIndex(camX + KeepRange);
             for (int i = first; i <= last; i++) strip.BuildChunk(i);
 
             return strip;
@@ -112,8 +111,8 @@ namespace Biplanes.Missions {
         private void Update() {
             if (_cam == null) _cam = Camera.main;
             float camX = CameraX();
-            int first = ChunkIndex(camX - KeepBehind);
-            int last  = ChunkIndex(camX + KeepAhead);
+            int first = ChunkIndex(camX - KeepRange);
+            int last  = ChunkIndex(camX + KeepRange);
 
             // Drop chunks that left the window.
             _toRemove.Clear();

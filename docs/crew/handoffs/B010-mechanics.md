@@ -1,0 +1,20 @@
+TASK: B008 (reopened) + B010 + B011
+AGENT: mechanics
+STATUS: DONE
+FILES:
+- Biplanes/Assets/Biplanes/Scripts/Weapons/Bomb.cs
+- Biplanes/Assets/Biplanes/Scripts/Weapons/Bullet.cs
+- Biplanes/Assets/Biplanes/Scripts/Enemies/AAAGun.cs
+- docs/crew/handoffs/B010-mechanics.md
+SUMMARY:
+- B008: Bomb keeps `_prevPos` (set in Spawn, updated at the end of every above-ground Update). On reaching the terrain it computes the impact point with the new `ImpactPoint(terrain, prev, cur)`. That is the linear crossing of (y - HeightAt(x)) between the previous and current positions, so x is where the bomb crossed the surface (or cur.x if prev was not above ground), and p = (x, HeightAt(x)). Both `BurstDamage(p)` and `FxManager.TriggerExplosion(p)` use p, so the step depth no longer matters. Any crossing x within the gun's half-width (0.5) + burst radius (0.5) of an AAA now hits its ±0.3 box at every frame rate. The burst filter, once-per-target rule, `_directHit` skip and no-allocation rule are unchanged.
+- B010: AAAGun.PredictPosition now solves the intercept directly: |D + v t| = S t, with D = player - gun, v = PlayerPlane.Velocity and S = FlakShell.ShellSpeed. It takes the earliest positive root. If there is none (the plane outruns the shell), it falls back to t = |D| / S. Numerically checked: (-2,6) v(5,0), (2,6) v(-5,0), (-6,8) v(5,0) and (3,4) v(-5,0) all meet with 0.0 error. FlakShell's MinUpward clamp (dir.y >= 0.5) can still bend very low-angle shots, which is unchanged.
+- B011: Bullet.OnHit and Bomb.OnHit return early, with no damage, no FX and no recycle, for Team.Neutral targets, so player projectiles fly on through health balloons. Pickup is untouched (HealthBalloon's own trigger with the plane's TeamTag). Enemy projectiles (FlakShell, EnemyBomb) are untouched. Static obstacles (buildings, trees) have no IDamageable, so Projectile.OnTriggerEnter2D already ignored them and projectiles already passed through them. That behaviour is unchanged. Removed the now-unused `Bomb.IsGroundTarget`. Projectile.cs is not edited.
+VERIFY:
+- `python tools/compile_check.py` -> PASS Biplanes (+1 new file not yet in the csproj), PASS Biplanes.Editor, exit 0.
+- Reflected names are kept: `_pool`, `_directHit`, `BurstDamage(Vector2)`, `PredictPosition()`, `_groundY`.
+- Expected test break: `EnemyWeaponsAndPoolTests.AAAGun_PredictPosition_LeadsWithPlayerVelocity_BothFacings` asserts the old t = dy / ShellSpeed lead (48 + 5*1.0). With the intercept solve, the case gun (50,0), plane (48,6), v(5,0) gives t ≈ 1.2028 and x ≈ 54.014. The test needs updating (see REQUESTS).
+- Playtest (mission 3): drop bombs from the top of the screen onto an AAA at 30 fps (Application.targetFrameRate = 30) and at normal fps. Expect 10/10 kills, with the explosion drawn on the ground surface. Fly level over AAA in both directions: flak should meet the plane rather than trail it. Missions 1-2: fire and bomb through a health balloon. The projectiles pass through, the bomb count still drops by 1 per drop only, and flying into the balloon still heals.
+REQUESTS:
+- qa: update `AAAGun_PredictPosition_LeadsWithPlayerVelocity_BothFacings` to assert the intercept property instead of the old formula: for the returned point A, |A - gun| / ShellSpeed == t and A == player + v t (within 1e-3), for both facings. Add an EditMode test that a Bullet/Bomb OnHit on a HealthBalloon leaves the projectile active. Add one that a Bomb whose `_prevPos` is above ground and position is 0.9 below bursts at the crossing x on the surface (it kills an AAA there).
+- orchestrator: ARCHITECTURE.md §3 Weapons, Bomb: "On reaching the terrain, the burst and the explosion are placed on the surface at the x where the bomb crossed it (interpolated between the previous and current positions), not at the below-ground position." §3 Weapons, Bullet/Bomb: "Player projectiles ignore Team.Neutral IDamageables (health balloons) and fly on." §3 Enemies, AAAGun: "Aims at the exact straight-line intercept of a ShellSpeed shell with the player's current velocity (falls back to distance / ShellSpeed when no intercept exists)."

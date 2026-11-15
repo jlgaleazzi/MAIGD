@@ -21,6 +21,21 @@ TOP_KEYS = {"id", "title", "briefing", "scrollSpeed", "length", "playerStart", "
             "terrain", "spawns", "objectives"}
 TARGET_SECONDS = {1: 150, 2: 180, 3: 210, 4: 240, 5: 270}
 BOMB_CAPACITY = 7
+# Bombers ignore atX for placement: they spawn at camera + 5*aspect + 1.5 + rand(0..6),
+# and the camera is at about atX when the spawn triggers. The near edge is 10.4 at 16:9,
+# 9.5 at 16:10 (WebGL 960x600) and 8.17 at 4:3; use the 4:3 minimum (QA T938 P2-5).
+BOMBER_SPAWN_OFFSET = 8
+# A zeppelin's y is height above the terrain; below 3 its underside turret sinks into
+# the ground, can't be shot, and the hull stays shielded (QA T938 P1-1).
+ZEPPELIN_MIN_Y = 3
+
+
+def target_spawn_x(spawn: dict) -> float:
+    """World x where a destroyById target appears (B018 failAtX rule)."""
+    at_x = spawn.get("atX", 0)
+    if spawn.get("type") == "bomber":
+        return at_x + BOMBER_SPAWN_OFFSET
+    return at_x  # zeppelin and every other type spawn at atX
 
 
 def validate(path: Path, number: int) -> list:
@@ -70,6 +85,9 @@ def validate(path: Path, number: int) -> list:
             errors.append(f"{where} ground unit must have y = 0")
         if not 0 <= s.get("y", 0) <= 8.5:
             errors.append(f"{where} y must be in [0, 8.5]")
+        if s.get("type") == "zeppelin" and s.get("y", 0) < ZEPPELIN_MIN_Y:
+            errors.append(f"{where} zeppelin y {s.get('y', 0)} must be >= {ZEPPELIN_MIN_Y} "
+                          "(height above terrain; lower buries its underside turret)")
         if s.get("count", 1) < 1:
             errors.append(f"{where} count must be >= 1")
         if s.get("id"):
@@ -99,10 +117,20 @@ def validate(path: Path, number: int) -> list:
             errors.append(f"{where} targetId '{o.get('targetId')}' is never spawned")
         if o.get("type") == "bombTarget" and ids.get(o.get("targetId"), {}).get("type") not in BOMB_TARGETS:
             errors.append(f"{where} bombTarget must point at aaa or enemyBase")
-        if o.get("failAtX", -1) >= 0:
-            target = ids.get(o.get("targetId"), {})
-            if o["failAtX"] <= target.get("atX", 0):
-                errors.append(f"{where} failAtX must be beyond the target's spawn atX")
+        fail_x = o.get("failAtX", -1)
+        if fail_x >= 0 and o.get("type") != "destroyById":
+            warnings.append(f"{where} failAtX is ignored on '{o.get('type')}' objectives")
+        elif fail_x >= 0:
+            # B018: failAtX is the WORLD x the target must not reach while flying left,
+            # so it must lie left of where the target spawns.
+            target = ids.get(o.get("targetId"))
+            if target is None:
+                errors.append(f"{where} failAtX target '{o.get('targetId')}' is never spawned")
+            else:
+                spawn_x = target_spawn_x(target)
+                if fail_x >= spawn_x:
+                    errors.append(f"{where} failAtX {fail_x} must be < the target's spawn x "
+                                  f"{spawn_x} ({target.get('type')} '{target.get('id')}')")
 
     if bombable > BOMB_CAPACITY:
         warnings.append(f"{bombable} bomb targets but only {BOMB_CAPACITY} bombs and no refills")

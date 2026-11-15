@@ -1,0 +1,77 @@
+TASK: B023
+AGENT: mechanics
+STATUS: DONE
+FILES:
+- Biplanes/Assets/Biplanes/Scripts/Weapons/EnemyBullet.cs (new)
+- Biplanes/Assets/Biplanes/Scripts/Enemies/FighterAI.cs
+- Biplanes/Assets/Biplanes/Scripts/Enemies/BomberAI.cs
+- Biplanes/Assets/Biplanes/Scripts/Core/GameBalance.cs (new EnemyFireData + `enemyFire` field)
+- Biplanes/Assets/Biplanes/Resources/Balance.json (new `enemyFire` block only)
+- Biplanes/Assets/Biplanes/Tests/EditMode/EnemyFireTests.cs (new, 14 tests)
+SUMMARY:
+- New `EnemyBullet : Projectile`, built like FlakShell:
+  - Pool of 32, built lazily under the "EnemyBulletPool" scene root and rebuilt (old pool disposed) after a scene reload.
+  - Team.Enemy, damage 1 hit unit. Only damages Team.Player; enemies are skipped by the base team check and neutral objects are ignored.
+  - Recycles on a hit, at the end of its lifetime, and when it goes 0.5 units past the camera view. The camera is cached on Spawn, never looked up per frame.
+  - Art: a 6x2 white rect (the same placeholder the player's bullet uses; there is no bullet PNG) tinted #E4572E. No asset load, so no warnings.
+  - `Spawn(pos, dir, DamageSource)`, plus shared static helpers `InFiringCone`, `AimWithinCone` and `IsOnScreen`.
+- FighterAI: `TickFire(dt)` runs at the end of FixedUpdate, after the dead check.
+  - The cooldown only counts down while the fighter is on screen and the player is alive (not `HasCrashed`, Health not dead).
+  - The first shot comes after a random 0.4-1.2 s; after that, a random 1.8-2.5 s per shot.
+  - It fires only when the player is within `range` 11 and inside a 40° half-angle cone ahead (left). The aim is the player's current position ±4° spread, clamped into that cone, so it never fires backwards. Shots leave from the nose (0.75 ahead).
+  - Source is `FighterAI.ShotSource` = DamageSource.Bullet, which maps to damageTaken.fighterBullet (8%).
+- BomberAI: a gunner `TickGunner(dt)` with the same gating, any direction, `range` 11, every 2.5-3.0 s. Source is `BomberAI.GunnerShotSource` = DamageSource.Bomb, which maps to damageTaken.bomberGunner (10%).
+  - **No new DamageSource value was added**: Health already maps Bomb to bomberGunner.
+  - Movement and the bomb run are unchanged.
+  - Both AIs find the player once in Start (`FindFirstObjectByType<PlayerPlane>()`, like ZeppelinAI), or through the internal `PlayerRef`. Dead or destroyed enemies stop firing.
+- All numbers are in Balance `enemyFire`:
+  - fighterIntervalMin/Max 1.8/2.5, fighterConeDegrees 40
+  - bomberIntervalMin/Max 2.5/3.0
+  - firstShotDelayMin/Max 0.4/1.2
+  - bulletSpeed 8 (player bullet 14), bulletLifetime 1.6
+  - range 11, spreadDegrees 4
+  - `EnemyFireData.Resolve(balance)` returns defaults for a missing block or for missing/non-positive keys, and caps the cone below 90°.
+- Mission 1 fire-rate arithmetic. The biggest wave is atX 90: 4 sine fighters.
+  - Peak sustained rate with all 4 on screen and in their cones: 4 / 1.8 = 2.22 shots/s. Average: 4 / 2.15 = 1.86 shots/s.
+  - Real exposure is lower. The camera half-width is about 8.9 (ortho 5, 16:9) and the player sits at viewport 0.3, so a fighter enters about 12.5 units ahead. Fighter at 3 u/s plus scroll at 2 u/s gives a closing speed of about 5 u/s.
+  - So a fighter is in range and ahead for about 2.2 s per pass, and its first shot only comes 0.4-1.2 s after it appears on screen. That means 1 shot per fighter per pass, 2 at most if the player hangs back.
+  - Wave worst case: 4-8 shots, which is 32-64% if every one hits. That is not lethal from 0%.
+  - Whole of M1: 12 fighters, about 12-24 shots. There is a +30 health balloon at 170, and nothing lands at once: the shots are staggered by the random first-shot delay, the 1.5 spacing and the ±4° spread.
+  - Bullets close on the player at about 10 u/s, so a full-range shot takes about 1.1 s, while the player moves 5 u/s vertically. They can be dodged.
+VERIFY:
+- `python tools/compile_check.py` → PASS Biplanes (+1 new file(s) not yet in the csproj), PASS Biplanes.Editor, exit 0.
+- `tools/unity.sh compile` wasn't run: the editor has the project open.
+- Tests were scratch-compiled (not run), using the same method as B018:
+  - The runtime DLL was built with compile_check's helpers.
+  - The temp test csproj had all 11 Tests/EditMode/*.cs files and TargetFrameworkVersion bumped to v4.7.2. Unity's nunit is net472; with 4.7.1, msbuild fails to resolve it (MSB3274).
+  - Result: 0 errors. No zz_* csproj and no other files were left in the project.
+- With Unity closed: `bash tools/unity.sh test`, then run EnemyFireTests:
+  - EnemyFire_Resolve_ReadsBalance_AndDefaultsWhenMissing
+  - EnemyBullet_FighterShotDeals8Percent_BomberShotDeals10Percent (asserts exactly 8 then 18 on the player's Health)
+  - EnemyBullet_IgnoresEnemiesAndNeutrals_AndStaysInFlight
+  - EnemyBullet_TeamEnemy_OneHitUnit_SpeedFromBalance_HostileTint
+  - EnemyBullet_PoolUnderSceneRoot_RebuiltAfterRootDestroyed
+  - EnemyBullet_LeavingTheScreen_Recycles
+  - InFiringCone_AheadInRange_Only
+  - AimWithinCone_NeverFiresBackwards
+  - Fighter_FiresAtPlayerAhead_WithCadenceFromBalance
+  - Fighter_HoldsFire_PlayerBehindOrOutOfRange
+  - Fighter_DeadOrPlayerDead_NeverFires
+  - Fighter_OffScreen_HoldsFire_AndCooldownDoesNotRun
+  - Bomber_Gunner_FiresAnyDirection_WithBomberCadence
+  - Bomber_Gunner_HoldsFire_OutOfRange_OrDead
+- Playtest M1 and M2:
+  - Orange-red rounds come from fighters' noses only while the player is ahead of them, never backwards.
+  - A wave's shots are staggered, not a volley.
+  - Each fighter hit adds 8% and each bomber-gunner hit adds 10% on the HUD.
+  - Firing stops when the player crashes or the enemy dies.
+  - The bomber's bomb run is unchanged.
+REQUESTS:
+- orchestrator: update ARCHITECTURE.md:
+  - §3 Weapons, add: "`EnemyBullet` (Team.Enemy, own lazy scene-root pool `EnemyBulletPool` like FlakShell; 1 hit unit; damages only the player; recycles on hit, lifetime, or leaving the camera view). `EnemyBullet.Spawn(position, dir, source)`. Fighters use `DamageSource.Bullet` (damageTaken.fighterBullet); bomber gunners use `DamageSource.Bomb` (damageTaken.bomberGunner). Static helpers: `InFiringCone`, `AimWithinCone`, `IsOnScreen`."
+  - §3 Enemies, FighterAI: "shoots `EnemyBullet`s at the player's current position while on screen, the player is alive, and the player is within `enemyFire.range` and `fighterConeDegrees` of its flight direction (left). The shot is clamped into that cone. The cooldown runs only on screen: a random first-shot delay, then `fighterInterval*`."
+  - §3 Enemies, BomberAI: "a gunner fires `EnemyBullet`s in any direction at the player within range while on screen, every `bomberInterval*`; it does not affect the flight or the bomb run."
+  - §4 Balance: add the `enemyFire` block (values above). Mirrored by `EnemyFireData` in `GameBalance.enemyFire`; read it via `EnemyFireData.Resolve(GameBalance.Get())`, which supplies defaults.
+- orchestrator (optional): if a dedicated `DamageSource.BomberGunner` is preferred over reusing Bomb, it's a 2-file follow-up: DamageSource.cs, plus the Health.cs mapping and BomberAI.GunnerShotSource.
+- orchestrator (tooling, optional): the compile_check `--tests` mode suggested in B018 must target v4.7.2 for the test project, or nunit won't resolve.
+- mission-design: tune `enemyFire` if M3/M4 (more fighters plus AAA) feel too hot; the M1 arithmetic is above.

@@ -3,6 +3,7 @@ using Biplanes.Core;
 using Biplanes.Weapons;
 using Biplanes.Missions;
 using Biplanes.Enemies;
+using Biplanes.Fx;
 
 namespace Biplanes.Player {
 
@@ -14,10 +15,15 @@ namespace Biplanes.Player {
     ///  - Movement via Rigidbody2D.Kinematic + MovePosition in FixedUpdate.
     ///  - Riding along with the scrolling camera, clamped inside the camera rectangle
     ///    minus a 0.5 margin (ARCHITECTURE §3).
+    ///  - Facing (Defender-style): A/D turn the plane left/right, the sprite flips and the
+    ///    ScrollController scrolls in the facing direction. The plane's screen x eases toward
+    ///    the trailing anchor (viewport screenAnchor facing right, 1 - screenAnchor facing left).
     ///  - Machine gun (PlayerInput.OnFire → Bullet.Spawn) and bombs
     ///    (PlayerInput.OnDropBomb → BombBay.TryDropBomb).
     ///  - Smoke trail visual when damage ≥ smokeThreshold (default 70%).
-    ///  - Crash handling at 100% damage — notifies GameManager and raises GameEvents.
+    ///  - Crash handling at 100% damage — input off at once, the mission is lost at once
+    ///    (GameManager.LoseMission), and the plane falls and tumbles for CrashFallSeconds
+    ///    (scripted, no physics) before GameManager opens the result screen (T937).
     ///
     /// Communicates through:
     ///  - PlayerInput.OnMove / OnFire / OnDropBomb events.
@@ -54,6 +60,56 @@ namespace Biplanes.Player {
         /// <summary>World-space velocity over the last physics tick (bombs inherit its x).</summary>
         private Vector2 _velocity;
 
+        /// <summary>Flight attitude in degrees, nose up positive in either facing (T942/B029).</summary>
+        private float _pitchAngle;
+
+        /// <summary>World-space velocity over the last physics tick (scroll ride-along included).
+        /// The kinematic body is moved with MovePosition, so Rigidbody2D.linearVelocity stays zero;
+        /// read this instead (AAAGun leads its flak with it).</summary>
+        public Vector2 Velocity => _velocity;
+
+        /// <summary>+1 = facing right, -1 = facing left. The art faces right.</summary>
+        private int _facing = 1;
+
+        /// <summary>A/D held on the previous tick, so the last key pressed wins when both are held.</summary>
+        private bool _prevLeft;
+        private bool _prevRight;
+
+        /// <summary>
+        /// A was held when the plane took off. It is ignored until released and pressed
+        /// again, so W+A on the runway doesn't turn the plane right after takeoff (B003).
+        /// </summary>
+        private bool _ignoreHeldLeft;
+
+        // ── Crash fall (scripted, T937) ──────────────────────────────────
+
+        /// <summary>Seconds the crashed plane falls before the result screen opens.
+        /// GameManager.LoseMission(reason, CrashFallSeconds) delays the result by this much.</summary>
+        public const float CrashFallSeconds = 1f;
+
+        /// <summary>Downward acceleration of the falling wreck (world units/s²).</summary>
+        private const float CrashGravity = 14f;
+        /// <summary>Forward drift of the wreck (world units/s), in the facing direction.</summary>
+        private const float CrashDriftSpeed = 1.5f;
+        /// <summary>Nose-over spin of the wreck (degrees/s).</summary>
+        private const float CrashSpinDegPerSec = 300f;
+        /// <summary>Height of the wreck's centre above the terrain when it comes to rest.</summary>
+        private const float CrashRestHeight = 0.2f;
+
+        private Vector2 _crashVelocity;
+        private float _crashAngle;
+        private bool _crashLanded;
+
+        // ── Mid-air plane collision (B025) ───────────────────────────────
+
+        /// <summary>After a mid-air collision the player takes no further plane-collision
+        /// damage for this long, so one contact (two overlapping enemies, re-entry) costs
+        /// damageTaken.planeCollision once. Enemies touched meanwhile are still destroyed.</summary>
+        public const float PlaneCollisionGraceSeconds = 0.5f;
+
+        /// <summary>Seconds of plane-collision grace left; counted down in FixedUpdate.</summary>
+        private float _planeCollisionGrace;
+
         // ── Cached components ────────────────────────────────────────────
 
         private Rigidbody2D _rb;
@@ -66,6 +122,12 @@ namespace Biplanes.Player {
 
         private float _speed;
         private float _smokeThreshold;
+        private float _screenAnchor;
+        /// <summary>Resolved Balance pitch block (never null after Create/Awake).</summary>
+        private PitchData _pitch;
+
+        /// <summary>Used when Balance.json has no (or a zero) player.screenAnchor.</summary>
+        private const float FallbackScreenAnchor = 0.3f;
 
         // ── Weapon offsets (local to the plane centre) ───────────────────
 
@@ -94,7 +156,12 @@ namespace Biplanes.Player {
 
             var sr = go.AddComponent<SpriteRenderer>();
             // Try to load the default player sprite; fall back to a 1×1 white if missing.
-            sr.sprite = Resources.Load<Sprite>("Sprites/player/player_biplane") ?? CreateSolidSprite(Color.white, 1, 1, 1f);
+            sr.sprite = Resources.Load<Sprite>("Sprites/player/player_biplane");
+            if (sr.sprite == null) {
+                Debug.LogWarning("[PlayerPlane] Sprite 'Sprites/player/player_biplane' missing; using a solid fallback.");
+                if (_fallbackPlaneSprite == null) _fallbackPlaneSprite = CreateSolidSprite(Color.white, 1, 1, 1f);
+                sr.sprite = _fallbackPlaneSprite;
+            }
             sr.sortingOrder = 20;
             pp._sr = sr;
 
@@ -122,6 +189,13 @@ namespace Biplanes.Player {
                 ? pp._smokeThresholdOverride
                 : (g != null ? g.player.smokeThreshold : 70f);
             pp._smokeThreshold = rawSmoke;
+            float anchor = g != null && g.player != null ? g.player.screenAnchor : 0f;
+            pp._screenAnchor = anchor > 0f ? anchor : FallbackScreenAnchor;
+            pp._facing = 1;
+            pp._ignoreHeldLeft = false;
+            pp._pitch = PitchData.Resolve(g);
+            pp._pitchAngle = 0f;
+            sr.flipX = false;
 
             // Clamp to initial camera bounds.
             pp._hasCrashed   = false;
@@ -144,13 +218,21 @@ namespace Biplanes.Player {
 
         // ── Weapon pools ──────────────────────────────────────────────────
 
+        /// <summary>Projectile and fallback sprites, built once and shared by every mission (B006a).</summary>
+        private static Sprite _bulletSprite;
+        private static Sprite _bombSprite;
+        private static Sprite _fallbackPlaneSprite;
+
         /// <summary>
         /// (Re)creates the shared Bullet and Bomb pools. Called once per mission from Create,
-        /// so pools never point at objects destroyed by a scene reload.
+        /// so pools never point at objects destroyed by a scene reload. InitPool disposes the
+        /// previous pool and its items; the sprites are cached, so no texture leaks per mission.
         /// </summary>
         private static void InitWeaponPools() {
-            var bulletSprite = CreateSolidSprite(Color.white, 6, 2, 32f);
-            var bombSprite   = CreateSolidSprite(Color.white, 4, 6, 32f);
+            if (_bulletSprite == null) _bulletSprite = CreateSolidSprite(Color.white, 6, 2, 32f);
+            if (_bombSprite == null)   _bombSprite   = CreateSolidSprite(Color.white, 4, 6, 32f);
+            var bulletSprite = _bulletSprite;
+            var bombSprite   = _bombSprite;
 
             Bullet.InitPool(() => MakeProjectile<Bullet>("Bullet", bulletSprite, 0.08f), 40);
             Bomb.InitPool(() => MakeProjectile<Bomb>("Bomb", bombSprite, 0.12f), 10);
@@ -181,6 +263,7 @@ namespace Biplanes.Player {
             if (_health == null) _health = GetComponent<Health>();
             if (_bombBay == null) _bombBay = GetComponent<BombBay>();
             if (_collider == null) _collider = GetComponent<Collider2D>();
+            if (_pitch == null) _pitch = PitchData.Resolve(GameBalance.Get());
 
             // Compute screen bounds from the main camera (may be set up later).
             ComputeScreenBounds();
@@ -210,12 +293,20 @@ namespace Biplanes.Player {
 
         /// <summary>Called every FixedUpdate to check for ground contact and crash.</summary>
         private void FixedUpdate() {
+            // A crashed plane only falls; nothing can hit or crash it again.
+            if (_hasCrashed) {
+                UpdateCrashFall(Time.fixedDeltaTime);
+                return;
+            }
+
+            TickPlaneCollisionGrace(Time.fixedDeltaTime);
+
             // Terrain has no collider (ARCHITECTURE §3 Physics): compare against HeightAt.
             // Health multiplies by Balance damageTaken.collision (100), so 1 = full crash.
             var terrain = TerrainStrip.Instance;
             if (!_onRunway && !_hasCrashed && terrain != null && _health != null && _collider != null) {
-                var b = _collider.bounds;
-                if (b.min.y <= terrain.HeightAt(b.center.x)) {
+                Vector2 low = HitboxLowestPoint();
+                if (low.y <= terrain.HeightAt(low.x)) {
                     _health.ApplyDamage(1f, DamageSource.Collision);
                 }
             }
@@ -227,8 +318,13 @@ namespace Biplanes.Player {
         }
 
         /// <summary>
-        /// Mid-air collision with an enemy plane (fighter or bomber) destroys both.
-        /// Health multiplies by Balance damageTaken.collision (100), so 1 = full damage.
+        /// Mid-air collision with an enemy plane (fighter or bomber), B025: the enemy is
+        /// destroyed (Collision is always fatal for enemies, so score and EntityDestroyed are
+        /// as before) and the player takes damageTaken.planeCollision percent (50) through
+        /// Health. The plane crashes only when its total damage reaches 100%.
+        /// No double hit: a dead enemy is ignored (a bomber's other hitboxes, re-entry), and
+        /// for PlaneCollisionGraceSeconds after a hit further contacts don't damage the player.
+        /// Terrain, buildings, trees, balloons, bases and zeppelins keep their own fatal rules.
         /// </summary>
         private void OnTriggerEnter2D(Collider2D other) {
             if (_hasCrashed || _health == null) return;
@@ -239,8 +335,18 @@ namespace Biplanes.Player {
             if (enemy == null || enemy.IsDead) return;
 
             enemy.ApplyDamage(1f, DamageSource.Collision);
-            _health.ApplyDamage(1f, DamageSource.Collision);
-            TriggerCrash();
+
+            if (_planeCollisionGrace > 0f) return;
+            _planeCollisionGrace = PlaneCollisionGraceSeconds;
+
+            _health.ApplyDamage(1f, DamageSource.PlaneCollision);
+            UpdateSmokeTrail();
+            if (_health.CurrentDamagePercent >= 100f) TriggerCrash();
+        }
+
+        /// <summary>Counts the plane-collision grace window down by `dt` seconds.</summary>
+        private void TickPlaneCollisionGrace(float dt) {
+            if (_planeCollisionGrace > 0f) _planeCollisionGrace = Mathf.Max(0f, _planeCollisionGrace - dt);
         }
 
         private void UnsubscribeInput() {
@@ -294,7 +400,9 @@ namespace Biplanes.Player {
         /// and the smoke check. All position changes go through one MovePosition call.
         /// </summary>
         public void OnMove(InputState state) {
-            if (_hasCrashed || _rb == null) return;
+            // An old plane deactivated by MissionRunner's teardown stays subscribed to the
+            // static input events until its deferred Destroy; ignore it meanwhile.
+            if (_hasCrashed || _rb == null || !gameObject.activeInHierarchy) return;
 
             // How far the camera scrolled since the last tick.
             var cam = Camera.main;
@@ -309,10 +417,15 @@ namespace Biplanes.Player {
             Vector2 target = start;
 
             // ── Takeoff logic (mission 1: start on runway) ──────────────────
+            bool tookOffThisTick = false;
             if (_onRunway) {
-                // Pressing W (climb) or D (forward-then-climb) triggers takeoff.
+                // Pressing W (climb) or D (forward-then-climb) triggers takeoff, facing right.
+                // A does nothing on the runway.
                 if (state.up || state.right) {
                     _onRunway = false;
+                    tookOffThisTick = true;
+                    // A held through takeoff stays ignored until it is released (B003).
+                    _ignoreHeldLeft = state.left;
                     _climbOutTimer = ClimbOutSeconds;
                     Debug.Log("[PlayerPlane] Takeoff — leaving the runway.");
                 }
@@ -325,26 +438,47 @@ namespace Biplanes.Player {
                 if (!state.down) state.up = true;
             }
 
+            // An A held since takeoff counts as not pressed until it is released, so the
+            // next real press is a fresh one (B003).
+            if (_ignoreHeldLeft) {
+                if (state.left) state.left = false;
+                else _ignoreHeldLeft = false;
+            }
+
             if (!_onRunway) {
-                // Airborne: ride along with the scrolling camera…
+                // Airborne: A/D turn the plane (the last key pressed wins). Not on the
+                // takeoff tick, so W+A held on the runway still takes off facing right.
+                if (!tookOffThisTick) UpdateFacing(state);
+
+                // Ride along with the scrolling camera…
                 target.x += scrollDx;
 
-                // …plus the player's own input.
-                float h = state.left ? -1f : (state.right ? 1f : 0f);
-                float v = state.up    ? 1f : (state.down ? -1f : 0f);
-                if (h != 0f || v != 0f) {
-                    var move = new Vector2(h, v);
-                    // Normalise diagonal so it doesn't move faster along diagonals.
-                    if (h != 0f && v != 0f) move *= 0.70710678f;
-                    target += move * _speed * Time.fixedDeltaTime;
+                // …ease the screen x toward the trailing anchor for the current facing…
+                if (cam != null) {
+                    float anchorViewport = _facing > 0 ? _screenAnchor : 1f - _screenAnchor;
+                    float halfWidth = cam.orthographicSize * cam.aspect;
+                    float anchorX = camX + (anchorViewport - 0.5f) * 2f * halfWidth;
+                    target.x = Mathf.MoveTowards(target.x, anchorX, _speed * Time.fixedDeltaTime);
                 }
+
+                // …plus W/S climb and dive.
+                float v = state.up ? 1f : (state.down ? -1f : 0f);
+                target.y += v * _speed * Time.fixedDeltaTime;
             }
+            _prevLeft  = state.left;
+            _prevRight = state.right;
 
             // ── Clamp to screen bounds every tick ───────────────────────────
             // On the runway the plane stays put until the camera's left edge reaches it.
             target = Clamp(target);
             _velocity = (target - start) / Time.fixedDeltaTime;
             _rb.MovePosition(target);
+
+            // ── Pitch (GDD Flight attitude): eased toward the climb/dive, the body (sprite
+            // and hitbox) turned through the Rigidbody2D like the position (B029) ──
+            if (_pitch == null) _pitch = PitchData.Resolve(GameBalance.Get());
+            _pitchAngle = PlanePitch.Step(_pitchAngle, _velocity.y, _pitch, Time.fixedDeltaTime);
+            _rb.MoveRotation(BodyAngle);
 
             // ── Update smoke trail visual ───────────────────────────────────
             UpdateSmokeTrail();
@@ -354,13 +488,77 @@ namespace Biplanes.Player {
 
         /// <summary>Machine gun: one bullet per PlayerInput.OnFire (autofire is paced there).</summary>
         private void OnFire() {
-            if (_hasCrashed || _onRunway) return;
-            Bullet.Spawn(transform.position + GunOffset, Quaternion.identity);
+            if (_hasCrashed || _onRunway || !gameObject.activeInHierarchy) return;
+
+            // The gun sits GunOffset.x ahead of the centre along the drawn nose (mirrored by
+            // the facing), and the round flies along the nose (GDD Flight attitude).
+            Vector2 nose = NoseDirection;
+            Vector3 muzzle = transform.position + (Vector3)(nose * GunOffset.x);
+            float angle = Mathf.Atan2(nose.y, nose.x) * Mathf.Rad2Deg;
+            Bullet.Spawn(muzzle, Quaternion.Euler(0f, 0f, angle), nose);
         }
 
-        /// <summary>Drop one bomb per Enter press; bombs inherit the plane's x-velocity.</summary>
+        /// <summary>Flight attitude in degrees, nose up positive in either facing, within
+        /// ±pitch.maxDegrees.</summary>
+        public float PitchAngle => _pitchAngle;
+
+        /// <summary>The z rotation (degrees) the body is turned to with MoveRotation:
+        /// PitchAngle * Facing, so the drawn nose points up when climbing in either facing.</summary>
+        public float BodyAngle => PlanePitch.BodyAngle(_pitchAngle, _facing);
+
+        /// <summary>World unit vector of the drawn nose: (Facing * cos p, sin p). Facing left
+        /// it points left; climbing it points up. The machine gun fires along it.</summary>
+        public Vector2 NoseDirection => PlanePitch.NoseDirection(_pitchAngle, _facing);
+
+        /// <summary>
+        /// Lowest world point of the hitbox at the current pitch, for the terrain check. It is
+        /// computed from the box and BodyAngle rather than Collider2D.bounds, so it doesn't lag
+        /// a physics step behind MoveRotation. Pitched, a box corner (tail or nose) is lowest:
+        /// at 15 degrees it reaches about 0.19 lower than level (1.6x0.8 box), accepted (B029).
+        /// </summary>
+        public Vector2 HitboxLowestPoint() {
+            Vector2 center = _rb != null ? _rb.position : (Vector2)transform.position;
+            var box = _collider as BoxCollider2D;
+            if (box == null) {
+                var b = _collider != null ? _collider.bounds : new Bounds(center, Vector3.zero);
+                return new Vector2(b.center.x, b.min.y);
+            }
+            Vector3 scale = transform.lossyScale;
+            Vector2 size = new Vector2(box.size.x * Mathf.Abs(scale.x), box.size.y * Mathf.Abs(scale.y));
+            Vector2 offset = new Vector2(box.offset.x * scale.x, box.offset.y * scale.y);
+            float y = PlanePitch.LowestPointOfBox(center, size, offset, BodyAngle);
+            return new Vector2(center.x, y);
+        }
+
+        // ── Facing ────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// D faces right, A faces left; with both held the most recent press wins, and with
+        /// neither held the facing is kept. A change flips the sprite and the scroll direction.
+        /// </summary>
+        private void UpdateFacing(InputState state) {
+            int facing = _facing;
+            if (state.left && !state.right) {
+                facing = -1;
+            } else if (state.right && !state.left) {
+                facing = 1;
+            } else if (state.left && state.right) {
+                bool newLeft  = !_prevLeft;
+                bool newRight = !_prevRight;
+                if (newLeft && !newRight) facing = -1;
+                else if (newRight && !newLeft) facing = 1;
+            }
+            if (facing == _facing) return;
+
+            _facing = facing;
+            if (_sr != null) _sr.flipX = _facing < 0;
+            var sc = ScrollController.Instance;
+            if (sc != null) sc.SetDirection(_facing);
+        }
+
+        /// <summary>Drop one bomb per Space press; bombs inherit the plane's x-velocity.</summary>
         private void OnDropBomb() {
-            if (_hasCrashed || _onRunway || _bombBay == null) return;
+            if (_hasCrashed || _onRunway || _bombBay == null || !gameObject.activeInHierarchy) return;
             _bombBay.TryDropBomb(transform.position + BombOffset, new Vector2(_velocity.x, 0f));
         }
 
@@ -394,24 +592,65 @@ namespace Biplanes.Player {
 
         // ── Crash handling ────────────────────────────────────────────────
 
-        /// <summary>Triggers the crash flow: sets lost state and raises mission-end event.</summary>
+        /// <summary>
+        /// Triggers the crash flow (only at 100% damage, including a terrain/obstacle crash,
+        /// or ForceCrash from a zeppelin ram):
+        ///  1. input off at once (unsubscribed and PlayerInput disabled), collider off;
+        ///  2. the mission is lost at once through GameManager.LoseMission, so no win can
+        ///     follow, but the result screen opens CrashFallSeconds later (real time);
+        ///  3. meanwhile FixedUpdate drops and spins the wreck (UpdateCrashFall) while the
+        ///     rest of the world keeps running.
+        /// </summary>
         private void TriggerCrash() {
             if (_hasCrashed) return;   // guard against double-trigger
             _hasCrashed = true;
 
-            Debug.Log("[PlayerPlane] Crashed! — setting GameState.Lost");
+            Debug.Log("[PlayerPlane] Crashed! — falling, then GameState.Lost result");
 
-            // Try GameManager first (may not exist yet in dev).
+            // Input is off before anything else.
+            UnsubscribeInput();
+            var input = GetComponent<PlayerInput>();
+            if (input != null) input.enabled = false;
+            if (_collider != null) _collider.enabled = false;
+
+            // The wreck keeps a little forward drift and whatever dive it already had.
+            _crashVelocity = new Vector2(_facing * CrashDriftSpeed, Mathf.Min(_velocity.y, 0f));
+            // Tumble from the attitude the plane had (the pending MoveRotation target).
+            _crashAngle = BodyAngle;
+            _crashLanded = false;
+
             var gm = GameManager.Instance;
             if (gm != null) {
-                gm.SetState(GameManager.GameState.Lost);
+                gm.LoseMission(GameManager.DefaultLossReason, CrashFallSeconds);
             } else {
                 // Fallback: raise the mission-ended event so missions can react.
-                GameEvents.RaiseMissionEnded(false, "Player crashed");
+                GameEvents.RaiseMissionEnded(false, GameManager.DefaultLossReason);
+            }
+        }
+
+        /// <summary>
+        /// One physics tick of the scripted crash fall: gravity, forward drift and a nose-over
+        /// spin, moved with MovePosition/MoveRotation. The wreck stops on the terrain
+        /// (TerrainStrip.HeightAt, no collider) with one explosion.
+        /// </summary>
+        private void UpdateCrashFall(float dt) {
+            if (_crashLanded || _rb == null || dt <= 0f) return;
+
+            _crashVelocity.y -= CrashGravity * dt;
+            Vector2 pos = _rb.position + _crashVelocity * dt;
+            _crashAngle -= _facing * CrashSpinDegPerSec * dt; // nose goes down in the facing direction
+
+            var terrain = TerrainStrip.Instance;
+            float ground = terrain != null ? terrain.HeightAt(pos.x) : TerrainStrip.GroundBaseY;
+            if (pos.y <= ground + CrashRestHeight) {
+                pos.y = ground + CrashRestHeight;
+                _crashLanded = true;
+                var fx = FxManager.Instance;
+                if (fx != null) fx.TriggerExplosion(pos);
             }
 
-            // Disable all input while in lost state.
-            UnsubscribeInput();
+            _rb.MovePosition(pos);
+            _rb.MoveRotation(_crashAngle);
         }
 
         /// <summary>Direct crash trigger (used if a collision component calls this).</summary>
@@ -420,6 +659,9 @@ namespace Biplanes.Player {
         }
 
         // ── Helpers ───────────────────────────────────────────────────────
+
+        /// <summary>+1 = facing right, -1 = facing left. Starts at +1.</summary>
+        public int Facing => _facing;
 
         /// <summary>Whether the player is still on the runway (takeoff not yet triggered).</summary>
         public bool OnRunway => _onRunway;

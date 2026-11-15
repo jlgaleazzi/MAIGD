@@ -42,13 +42,42 @@ blueprint-sourced sprites alike.
 - **Every aircraft faces right** (+x). Code flips enemies that fly left.
 - Pivot: the sprite's visual center. Keep 8px of padding inside the viewBox.
 
-## Pencil background rules
-- `stroke="#9DB4CC"`, `stroke-width` 1 to 2, `opacity` 0.6 to 0.9. Use 2 or 3 slightly
-  offset overlapping paths per contour to imitate sketching. Light hatching for shading
-  (parallel 45° lines). No fills except very faint hatching.
-- Backgrounds are horizontally **tileable** layers: `far` (mountains/clouds),
-  `mid` (hills/tree lines), `near` (fences/field rows). Each is 1920×1080 with matching
-  left/right edges.
+## Engraved-sketch background rules
+Technique source: old pen-and-ink engraving technique, Earth Atlantis-like (technique
+only; all subjects are original WWI scenes). Light lines on dark blue paper.
+- **Tone comes from line**, never flat fills: hatching that follows the form, cross-hatching
+  in shadows; shadow sides dense, lit sides sparse or empty. Paper-coloured fills are
+  allowed only to hide what is behind a shape (occlusion).
+- **Depth by fading:** distant subjects are big, simple, faint and barely outlined; near
+  subjects are small-scale, dense, high-contrast and heavily outlined.
+- **Cellular masses** in the foreground (stones, bricks, rubble, sandbags): each cell
+  outlined and hatched on its own, hatch angle varying cell to cell. Lattice girders where
+  the theme suits. Grass and foliage as tufts of tapering strokes.
+- Palette: `paper`, `paper-grid`, `pencil`, `ink` only. No accents in backgrounds.
+
+| Layer | Base | Subjects | Strokes |
+|---|---|---|---|
+| `far` | The **only opaque layer**: paper `<rect>`, faint 32 px paper-grid grid (opacity ≤ 0.5), 3–6 faint stains (paper-grid, opacity ≤ 0.35) | Sky and horizon: large faded silhouettes, engraved clouds | pencil / paper-grid at 0.2–0.45, 0.75–1 px, mostly hatching |
+| `mid` | **Transparent** (no full rect) | Middle distance, y ≥ 480 | pencil at 0.4–0.7, outlines 1–1.5 px, single and cross hatching |
+| `near` | **Transparent** (no full rect) | Foreground band, y ≥ 760 | pencil at 0.6–0.85, ink at most 0.45, outlines 1.5–2 px, dense cross-hatching and cellular masses |
+
+Draw order far -30, mid -20, near -10; scroll speeds 0.1 / 0.3 / 0.6. mid and near must be
+transparent outside their content (check the PNG alpha).
+
+**Readability (hard rules):** no full-opacity ink anywhere (sprites are ink at 1.0, 1.25 px);
+keep the flight band y 120–700 quiet in mid and near (far may rise into it, faintly); the
+terrain strip covers about the bottom 50 px; nothing that could pass for gameplay (planes,
+balloons, guns, crosses, roundels, zeppelins).
+
+**Tiling (hard rule):** path y-values at x=0 and x=1920 match; a shape crossing an edge is
+drawn twice, shifted by ±1920; `<pattern>` tiles use `patternUnits="userSpaceOnUse"` and a
+width that divides 1920 (4, 6, 8, 12, 16, 32 …) so hatching meets at the seam.
+
+**SVG technique:** hatch patterns at light 7–8 px, medium 4–5 px, dense cross 3–4 px; apply
+with `fill="url(#id)"` or a `<clipPath>`; reuse cells and tufts with `<defs>` + `<use>`;
+round caps and joins; no `<text>`, no filters; under 400 elements per file. Self-review:
+composite far+mid+near with sprites at game scale, check each layer side by side for
+seams, and look at near at 1:1.
 
 ## Asset list (name = file name; size in px)
 | Category | Name | Size | Notes |
@@ -56,7 +85,7 @@ blueprint-sourced sprites alike.
 | player | `player_biplane` | 160×80 | **From `blueprints/airplane_blueprint_256px.png`** via `tools/import_blueprints.py` (not SVG). "U" plus roundel bullseye on the fuselage; the roundel is redrawn ink / paper / ink by the importer |
 | player | `player_biplane_frame2` | 160×80 | Propeller animation frame 2. **From the same blueprint** via `tools/import_blueprints.py`: identical to `player_biplane` (same crop and pivot) except the propeller, which is a dashed disc with a short foreshortened blade |
 | enemies | `enemy_fighter` | 150×75 | **From `blueprints/fokker_blueprint_transparent_256px.png`** via `tools/import_blueprints.py` (not SVG), mirrored to face right. Iron Crosses on fuselage and tail, redrawn as ink crosses pattee by the importer; line weight normalized to the player |
-| enemies | `enemy_bomber` | 320×140 | Twin engine, gunner positions, Iron Crosses |
+| enemies | `enemy_bomber` | 320×140 | **From `blueprints/enemy_bomber_blueprint_clean_256px.png`** via `tools/import_blueprints.py` (not SVG), mirrored to face right. Two-seat biplane with a rear gunner's gun; Iron Crosses on fuselage and tail, redrawn as ink crosses pattee by the importer; serial "VII" trimmed to "V" (mirroring would read "IIV"); line weight normalized to the player |
 | enemies | `zeppelin_hull` | 900×220 | Rib lines, gondola, Iron Cross on the tail fin |
 | enemies | `zeppelin_turret` | 60×40 | Separate sprite, mounted on the hull |
 | enemies | `aaa_gun` | 100×80 | Ground gun with an angled barrel |
@@ -70,11 +99,17 @@ blueprint-sourced sprites alike.
 | fx | `explosion_0..5` | 128×128 | 6-frame ink burst, then dissipating dashed rings |
 | fx | `smoke_puff` | 48×48 | Pencil-hatched puff |
 | fx | `flak_burst_0..3` | 96×96 | Hostile-tinted burst |
-| backgrounds | `bg_<theme>_far/mid/near` | 1920×1080 | Themes: `farmland` (M1–2), `frontline` (M3), `enemyland` (M4), `stormsky` (M5) |
+| backgrounds | `bg_<theme>_far/mid/near` | 1920×1080 | Engraved sketch, tileable; only `far` opaque, `mid`/`near` transparent. Themes: `farmland` (M1–2), `frontline` (M3), `enemyland` (M4), `stormsky` (M5) |
 | ui | `ui_bomb_icon`, `ui_damage_frame`, `ui_panel`, `ui_button` | various | Blueprint-styled |
 | ui | `title_logo` | 1200×300 | "BIPLANES" in blueprint stencil lettering, built from paths (no font dependency) |
 
 ## Blueprint-sourced sprites
+**Aircraft backing:** every plane sprite (the blueprint sprites, and SVG aircraft listed
+in `rasterize.py` `BACKED`, currently none) gets an opaque `paper` silhouette
+under its lines (`import_blueprints.add_backing`), so no background shows through the
+plane. The silhouette is the drawing closed by 7 px, which bridges the gaps between
+wings and struts, with its holes filled. The lines are unchanged.
+
 Some sprites come from the user's line-art blueprint PNGs in `blueprints/` instead of an
 SVG master. `tools/import_blueprints.py` (its `SPRITES` table is the list) recolours the
 lines to `ink`, mirrors drawings that face left, optionally thickens thin lines, and fits
@@ -83,6 +118,8 @@ them to the asset-list size with 2 px padding. Currently:
 - `player_biplane_frame2` <- the same blueprint, propeller erased and redrawn
 - `enemy_fighter` <- `blueprints/fokker_blueprint_transparent_256px.png` (mirrored,
   alpha gain 2.2)
+- `enemy_bomber` <- `blueprints/enemy_bomber_blueprint_clean_256px.png` (mirrored,
+  alpha gain 0.65: its 1 px lines are fully opaque, so they are dimmed to the metric)
 
 Their old SVG masters are retired in `art-src/_retired/` (skipped by `rasterize.py`). A
 sprite in the `SPRITES` table must not also have an SVG in `art-src/`.

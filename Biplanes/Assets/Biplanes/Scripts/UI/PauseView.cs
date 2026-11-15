@@ -1,237 +1,267 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Biplanes.Core;
 
 namespace Biplanes.UI {
 
     /// <summary>
-    /// Pause overlay shown when the player presses Escape during a Playing mission.
-    /// Displays a "PAUSED" title with Resume and Quit buttons (UI_SPEC §3.4).
-    /// While visible: timeScale = 0, HUD canvas hidden.
+    /// Pause overlay (UI_SPEC §3.4): "PAUSED" title with Resume and Quit buttons.
+    /// GameManager shows it on Esc during Playing (timeScale 0, player input off) and
+    /// hides it when it leaves Paused (Esc again or Resume). Quit goes to the main menu.
     ///
-    /// Built entirely from code — no prefabs (ARCHITECTURE §0 rule 1).
+    /// Built entirely from code on its own overlay canvas — no prefabs, no scene objects
+    /// (ARCHITECTURE §0). Every Image gets a sprite, every Text gets LegacyRuntime.ttf, rects
+    /// use anchoredPosition + sizeDelta (B022 UI rules).
     /// </summary>
     public class PauseView : MonoBehaviour {
 
-        [SerializeField] private float _pausePanelWidth = 360f;
-        [SerializeField] private float _pausePanelHeight = 280f;
-        [SerializeField] private float _buttonWidth = 180f;
-        [SerializeField] private float _buttonHeight = 50f;
-        [SerializeField] private float _buttonSpacing = 20f;
+        // ── Layout (reference resolution 1280×720, centre anchored) ───────
 
-        /// <summary>CanvasGroup wrapping this pause overlay (set in Awake).</summary>
-        private CanvasGroup _canvasGroup;
+        private const int   CanvasSortingOrder = 110;   // above HUD, below results
+        private const float ReferenceWidth     = 1280f;
+        private const float ReferenceHeight    = 720f;
+        private const float MatchWidthOrHeight = 0.5f;
 
-        // ── GameManager reference (set by GameManager itself) ───────────────
+        private const float PanelWidth   = 360f;
+        private const float PanelHeight  = 300f;
 
-        /// <summary>Set by GameManager during Awake/OnEnable to avoid circular references.</summary>
-        private GameManager _gameManager;
+        private const float TitleY       = 85f;
+        private const float TitleWidth   = 320f;
+        private const float TitleHeight  = 60f;
+        private const int   TitleSize    = 36;
 
-        // ── Unity lifecycle ───────────────────────────────────────────────
+        private const float ResumeY      = 0f;
+        private const float QuitY        = -80f;
+        private const float ButtonWidth  = 200f;
+        private const float ButtonHeight = 52f;
+        private const int   ButtonSize   = 20;
+        private const float LabelPadding = 6f;
 
-        private void Awake() {
-            _canvasGroup = GetComponent<CanvasGroup>();
-            if (_canvasGroup == null) {
-                _canvasGroup = gameObject.AddComponent<CanvasGroup>();
-                Debug.LogWarning("PauseView: CanvasGroup missing — added one.");
-            }
-            // Start invisible.
-            _canvasGroup.alpha = 0f;
-            _canvasGroup.interactable = false;
-            _canvasGroup.blocksRaycasts = false;
+        private const float HintY        = -128f;
+        private const float HintHeight   = 24f;
+        private const int   HintSize     = 14;
 
+        private const float BackdropAlpha     = 0.5f;
+        private const float ColorFadeDuration = 0.1f;
+
+        private const string FontResource     = "LegacyRuntime.ttf";
+        private const string PanelSpritePath  = "Sprites/ui/ui_panel";
+        private const string ButtonSpritePath = "Sprites/ui/ui_button";
+
+        // ── Palette (ART_STYLE / UI_SPEC §2) ───────────────────────────────
+
+        private static readonly Color Paper   = new Color(0.059f, 0.165f, 0.29f, 1f); // #0F2A4A
+        private static readonly Color Ink     = new Color(0.91f, 0.945f, 0.98f, 1f); // #E8F1FA
+        private static readonly Color Pencil  = new Color(0.616f, 0.706f, 0.8f, 1f); // #9DB4CC
+        private static readonly Color Hostile = new Color(0.894f, 0.341f, 0.18f, 1f); // #E4572E
+
+        // ── State ──────────────────────────────────────────────────────────
+
+        private static PauseView _instance;
+        private static Sprite _whiteSprite;
+        private static bool _warnedPanel;
+        private static bool _warnedButton;
+
+        private Font _font;
+        private bool _clicked;
+
+        /// <summary>True while the pause overlay exists.</summary>
+        public static bool IsShowing => _instance != null;
+
+        // ── Factory ────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Create "PauseCanvas" (overlay canvas + scaler + raycaster, plus an EventSystem if
+        /// the scene has none) and return the view; returns the existing one if shown.
+        /// Does not touch timeScale: GameManager.ShowPauseView owns that.
+        /// </summary>
+        public static PauseView Show() {
+            if (_instance != null) return _instance;
+
+            MainMenuView.EnsureEventSystem();
+
+            var canvasGO = new GameObject("PauseCanvas");
+            var canvas = canvasGO.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = CanvasSortingOrder;
+
+            var scaler = canvasGO.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(ReferenceWidth, ReferenceHeight);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = MatchWidthOrHeight;
+
+            canvasGO.AddComponent<GraphicRaycaster>();
+
+            var view = canvasGO.AddComponent<PauseView>();
+            view.Init(); // built here, not in Awake, so it also works outside Play mode
+            return view;
+        }
+
+        /// <summary>Destroy the pause overlay (its whole canvas). Safe when none exists.</summary>
+        public static void Hide() {
+            if (_instance == null) return;
+            var go = _instance.gameObject;
+            _instance = null;
+            if (Application.isPlaying) Destroy(go); else DestroyImmediate(go);
+        }
+
+        private void Init() {
+            if (_instance != null && _instance != this) return;
+            _instance = this;
+            _font = Resources.GetBuiltinResource<Font>(FontResource);
             BuildVisuals();
         }
 
-        private void OnEnable() {
-            Show();
-        }
-
-        private void OnDisable() {
-            Hide();
+        private void OnDestroy() {
+            if (_instance == this) _instance = null;
         }
 
         // ── Visual construction (no prefabs) ───────────────────────────────
 
-        /// <summary>
-        /// Build the pause panel hierarchy per UI_SPEC §3.4:
-        ///   [ PAUSED ]
-        ///     ┌──────┐
-        ///     │Resume│
-        ///     └──────┘
-        ///     ┌──────┐
-        ///     │ Quit │
-        ///     └──────┘
-        /// </summary>
         private void BuildVisuals() {
-            // Container panel.
-            var panel = new GameObject("PausePanel");
-            panel.transform.SetParent(transform, false);
+            // Dim backdrop over the frozen world; swallows clicks.
+            var backdrop = NewRect("Backdrop", transform);
+            backdrop.anchorMin = Vector2.zero;
+            backdrop.anchorMax = Vector2.one;
+            backdrop.pivot = new Vector2(0.5f, 0.5f);
+            backdrop.anchoredPosition = Vector2.zero;
+            backdrop.sizeDelta = Vector2.zero;
+            var backdropImg = backdrop.gameObject.AddComponent<Image>();
+            backdropImg.sprite = WhiteSprite();
+            backdropImg.color = new Color(Paper.r, Paper.g, Paper.b, BackdropAlpha);
+            backdropImg.raycastTarget = true;
 
-            var panelRect = panel.GetComponent<RectTransform>() ?? panel.AddComponent<RectTransform>();
-            panelRect.anchorMin = new Vector2(0.5f, 0.5f);
-            panelRect.anchorMax = new Vector2(0.5f, 0.5f);
-            panelRect.pivot = new Vector2(0.5f, 0.5f);
-            panelRect.sizeDelta = new Vector2(_pausePanelWidth, _pausePanelHeight);
-
-            var panelImg = panel.AddComponent<Image>();
-            var bgSprite = Resources.Load<Sprite>("Sprites/ui/ui_panel");
-            if (bgSprite != null) {
-                panelImg.sprite = bgSprite;
+            var panel = NewRect("PausePanel", transform);
+            Place(panel, Vector2.zero, new Vector2(PanelWidth, PanelHeight));
+            var panelImg = panel.gameObject.AddComponent<Image>();
+            var panelSprite = Resources.Load<Sprite>(PanelSpritePath);
+            if (panelSprite != null) {
+                panelImg.sprite = panelSprite;
+                panelImg.color = Color.white;
             } else {
-                Debug.LogWarning("PauseView: Missing sprite 'Sprites/ui/ui_panel', using 1×1 white fallback.");
-                panelImg.sprite = CreateWhiteSprite();
+                if (!_warnedPanel) {
+                    Debug.LogWarning("PauseView: Missing sprite '" + PanelSpritePath + "', using a solid fallback.");
+                    _warnedPanel = true;
+                }
+                panelImg.sprite = WhiteSprite();
+                panelImg.color = Paper;
             }
-            panelImg.color = Color.white;
             panelImg.raycastTarget = false;
 
-            // PAUSED title label.
-            var titleObj = new GameObject("PauseTitle");
-            titleObj.transform.SetParent(transform, false);
-            var titleRect = titleObj.GetComponent<RectTransform>() ?? titleObj.AddComponent<RectTransform>();
-            titleRect.anchorMin = new Vector2(0.5f, 0.5f);
-            titleRect.anchorMax = new Vector2(0.5f, 0.5f);
-            titleRect.pivot = new Vector2(0.5f, 0.5f);
-            titleRect.sizeDelta = new Vector2(_pausePanelWidth - 40f, 60f);
-
-            var titleText = titleObj.AddComponent<Text>();
-            titleText.text = "PAUSED";
+            var title = NewRect("PauseTitle", transform);
+            Place(title, new Vector2(0f, TitleY), new Vector2(TitleWidth, TitleHeight));
+            var titleText = AddText(title.gameObject, "PAUSED", TitleSize, Ink);
             titleText.fontStyle = FontStyle.Bold;
-            titleText.alignment = TextAnchor.MiddleCenter;
-            titleText.fontSize = 36;
-            titleText.color = new Color(0.91f, 0.94f, 0.98f, 1f); // ink #E8F1FA
 
-            // ── Resume button (above Quit) ──────────────────────────────
-            var resumeBtnObj = CreateButton("ResumeButton", "Resume", _buttonWidth, _buttonHeight, -105f);
-            var resumeBtn = resumeBtnObj.GetComponent<Button>();
-            if (resumeBtn != null) {
-                resumeBtn.onClick.AddListener(OnResumeClicked);
-            }
+            var resume = CreateButton("ResumeButton", "Resume", ResumeY);
+            resume.onClick.AddListener(OnResumeClicked);
 
-            // ── Quit button (below Resume) ──────────────────────────────
-            var quitBtnObj = CreateButton("QuitButton", "Quit", _buttonWidth, _buttonHeight, 105f);
-            var quitBtn = quitBtnObj.GetComponent<Button>();
-            if (quitBtn != null) {
-                quitBtn.onClick.AddListener(OnQuitClicked);
-            }
+            var quit = CreateButton("QuitButton", "Quit", QuitY);
+            quit.onClick.AddListener(OnQuitClicked);
+
+            var hint = NewRect("PauseHint", transform);
+            Place(hint, new Vector2(0f, HintY), new Vector2(TitleWidth, HintHeight));
+            AddText(hint.gameObject, "ESC  resume", HintSize, Pencil);
         }
 
-        /// <summary>
-        /// Helper: create a centered button child at a given vertical offset from centre.
-        /// Returns the GameObject for caller to attach extra components if needed.
-        /// </summary>
-        private GameObject CreateButton(string name, string buttonText, float width, float height, float yOffsetFromCentre) {
-            var btnObj = new GameObject(name);
-            btnObj.transform.SetParent(transform, false);
+        private Button CreateButton(string name, string label, float y) {
+            var rect = NewRect(name, transform);
+            Place(rect, new Vector2(0f, y), new Vector2(ButtonWidth, ButtonHeight));
 
-            var btnRect = btnObj.GetComponent<RectTransform>() ?? btnObj.AddComponent<RectTransform>();
-            btnRect.anchorMin = new Vector2(0.5f, 0.5f);
-            btnRect.anchorMax = new Vector2(0.5f, 0.5f);
-            btnRect.pivot = new Vector2(0.5f, 0.5f);
-            btnRect.sizeDelta = new Vector2(width, height);
-            btnRect.localPosition = new Vector3(0f, yOffsetFromCentre, 0f);
-
-            // Button background image.
-            var bgSprite = Resources.Load<Sprite>("Sprites/ui/ui_button");
-            if (bgSprite != null) {
-                var btnImg = btnObj.AddComponent<Image>();
-                btnImg.sprite = bgSprite;
-                btnImg.color = Color.white;
-                btnImg.raycastTarget = true; // enable raycast for button click.
-            }
-
-            // Button label text (centre of button).
-            var txtObj = new GameObject(name + "Text");
-            txtObj.transform.SetParent(btnObj.transform, false);
-            var txtRect = txtObj.GetComponent<RectTransform>() ?? txtObj.AddComponent<RectTransform>();
-            txtRect.anchorMin = Vector2.zero;
-            txtRect.anchorMax = Vector2.one;
-            txtRect.offsetMin = new Vector3(8f, 4f);
-            txtRect.offsetMax = new Vector3(-8f, -4f);
-
-            var txt = txtObj.AddComponent<Text>();
-            txt.text = buttonText;
-            txt.fontStyle = FontStyle.Bold;
-            txt.alignment = TextAnchor.MiddleCenter;
-            txt.fontSize = 20;
-            txt.color = new Color(0.91f, 0.94f, 0.98f, 1f); // ink #E8F1FA
-
-            return btnObj;
-        }
-
-        /// <summary>Creates a 1×1 white sprite for fallback when a resource is missing.</summary>
-        private static Sprite CreateWhiteSprite() {
-            var texture = new Texture2D(1, 1);
-            texture.SetPixel(0, 0, Color.white);
-            texture.Apply();
-            return Sprite.Create(texture, new Rect(0, 0, 1, 1), Vector2.one * 0.5f);
-        }
-
-        // ── Pause / Resume / Quit ───────────────────────────────────────────
-
-        /// <summary>
-        /// Called when the Escape key is pressed during a Playing mission.
-        /// Pauses time and shows this overlay. (GAME_MANAGER hook.)
-        /// </summary>
-        public void OnEscapePressed() {
-            Time.timeScale = 0f;           // freeze all physics / coroutines.
-            Show();                         // make panel visible & interactive.
-        }
-
-        /// <summary>Resume button handler: restore timeScale and hide the pause overlay.
-        /// Delegates to GameManager.Instance.ResumeGame() (ARCHITECTURE §3).</summary>
-        private void OnResumeClicked() {
-            var gm = GameManager.Instance;
-            if (gm != null) {
-                gm.ResumeGame();
+            var img = rect.gameObject.AddComponent<Image>();
+            var sprite = Resources.Load<Sprite>(ButtonSpritePath);
+            if (sprite != null) {
+                img.sprite = sprite;
+                img.color = Color.white;
             } else {
-                Debug.LogWarning("PauseView: GameManager not yet assigned — resuming directly.");
-                Resume();
+                if (!_warnedButton) {
+                    Debug.LogWarning("PauseView: Missing sprite '" + ButtonSpritePath + "', using a solid fallback.");
+                    _warnedButton = true;
+                }
+                img.sprite = WhiteSprite();
+                img.color = Paper;
             }
+            img.raycastTarget = true;
+
+            var btn = rect.gameObject.AddComponent<Button>();
+            btn.targetGraphic = img;
+            var colors = btn.colors;
+            colors.normalColor      = Color.white;
+            colors.highlightedColor = Pencil;   // hover = pencil glow (UI_SPEC §2)
+            colors.selectedColor    = Pencil;
+            colors.pressedColor     = Hostile;  // active = hostile tint (UI_SPEC §2)
+            colors.colorMultiplier  = 1f;
+            colors.fadeDuration     = ColorFadeDuration;
+            btn.colors = colors;
+
+            var textRect = NewRect(name + "Text", rect);
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.pivot = new Vector2(0.5f, 0.5f);
+            textRect.anchoredPosition = Vector2.zero;
+            textRect.sizeDelta = new Vector2(-2f * LabelPadding, -2f * LabelPadding);
+            var txt = AddText(textRect.gameObject, label, ButtonSize, Ink);
+            txt.fontStyle = FontStyle.Bold;
+
+            return btn;
         }
 
-        /// <summary>Quit button handler: load the MainMenu scene.</summary>
+        // ── Button handlers ────────────────────────────────────────────────
+
+        /// <summary>Resume: GameManager leaves Paused, which hides this view and restores time.</summary>
+        private void OnResumeClicked() {
+            if (_clicked) return;
+            _clicked = true;
+            GameManager.Instance.ResumeGame();
+        }
+
+        /// <summary>Quit: back to the main menu.</summary>
         private void OnQuitClicked() {
-            Quit();
+            if (_clicked) return;
+            _clicked = true;
+            GameManager.Instance.QuitToMenu();
         }
 
-        // ── Internal helpers (called from GameManager or PauseState) ───────
+        // ── Helpers ────────────────────────────────────────────────────────
 
-        /// <summary>Sets the GameManager reference without circular dependency.</summary>
-        internal void SetGameManager(GameManager gm) {
-            _gameManager = gm;
+        private static RectTransform NewRect(string name, Transform parent) {
+            var go = new GameObject(name, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            return (RectTransform)go.transform;
         }
 
-        // ── Display helpers ──────────────────────────────────────────────────
+        /// <summary>Centre anchor and pivot, then position and size. No offsets.</summary>
+        private static void Place(RectTransform rect, Vector2 position, Vector2 size) {
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = size;
+            rect.anchoredPosition = position;
+        }
 
-        /// <summary>Show overlay and make it interactive.</summary>
-        internal void Show() {
-            if (_canvasGroup != null) {
-                _canvasGroup.alpha = 1f;
-                _canvasGroup.interactable = true;
-                _canvasGroup.blocksRaycasts = true;
+        private Text AddText(GameObject go, string value, int size, Color color) {
+            var txt = go.AddComponent<Text>();
+            txt.font = _font;
+            txt.text = value;
+            txt.fontSize = size;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.horizontalOverflow = HorizontalWrapMode.Wrap;
+            txt.verticalOverflow = VerticalWrapMode.Overflow;
+            txt.color = color;
+            txt.raycastTarget = false;
+            return txt;
+        }
+
+        /// <summary>A shared 1×1 white sprite, tinted by Image.color.</summary>
+        private static Sprite WhiteSprite() {
+            if (_whiteSprite == null) {
+                var texture = new Texture2D(1, 1);
+                texture.SetPixel(0, 0, Color.white);
+                texture.Apply();
+                _whiteSprite = Sprite.Create(texture, new Rect(0, 0, 1, 1), Vector2.one * 0.5f);
             }
-        }
-
-        /// <summary>Hide overlay and block input.</summary>
-        internal void Hide() {
-            if (_canvasGroup != null) {
-                _canvasGroup.alpha = 0f;
-                _canvasGroup.interactable = false;
-                _canvasGroup.blocksRaycasts = false;
-            }
-        }
-
-        /// <summary>Resume the game (called by GameManager.ResumeGame).</summary>
-        internal void Resume() {
-            Time.timeScale = 1f;
-            Hide();
-        }
-
-        /// <summary>Load the MainMenu scene (called by GameManager on Quit).</summary>
-        internal void Quit() {
-            SceneManager.LoadScene("MainMenu");
+            return _whiteSprite;
         }
     }
 }

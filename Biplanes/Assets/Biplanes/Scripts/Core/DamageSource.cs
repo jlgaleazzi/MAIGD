@@ -13,6 +13,9 @@ namespace Biplanes.Core {
         Bomb,     // Dropped bomb (ground attack)
         Flak,         // AAA flak shell
         Collision,    // Terrain / building crash
-        Heal          // Health balloon restore
+        Heal,         // Health balloon restore
+        // Appended last so the existing values keep their ordinals.
+        ZeppelinTurret, // Flak shell fired by a zeppelin turret (player scales it by damageTaken.zeppelinTurret)
+        PlaneCollision  // Mid-air contact with an enemy fighter/bomber (player scales it by damageTaken.planeCollision; fatal for enemies)
     }
 }

@@ -16,7 +16,7 @@ namespace Biplanes.Missions {
     ///   1. StartMission(missionIndex) — loads JSON, creates all systems (ScrollController,
     ///      ObjectiveTracker, ScoreKeeper, PlayerPlane, HUD). Called BY GameManager.StartMission(),
     ///      which then transitions the state machine into Playing.
-    ///   2. Update() — checks camera x against each SpawnEntry's atX threshold; when reached,
+    ///   2. Update() — checks ScrollController.FarthestX against each SpawnEntry's atX threshold; when reached,
     ///      spawns that group of entities via their static Spawn() factory and marks it done.
     ///   3. OnEntityDestroyed(type, team) — ObjectiveTracker receives this event from
     ///      MissionRunner; after evaluation checks if all objectives are complete.
@@ -56,6 +56,12 @@ namespace Biplanes.Missions {
         private bool[] _spawnedFlags;
         private int _spawnCount;
 
+        /// <summary>
+        /// Set once the mission is won or lost, so the end (state change, best-score save,
+        /// unlock) is handled exactly once. Cleared by StartMission (B006c).
+        /// </summary>
+        private bool _missionEnded;
+
         /// <summary>Current mission JSON data (read-only for other systems)."</summary>
         public MissionData MissionData => _missionData;
 
@@ -80,6 +86,9 @@ namespace Biplanes.Missions {
         // ── Enemy plane entry (fighter, bomber) ─────────────────────────
         /// <summary>Ground objects spawn when their atX is this far past the right screen edge.</summary>
         private const float GroundEntryMarginX = 2f;
+        /// <summary>A zeppelin (placed at atX, 9 units long) spawns once its nose is this far
+        /// past the right screen edge: look-ahead = half screen + ZeppelinAI.HalfLength + this (B021).</summary>
+        private const float ZeppelinEntryMarginX = 0.5f;
         /// <summary>Planes appear this far past the right screen edge.</summary>
         private const float PlaneEntryMarginX = 1.5f;
         /// <summary>Minimum x gap between planes of one group.</summary>
@@ -109,9 +118,6 @@ namespace Biplanes.Missions {
                 return;
             }
 
-            // Reset tracking lists.
-            _spawnedEntities.Clear();
-
             // Load the mission JSON from Resources/Missions/mission_0N.json.
             string resourcePath = $"Missions/mission_{missionIndex:D2}";
             var textAsset = Resources.Load<TextAsset>(resourcePath);
@@ -127,11 +133,26 @@ namespace Biplanes.Missions {
             }
             Debug.Log($"MissionRunner: loaded mission {_missionData.id} — {_missionData.title}");
             _spawnCount = _missionData.spawns.Length;
+
+            // StartMission can run again without a scene reload (ResultView "Next"): clear the
+            // previous mission's player, entities, tracker and event subscription, and put the
+            // camera back at the mission start before ScrollController reads its x.
+            TearDownPreviousMission();
+            ResetCameraToMissionStart();
+            _missionEnded = false;
+
+            // Each mission scores on its own: without a scene reload ("Next") the previous
+            // mission's points would otherwise be saved as this mission's best (B006b).
+            var scoreKeeper = ScoreKeeper.Instance;
+            if (scoreKeeper != null) scoreKeeper.ResetScore();
+
             // --- Create ScrollController and set speed from JSON ---
             ScrollController sc = ScrollController.Create(_missionData.scrollSpeed);
-            if (_cameraTransform != null) {
-                // Camera is already at x = 0; we need to clamp it properly.
-            }
+            // The player can turn back (Defender-style): the camera never scrolls left of the
+            // mission start or right of the mission length. SetLimits collapses max < min, so
+            // a length <= start pins the camera at the start instead of leaving it unbounded.
+            float startCameraX = sc.MissionDistanceX;
+            sc.SetLimits(startCameraX, _missionData.length);
 
             // --- Background and ground (ARCHITECTURE §3 Missions) ---
             // StartMission can run again without a scene reload (ResultView "Next"),
@@ -167,11 +188,21 @@ namespace Biplanes.Missions {
             _spawnedFlags = new bool[spawnCount];
 
             // --- Create ObjectiveTracker and wire to GameEvents ---
-            _objectiveTracker = gameObject.AddComponent<ObjectiveTracker>();
-            _objectiveTracker.Init(_missionData.objectives, 0f);
+            // TearDownPreviousMission left at most one tracker on this object; reuse it.
+            _objectiveTracker = GetComponent<ObjectiveTracker>();
+            if (_objectiveTracker == null) _objectiveTracker = gameObject.AddComponent<ObjectiveTracker>();
+            _objectiveTracker.Init(_missionData.objectives, 0f, _missionData.spawns);
 
             // Subscribe ObjectiveTracker to the EntityDestroyed event so it receives kills.
+            // Unsubscribe first so a second StartMission never counts each kill twice.
+            GameEvents.EntityDestroyed -= OnEntityDestroyed;
             GameEvents.EntityDestroyed += OnEntityDestroyed;
+            // bombTarget: EnemyBase reports its id and whether a bomb killed it.
+            EnemyBase.Destroyed -= OnEnemyBaseDestroyed;
+            EnemyBase.Destroyed += OnEnemyBaseDestroyed;
+            // A loss (player crash) also ends the mission: no win may follow it.
+            GameEvents.MissionEnded -= OnMissionEnded;
+            GameEvents.MissionEnded += OnMissionEnded;
 
             // --- Create HUD ---
             CreateHud();
@@ -229,9 +260,13 @@ namespace Biplanes.Missions {
                     }
 
                     case "bomber": {
-                        var bomber = BomberAI.Spawn(position);
-                        // targetX is set via [SerializeField] private float — MissionRunner
-                        // cannot write it directly at runtime without a setter method.
+                        // The id lets escorts find it (FighterAI.FindEscortTarget, B020).
+                        var bomber = BomberAI.Spawn(position, entry.id);
+                        // targetX = the world x it must not reach (objective failAtX, B018).
+                        bool watch = ResolveTargetX(entry, position, out float bomberTargetX);
+                        bomber.SetTargetX(bomberTargetX);
+                        // The bomber's Health (named "bomber") raises EntityDestroyed.
+                        TrackIdTarget(entry.id, "bomber", bomber.GetComponent<Health>(), watch);
                         entityGO = bomber.gameObject;
                         break;
                     }
@@ -263,6 +298,33 @@ namespace Biplanes.Missions {
                         break;
                     }
 
+                    case "enemybase": {
+                        // Ground-bound: the factory rests its bottom edge on `position`.
+                        var enemyBase = EnemyBase.Spawn(position, entry.id);
+                        TrackIdTarget(entry.id, EnemyBase.TypeKey, enemyBase);
+                        entityGO = enemyBase.gameObject;
+                        break;
+                    }
+
+                    case "playerhq": {
+                        entityGO = PlayerHQ.Spawn(position, entry.id).gameObject;
+                        break;
+                    }
+
+                    case "zeppelin": {
+                        // Not a random-placement plane: keeps atX and its JSON y (the hull
+                        // clamps itself below the screen top in Start).
+                        var zeppelin = ZeppelinAI.Spawn(position, entry.id);
+                        if (_playerPlane != null) zeppelin.Init(_playerPlane);
+                        // targetX = the world x it must not reach (objective failAtX, B018);
+                        // while it has one it never despawns behind the camera.
+                        bool watch = ResolveTargetX(entry, position, out float zeppelinTargetX);
+                        zeppelin.SetTargetX(zeppelinTargetX);
+                        TrackIdTarget(entry.id, ZeppelinAI.ScoreKey, zeppelin, watch);
+                        entityGO = zeppelin.gameObject;
+                        break;
+                    }
+
                     default:
                         Debug.LogWarning($"MissionRunner: unknown spawn type '{entry.type}' — skipping.");
                         break;
@@ -281,10 +343,15 @@ namespace Biplanes.Missions {
         /// evaluation and checks if the last objective just completed — triggering mission end.
         /// </summary>
         public void HandleObjectiveComplete(string objectiveId) {
+            // The mission end is handled once: Update and late kills keep reporting
+            // AllComplete while the result screen is up (B006c).
+            if (_missionEnded) return;
+
             Debug.Log($"MissionRunner: objective '{objectiveId}' completed");
 
             // Check if ALL objectives are now complete.
             if (_objectiveTracker != null && _objectiveTracker.AllComplete) {
+                _missionEnded = true;
                 Debug.Log("MissionRunner: all objectives complete — mission won!");
                 GameManager.Instance?.SetState(GameManager.GameState.Won);
 
@@ -308,11 +375,156 @@ namespace Biplanes.Missions {
             if (_objectiveTracker != null) {
                 _objectiveTracker.OnEntityDestroyed(entityType, team);
 
+                // destroyById: EntityDestroyed carries no id, so match the type key against
+                // the id-tracked spawns and check which one is now dead. The dying object is
+                // still alive in memory here (Destroy is deferred); a silently despawned one
+                // is Unity-null and never counts as destroyed.
+                for (int i = 0; i < _idTargets.Count; i++) {
+                    var t = _idTargets[i];
+                    if (t.Reported || t.Target == null || t.TypeKey != entityType) continue;
+                    if (!((IDamageable)t.Target).IsDead) continue;
+                    t.Reported = true;
+                    _idTargets[i] = t;
+                    _objectiveTracker.OnTargetDestroyed(t.Id);
+                }
+
                 // If the objective tracker marks completion, forward to MissionRunner.
                 if (_objectiveTracker.AllComplete) {
                     HandleObjectiveComplete("all_objectives");
                 }
             }
+        }
+
+        /// <summary>EnemyBase.Destroyed: completes a matching bombTarget when a bomb killed it.
+        /// No points here: ScoreKeeper already scored the base from EntityDestroyed.</summary>
+        private void OnEnemyBaseDestroyed(EnemyBase enemyBase) {
+            if (_objectiveTracker == null || enemyBase == null || !enemyBase.KilledByBomb) return;
+            _objectiveTracker.OnBombTargetDestroyed(enemyBase.Id, EnemyBase.TypeKey);
+            if (_objectiveTracker.AllComplete) {
+                HandleObjectiveComplete("bomb_target");
+            }
+        }
+
+        /// <summary>
+        /// An objective can no longer be met (its target reached failAtX, or the map end with it still
+        /// open): the mission is lost once with `reason` through GameManager.LoseMission, which
+        /// shows the reason on the result screen and raises MissionEnded(false, reason) (B016).
+        /// </summary>
+        private void HandleObjectiveFailed(string objectiveId, string reason) {
+            if (_missionEnded) return;
+            _missionEnded = true;
+            Debug.Log($"MissionRunner: objective '{objectiveId}' failed — mission lost ({reason}).");
+
+            var gm = GameManager.Instance;
+            if (gm != null) {
+                gm.LoseMission(reason);
+            } else {
+                GameEvents.RaiseMissionEnded(false, reason);
+            }
+            // Normally OnMissionEnded already did this; covers a GameManager that refused the
+            // loss because the state was already Won/Lost from a stale mission.
+            EndPlayerControl();
+        }
+
+        /// <summary>Result-screen text for an objective whose target entity reached its
+        /// failAtX (B018).</summary>
+        private string TargetReachedReason(string objectiveId, string typeKey) {
+            string desc = _objectiveTracker != null ? _objectiveTracker.GetDescriptionFor(objectiveId) : objectiveId;
+            string who = string.IsNullOrEmpty(typeKey) ? "target" : typeKey;
+            return $"Objective failed: {desc} (the {who} reached its target)";
+        }
+
+        /// <summary>
+        /// targetX for a bomber/zeppelin spawn (B018). The failAtX of the open destroyById
+        /// objective that targets this spawn's id wins, and returns true: MissionRunner then
+        /// watches the entity and loses the mission when its world x reaches it. Without such
+        /// an objective the spawn entry's own targetX (bomber bomb run only, no loss) is used and
+        /// false is returned. A target at or right of the spawn x would lose the mission the
+        /// moment the entity appears (it flies left): that is a mission data error, so it is
+        /// logged and ignored (targetX -1, not watched); the map end still ends the mission.
+        /// </summary>
+        private bool ResolveTargetX(SpawnEntry entry, Vector3 spawnPosition, out float targetX) {
+            float objectiveX = _objectiveTracker != null ? _objectiveTracker.GetFailAtXFor(entry.id) : -1f;
+            bool fromObjective = objectiveX >= 0f;
+            targetX = fromObjective ? objectiveX : entry.targetX;
+            if (targetX < 0f) {
+                targetX = -1f;
+                return false;
+            }
+            if (spawnPosition.x <= targetX) {
+                Debug.LogWarning($"MissionRunner: {entry.type} '{entry.id}' spawns at x={spawnPosition.x:0.#}, " +
+                                 $"already at or past its targetX {targetX:0.#} (it flies left), so targetX is ignored. " +
+                                 "Fix the mission JSON (failAtX / atX).");
+                targetX = -1f;
+                return false;
+            }
+            return fromObjective;
+        }
+
+        /// <summary>Result-screen text for an objective still open at the end of the map.</summary>
+        private string MapEndReason(string objectiveId) {
+            string desc = _objectiveTracker != null ? _objectiveTracker.GetDescriptionFor(objectiveId) : objectiveId;
+            return $"Reached the end of the map with an objective open: {desc}";
+        }
+
+        /// <summary>Remembers a spawn with a non-empty id for destroyById. `target` must be
+        /// an IDamageable component; null targets are ignored. `watchTargetX`: poll its world x
+        /// against the objective's failAtX each Update (B018).</summary>
+        private void TrackIdTarget(string id, string typeKey, MonoBehaviour target, bool watchTargetX = false) {
+            if (string.IsNullOrEmpty(id) || target == null || !(target is IDamageable)) return;
+            _idTargets.Add(new IdTarget { Id = id, TypeKey = typeKey, Target = target, WatchTargetX = watchTargetX });
+        }
+
+        /// <summary>A spawned entity with a JSON id, watched for destroyById.</summary>
+        private struct IdTarget {
+            public string Id;
+            public string TypeKey;
+            public MonoBehaviour Target;
+            public bool Reported;
+            /// <summary>An objective gave this entity a failAtX (its targetX) to watch.</summary>
+            public bool WatchTargetX;
+        }
+
+        /// <summary>
+        /// Entity-based failAtX (B018): the first live, watched id target whose world x has
+        /// reached its objective's failAtX loses the mission with "... reached its target".
+        /// Destroyed (IsDead), despawned (Unity-null) and already-reported targets are skipped,
+        /// and a completed objective never fails (CheckTargetReached).
+        /// </summary>
+        private void CheckTargetsReached() {
+            for (int i = 0; i < _idTargets.Count; i++) {
+                var t = _idTargets[i];
+                if (!t.WatchTargetX || t.Reported || t.Target == null) continue;
+                if (((IDamageable)t.Target).IsDead) continue;
+                string failedId = _objectiveTracker.CheckTargetReached(t.Id, t.Target.transform.position.x);
+                if (failedId == null) continue;
+                HandleObjectiveFailed(failedId, TargetReachedReason(failedId, t.TypeKey));
+                return;
+            }
+        }
+
+        /// <summary>Spawns with a non-empty id this mission (cleared in teardown).</summary>
+        private readonly List<IdTarget> _idTargets = new List<IdTarget>();
+
+        /// <summary>GameEvents.MissionEnded (win or loss): stop handling mission-end conditions
+        /// and take the controls away from the player (B016).</summary>
+        private void OnMissionEnded(bool won, string reason) {
+            _missionEnded = true;
+            EndPlayerControl();
+        }
+
+        /// <summary>
+        /// Any mission end: the player's PlayerInput stops polling (no more move, fire or bomb
+        /// events) and the camera stops scrolling, so the ended world holds still behind the
+        /// result screen. StartMission (Next) builds a new plane and ScrollController.Create
+        /// restores the speed; Retry reloads the scene.
+        /// </summary>
+        private void EndPlayerControl() {
+            if (_playerPlane != null) {
+                var input = _playerPlane.GetComponent<PlayerInput>();
+                if (input != null) input.enabled = false;
+            }
+            if (ScrollController.Instance != null) ScrollController.Instance.SetScrollSpeed(0f);
         }
 
         // ── Core loop (Update in MonoBehaviour) ────────────────────────────
@@ -322,6 +534,11 @@ namespace Biplanes.Missions {
 
             float cameraX = ScrollController.Instance != null
                 ? ScrollController.Instance.MissionDistanceX
+                : -999f;
+            // Spawns trigger on the farthest x reached, so flying back over ground already
+            // covered never re-triggers a group or brings one in early.
+            float farthestX = ScrollController.Instance != null
+                ? ScrollController.Instance.FarthestX
                 : -999f;
 
             // Ground objects (AAA, balloons, buildings, trees) sit at world x = atX. Spawn them
@@ -333,14 +550,21 @@ namespace Biplanes.Missions {
             float groundLookAhead = cam != null
                 ? cam.orthographicSize * cam.aspect + GroundEntryMarginX
                 : 0f;
+            // Zeppelins are long: the hull (centred on atX) must be wholly off screen when it
+            // appears, so its look-ahead adds half the hull length (B021).
+            float zeppelinLookAhead = cam != null
+                ? cam.orthographicSize * cam.aspect + ZeppelinAI.HalfLength + ZeppelinEntryMarginX
+                : 0f;
 
             // Check each spawn entry: has the camera reached its threshold?
             for (int i = 0; i < _spawnedFlags.Length && i < _missionData.spawns.Length; i++) {
                 var spawn = _missionData.spawns[i];
                 string spawnType = spawn.type != null ? spawn.type.ToLowerInvariant() : "";
                 bool isPlane = spawnType == "fighter" || spawnType == "bomber";
-                float trigger = isPlane ? spawn.atX : spawn.atX - groundLookAhead;
-                if (!_spawnedFlags[i] && cameraX >= trigger) {
+                float trigger = isPlane ? spawn.atX
+                    : spawnType == "zeppelin" ? spawn.atX - zeppelinLookAhead
+                    : spawn.atX - groundLookAhead;
+                if (!_spawnedFlags[i] && farthestX >= trigger) {
                     SpawnEntities(_missionData.spawns[i]);
                     _spawnedFlags[i] = true;
 
@@ -354,12 +578,27 @@ namespace Biplanes.Missions {
                 }
             }
 
+            // failAtX (B018): the target entity itself (mission 2 bomber, mission 5 zeppelin)
+            // reaching its failAtX world x loses the mission. The camera position plays no part,
+            // so the player can't dodge it by turning back.
+            if (!_missionEnded && _objectiveTracker != null) {
+                CheckTargetsReached();
+            }
+
             // Check survive-to-end objective via camera progress.
-            if (_objectiveTracker != null && _missionData.length > 0f) {
+            if (!_missionEnded && _objectiveTracker != null && _missionData.length > 0f) {
                 _objectiveTracker.OnCameraProgress(cameraX, _missionData.length);
                 if (_objectiveTracker.AllComplete) {
                     HandleObjectiveComplete("survive_to_end");
                 }
+            }
+
+            // Map end (GDD change log 2026-11-13): the camera reached the mission length and an
+            // objective other than surviveToEnd is still open — it can't be met any more, so
+            // the mission is lost instead of running on forever (T936 P1-1).
+            if (!_missionEnded && _objectiveTracker != null && _missionData.length > 0f) {
+                string openId = _objectiveTracker.CheckMapEnd(cameraX, _missionData.length);
+                if (openId != null) HandleObjectiveFailed(openId, MapEndReason(openId));
             }
         }
 
@@ -455,11 +694,64 @@ namespace Biplanes.Missions {
 
         // ── Cleanup ───────────────────────────────────────────────────────
 
-        private void OnDestroy() {
-            if (_objectiveTracker != null) {
-                GameEvents.EntityDestroyed -= OnEntityDestroyed;
+        /// <summary>Camera x every mission starts at (the scene camera sits at x = 0).</summary>
+        private const float MissionStartCameraX = 0f;
+
+        /// <summary>Moves Camera.main back to the mission start x, keeping its y and z.</summary>
+        private static void ResetCameraToMissionStart() {
+            var cam = Camera.main;
+            if (cam == null) return;
+            var p = cam.transform.position;
+            cam.transform.position = new Vector3(MissionStartCameraX, p.y, p.z);
+        }
+
+        /// <summary>
+        /// Removes everything the previous StartMission created on this runner: the player
+        /// plane, every spawned entity, the HUD canvas, extra ObjectiveTrackers and the
+        /// EntityDestroyed subscription. Safe to call when nothing was started yet.
+        /// </summary>
+        private void TearDownPreviousMission() {
+            GameEvents.EntityDestroyed -= OnEntityDestroyed;
+            GameEvents.MissionEnded -= OnMissionEnded;
+            EnemyBase.Destroyed -= OnEnemyBaseDestroyed;
+            _idTargets.Clear();
+
+            if (_playerPlane != null) DestroyNow(_playerPlane.gameObject);
+            _playerPlane = null;
+
+            foreach (var go in _spawnedEntities) {
+                if (go != null) DestroyNow(go);
             }
             _spawnedEntities.Clear();
+            _aaagunsToInit.Clear();
+
+            if (_hud != null) DestroyNow(_hud.gameObject);
+            _hud = null;
+
+            // Keep one tracker (StartMission re-Inits it), remove any extras.
+            var trackers = GetComponents<ObjectiveTracker>();
+            for (int i = 1; i < trackers.Length; i++) DestroyNow(trackers[i]);
+            _objectiveTracker = null;
+        }
+
+        /// <summary>
+        /// Deactivates then destroys an object, so it stops updating and reacting to input
+        /// this frame (Destroy itself is deferred). Uses DestroyImmediate outside Play mode.
+        /// </summary>
+        private static void DestroyNow(Object obj) {
+            if (obj == null) return;
+            if (obj is GameObject go) go.SetActive(false);
+            else if (obj is Behaviour b) b.enabled = false;
+            if (Application.isPlaying) Destroy(obj);
+            else DestroyImmediate(obj);
+        }
+
+        private void OnDestroy() {
+            GameEvents.EntityDestroyed -= OnEntityDestroyed;
+            GameEvents.MissionEnded -= OnMissionEnded;
+            EnemyBase.Destroyed -= OnEnemyBaseDestroyed;
+            _spawnedEntities.Clear();
+            _idTargets.Clear();
         }
 
         // ── AAAGun init queue (populated during SpawnEntities, wired after all spawns) ─

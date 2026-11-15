@@ -6,48 +6,97 @@ namespace Biplanes.UI {
 
     /// <summary>
     /// In-game HUD overlay visible during Playing missions. Provides real-time feedback:
-    /// damage bar (with smoke warning at >= 70%), kill score, bomb count row, and
-    /// mission objective text. All widgets built programmatically from code — no prefabs.
+    /// damage bar (with smoke warning at the smoke threshold), score, bomb icon row and
+    /// mission objective text. All widgets are built from code, no prefabs.
     ///
-    /// Subscribes reactively to GameEvents — zero polling in Update (UI_SPEC §3.3).
+    /// Subscribes reactively to GameEvents, no polling in Update (UI_SPEC §3.3).
+    /// The initial state never depends on event order (B022): every widget is built showing
+    /// a fresh mission (0% damage, score 0, a full bomb bay read from Balance.json), and the
+    /// events only update it afterwards.
+    ///
+    /// Layout rule (B022): every RectTransform is placed with anchor + pivot +
+    /// anchoredPosition + sizeDelta. Never set offsetMin/offsetMax after sizeDelta: they
+    /// overwrite the size. Every Image gets a sprite (a Filled Image without one draws a
+    /// full white rect) and every Text gets a font (without one it draws nothing).
     /// Duotone palette colours from ART_STYLE.md + UI_SPEC §2.
     /// </summary>
     public class HudView : MonoBehaviour {
 
-        // ── Balance / tunables ─────────────────────────────────────────────
+        // ── Layout (UI pixels, UI_SPEC §3.3) ──────────────────────────────
 
-        [SerializeField] private float _barWidth = 200f;         // damage bar max width (UI_SPEC §3.3)
+        [SerializeField] private float _barWidth = 200f;         // damage bar max width
         [SerializeField] private float _barHeight = 24f;         // damage bar height
-        [SerializeField] private int   _bombSlotSize = 36;       // bomb icon size in pixels
-        [SerializeField] private float _topPadding = 16f;        // 16px from corner (UI_SPEC)
+        [SerializeField] private float _bombSlotSize = 36f;      // bomb icon size
+        [SerializeField] private float _bombSlotGap = 8f;        // gap between bomb icons
+        [SerializeField] private float _padding = 16f;           // distance from screen corners
 
-        // ── UI component references (cached in Awake/OnEnable) ────────────
+        private const float FramePadX = 4f;          // frame border around the fill, each side
+        private const float FramePadY = 3f;
+        private const float ScoreWidth = 300f;
+        private const float ScoreHeight = 40f;
+        private const float ObjectiveHeight = 64f;
+        private const float SmokeHeight = 28f;
+        private const float WidgetGap = 6f;
 
-        // Damage bar.
-        private Image _damageFrame;            // background frame
-        private Image _damageFill;             // fill that scales with damage percentage
-        private GameObject _smokeIconObj;      // smoke warning object
-        private Image   _smokeIconImage;
+        /// <summary>Used only when Balance.json can't be read (UI_SPEC §3.3: 7 slots).</summary>
+        private const int FallbackBombCapacity = 7;
+        /// <summary>Used only when Balance.json can't be read (GDD: smoke at 70%).</summary>
+        private const float FallbackSmokeThreshold = 70f;
 
-        // Score display (top-right).
-        private Text    _scoreText;
+        // ── Palette (UI_SPEC §2) ──────────────────────────────────────────
 
-        // Objective text (below score, left-aligned under it).
-        private Text    _objectiveText;
+        public static readonly Color PaperCol    = new Color(0.059f, 0.165f, 0.29f, 1f);  // #0F2A4A
+        public static readonly Color InkCol      = new Color(0.91f, 0.945f, 0.98f, 1f);   // #E8F1FA
+        public static readonly Color HostileCol  = new Color(0.894f, 0.341f, 0.18f, 1f);  // #E4572E
+        public static readonly Color FriendlyCol = new Color(0.949f, 0.757f, 0.306f, 1f); // #F2C14E
+        public static readonly Color PencilCol   = new Color(0.616f, 0.706f, 0.8f, 1f);   // #9DB4CC
+        public static readonly Color HealCol     = new Color(0.482f, 0.827f, 0.537f, 1f); // #7BD389
 
-        // Objective tracking state — set by MissionRunner during mission init.
-        private string  _objectiveTargetType = "";       // e.g. "fighter"
-        private int     _objectiveRemaining  = 0;         // current count remaining
-        private bool    _objectiveActive     = false;      // is this HUD objective visible?
+        // ── Resource paths ────────────────────────────────────────────────
 
-        // Bomb icons row.
-        private Image[] _bombIcons = new Image[7];  // UI_SPEC §3.3: exactly 7 slots
+        private const string BombIconPath     = "Sprites/ui/ui_bomb_icon";
+        private const string DamageFramePath  = "Sprites/ui/ui_damage_frame";
+        private const string FontResource     = "LegacyRuntime.ttf";
+
+        // Shared across HUD instances so a missing asset warns once per session, not per event
+        // or per mission.
+        private static Sprite _whiteSprite;
+        private static Font   _font;
+        private static bool   _warnedBombIcon;
+        private static bool   _warnedDamageFrame;
+
+        // ── UI component references (built in Awake) ──────────────────────
+
+        private Image      _damageFrame;
+        private Image      _damageFill;
+        private GameObject _smokeIconObj;
+        private Text       _scoreText;
+        private Text       _objectiveText;
+        private Image[]    _bombIcons;
+
+        private Sprite _bombIconSprite;     // ui_bomb_icon, or the white fallback
+        private Sprite _damageFrameSprite;  // ui_damage_frame, or the white fallback
+        private float  _smokeThreshold = FallbackSmokeThreshold;
+        private int    _bombCapacity   = FallbackBombCapacity;
+
+        // Objective tracking state, set by MissionRunner during mission init.
+        private string _objectiveTargetType = "";
+        private int    _objectiveRemaining  = 0;
+        private bool   _objectiveActive     = false;
+
+        /// <summary>Number of bomb icons currently drawn as available (friendly colour).</summary>
+        public int DisplayedBombs { get; private set; }
+
+        /// <summary>Number of bomb slots in the row (Balance.json player.bombCapacity).</summary>
+        public int BombSlots => _bombIcons != null ? _bombIcons.Length : 0;
 
         // ── Unity lifecycle ────────────────────────────────────────────────
 
         private void Awake() {
+            ReadBalance();
+            CacheAssets();
             BuildVisuals();
-            CacheSprites();
+            ApplyInitialState();
             SubscribeEvents();
         }
 
@@ -73,9 +122,40 @@ namespace Biplanes.UI {
             GameEvents.ObjectiveCompleted  -= OnObjectiveCompleted;
         }
 
-        // ── Visual construction per UI_SPEC §3.3 ───────────────────────────
+        // ── Setup ─────────────────────────────────────────────────────────
 
-        /// <summary>Builds every HUD widget hierarchy from code (no prefabs). (ART_RULE #1)</summary>
+        private void ReadBalance() {
+            GameBalance balance = GameBalance.Get();
+            if (balance != null && balance.player != null) {
+                if (balance.player.bombCapacity > 0) _bombCapacity = balance.player.bombCapacity;
+                if (balance.player.smokeThreshold > 0f) _smokeThreshold = balance.player.smokeThreshold;
+            }
+        }
+
+        /// <summary>Loads every sprite and the font once. Missing assets warn once, ever.</summary>
+        private void CacheAssets() {
+            if (_font == null) _font = Resources.GetBuiltinResource<Font>(FontResource);
+
+            _bombIconSprite = Resources.Load<Sprite>(BombIconPath);
+            if (_bombIconSprite == null) {
+                if (!_warnedBombIcon) {
+                    Debug.LogWarning($"HudView: Missing sprite '{BombIconPath}', using a tinted rect fallback.");
+                    _warnedBombIcon = true;
+                }
+                _bombIconSprite = WhiteSprite();
+            }
+
+            _damageFrameSprite = Resources.Load<Sprite>(DamageFramePath);
+            if (_damageFrameSprite == null) {
+                if (!_warnedDamageFrame) {
+                    Debug.LogWarning($"HudView: Missing sprite '{DamageFramePath}', using a paper-colour fallback.");
+                    _warnedDamageFrame = true;
+                }
+                _damageFrameSprite = WhiteSprite();
+            }
+        }
+
+        /// <summary>Builds every HUD widget hierarchy from code (no prefabs).</summary>
         private void BuildVisuals() {
             BuildDamageBar();
             BuildScoreText();
@@ -83,281 +163,228 @@ namespace Biplanes.UI {
             BuildBombIcons();
         }
 
-        // ── Damage bar: top-left, ink → hostile at 70% ─────────────────────
+        /// <summary>A fresh mission: 0% damage, score 0, a full bomb bay.</summary>
+        private void ApplyInitialState() {
+            OnPlayerDamageChanged(0f);
+            OnScoreChanged(0);
+            OnBombsChanged(_bombCapacity);
+        }
 
-        /// <summary>Damage frame background (ui_damage_frame).</summary>
-        private readonly Color _paperCol = new Color(0.059f, 0.165f, 0.29f, 1f); // #0F2A4A
-        private readonly Color _inkCol   = new Color(0.91f, 0.94f, 0.98f, 1f);   // #E8F1FA
-        private readonly Color _hostileCol = new Color(0.894f, 0.341f, 0.18f, 1f); // #E4572E
+        // ── Damage bar: top-left, ink to hostile at the smoke threshold ───
 
         private void BuildDamageBar() {
-            // Damage frame (container panel).
-            var frameObj = new GameObject("DamageFrame");
-            frameObj.transform.SetParent(transform, false);
-            var frameRect = frameObj.GetComponent<RectTransform>() ?? frameObj.AddComponent<RectTransform>();
-            frameRect.anchorMin = new Vector2(0f, 1f);       // top-left
-            frameRect.anchorMax = new Vector2(0f, 1f);
-            frameRect.pivot   = new Vector2(0f, 1f);
-            frameRect.sizeDelta = new Vector2(_barWidth + 8f, _barHeight + 6f);
-            frameRect.offsetMin = new Vector3(_topPadding, -_topPadding);
-            frameRect.offsetMax = Vector3.zero;
+            float frameW = _barWidth + FramePadX * 2f;
+            float frameH = _barHeight + FramePadY * 2f;
 
-            _damageFrame = frameObj.AddComponent<Image>();
-            var frameSprite = Resources.Load<Sprite>("Sprites/ui/ui_damage_frame");
-            if (frameSprite != null) {
-                _damageFrame.sprite = frameSprite;
-            } else {
-                Debug.LogWarning("HudView: Missing sprite 'Sprites/ui/ui_damage_frame', using paper-colour fallback.");
-                _damageFrame.sprite = CreateWhiteSprite();
-            }
-            _damageFrame.color = _paperCol;
+            var frameRect = NewRect("DamageFrame", transform);
+            Place(frameRect, new Vector2(0f, 1f), new Vector2(_padding, -_padding), new Vector2(frameW, frameH));
+            _damageFrame = frameRect.gameObject.AddComponent<Image>();
+            _damageFrame.raycastTarget = false;
+            _damageFrame.sprite = _damageFrameSprite;
+            // The real sprite carries its own ink lines; the fallback is a paper-coloured rect.
+            _damageFrame.color = _damageFrameSprite == _whiteSprite ? PaperCol : Color.white;
 
-            // Damage fill (child of frame, scales in X from 0 to width).
-            var fillObj = new GameObject("DamageFill");
-            fillObj.transform.SetParent(frameObj.transform, false);
-            var fillRect = fillObj.GetComponent<RectTransform>() ?? fillObj.AddComponent<RectTransform>();
-            fillRect.anchorMin = Vector2.left;                 // left-pinned fill
-            fillRect.anchorMax = Vector2.left;
-            fillRect.pivot   = new Vector2(0f, 0.5f);
+            // Fill: left-pinned inside the frame. A Filled Image needs a sprite, otherwise
+            // it ignores fillAmount and draws a full white rect.
+            var fillRect = NewRect("DamageFill", frameRect);
+            fillRect.anchorMin = new Vector2(0f, 0.5f);
+            fillRect.anchorMax = new Vector2(0f, 0.5f);
+            fillRect.pivot     = new Vector2(0f, 0.5f);
+            fillRect.anchoredPosition = new Vector2(FramePadX, 0f);
             fillRect.sizeDelta = new Vector2(_barWidth, _barHeight);
-            fillRect.offsetMin = new Vector3(4f, 0f);         // inside the frame padding
-            fillRect.offsetMax = Vector3.zero;
-
-            _damageFill = fillObj.AddComponent<Image>();
+            _damageFill = fillRect.gameObject.AddComponent<Image>();
+            _damageFill.raycastTarget = false;
+            _damageFill.sprite = WhiteSprite();
             _damageFill.type = Image.Type.Filled;
             _damageFill.fillMethod = Image.FillMethod.Horizontal;
             _damageFill.fillOrigin = (int)Image.OriginHorizontal.Left;
-            _damageFill.fillAmount = 0f;                       // starts empty
-            _damageFill.color = _inkCol;
+            _damageFill.fillAmount = 0f;
+            _damageFill.color = InkCol;
 
-            // Smoke warning icon — a simple text "SMOKE" label per UI_SPEC §3.3.
-            // We use pencil colour because no warning-specific token exists.
-            var smokeObj = new GameObject("SmokeWarning");
-            smokeObj.transform.SetParent(transform, false);
-            var smokeRect = smokeObj.GetComponent<RectTransform>() ?? smokeObj.AddComponent<RectTransform>();
-            smokeRect.anchorMin = new Vector2(0f, 1f);
-            smokeRect.anchorMax = new Vector2(0f, 1f);
-            smokeRect.pivot   = new Vector2(0f, 1f);
-            smokeRect.sizeDelta = new Vector2(_barWidth, 28f);
-            smokeRect.offsetMin = new Vector3(_topPadding, -(_topPadding + _barHeight + 26f));
-            smokeRect.offsetMax = Vector3.zero;
-
-            _smokeIconObj = smokeObj;
-            var smokeTxt = smokeObj.AddComponent<Text>();
-            smokeTxt.text = "SMOKE";
+            // Smoke warning directly below the damage bar (UI_SPEC §3.3).
+            var smokeRect = NewRect("SmokeWarning", transform);
+            Place(smokeRect, new Vector2(0f, 1f),
+                new Vector2(_padding, -(_padding + frameH + WidgetGap)),
+                new Vector2(_barWidth, SmokeHeight));
+            var smokeTxt = AddText(smokeRect.gameObject, "SMOKE", 16, TextAnchor.MiddleLeft, HostileCol);
             smokeTxt.fontStyle = FontStyle.Bold;
-            smokeTxt.alignment = TextAnchor.MiddleLeft;
-            smokeTxt.fontSize = 16;
-            smokeTxt.color = _hostileCol; // visible in hostile tone when active
-            _smokeIconImage = null;        // text component, not image-based.
-
-            smokeObj.SetActive(false);   // hidden until damage >= threshold
+            _smokeIconObj = smokeRect.gameObject;
+            _smokeIconObj.SetActive(false);
         }
 
-        // ── Score display: top-right, large font (UI_SPEC §3.3) ────────────
+        // ── Score display: top-right, large font (UI_SPEC §3.3) ───────────
 
         private void BuildScoreText() {
-            var obj = new GameObject("ScoreDisplay");
-            obj.transform.SetParent(transform, false);
-            var rect = obj.GetComponent<RectTransform>() ?? obj.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(1f, 1f);      // top-right
-            rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot   = new Vector2(1f, 1f);
-            rect.sizeDelta = new Vector2(300f, 40f);
-            rect.offsetMin = new Vector3(-_topPadding - 280f, -_topPadding); // right-anchored
-            rect.offsetMax = Vector3.zero;
-
-            _scoreText = obj.AddComponent<Text>();
-            _scoreText.text = "Score: 0";
+            var rect = NewRect("ScoreDisplay", transform);
+            Place(rect, new Vector2(1f, 1f), new Vector2(-_padding, -_padding), new Vector2(ScoreWidth, ScoreHeight));
+            _scoreText = AddText(rect.gameObject, "", 24, TextAnchor.MiddleRight, InkCol);
             _scoreText.fontStyle = FontStyle.Bold;
-            _scoreText.alignment = TextAnchor.MiddleRight;
-            _scoreText.fontSize = 24;                     // UI_SPEC §3.3: large font
-            _scoreText.color = _inkCol;
         }
 
-        // ── Objective text: below score, left-aligned (UI_SPEC §3.3) ───────
+        // ── Objective text: below score (UI_SPEC §3.3) ────────────────────
 
         private void BuildObjectiveText() {
-            var obj = new GameObject("ObjectiveText");
-            obj.transform.SetParent(transform, false);
-            var rect = obj.GetComponent<RectTransform>() ?? obj.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(1f, 1f);
-            rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot   = new Vector2(1f, 1f);
-            rect.sizeDelta = new Vector2(300f, 64f);
-            rect.offsetMin = new Vector3(-_topPadding - 280f, -(_topPadding + 50f)); // under score
-            rect.offsetMax = Vector3.zero;
-
-            _objectiveText = obj.AddComponent<Text>();
-            _objectiveText.text = "Objective:";
+            var rect = NewRect("ObjectiveText", transform);
+            Place(rect, new Vector2(1f, 1f),
+                new Vector2(-_padding, -(_padding + ScoreHeight + WidgetGap)),
+                new Vector2(ScoreWidth, ObjectiveHeight));
+            _objectiveText = AddText(rect.gameObject, "Objective:", 18, TextAnchor.UpperLeft, PencilCol);
             _objectiveText.fontStyle = FontStyle.Bold;
-            _objectiveText.alignment = TextAnchor.MiddleLeft;
-            _objectiveText.fontSize = 18;
-            _objectiveText.color = new Color(0.62f, 0.71f, 0.8f, 1f); // pencil #9DB4CC
-
-            // Start hidden until mission objectives exist.
-            obj.SetActive(false);
+            rect.gameObject.SetActive(false);   // hidden until MissionRunner sets an objective
         }
 
-        // ── Bomb icons row: bottom-left, 7 slots (UI_SPEC §3.3) ────────────
+        // ── Bomb icons row: bottom-left, one slot per bomb (UI_SPEC §3.3) ─
 
         private void BuildBombIcons() {
-            var rowObj = new GameObject("BombRow");
-            rowObj.transform.SetParent(transform, false);
-            var rowRect = rowObj.GetComponent<RectTransform>() ?? rowObj.AddComponent<RectTransform>();
-            rowRect.anchorMin = Vector2.zero;                // bottom-left
-            rowRect.anchorMax = Vector2.zero;
-            rowRect.pivot   = new Vector2(0f, 0f);
-            rowRect.sizeDelta = Vector2.zero;
-            rowRect.offsetMin = new Vector3(_topPadding, _topPadding);
-            rowRect.offsetMax = Vector3.zero;
+            int slots = _bombCapacity;
+            float rowWidth = slots * _bombSlotSize + (slots - 1) * _bombSlotGap;
 
-            var spacing = _bombSlotSize + 8f;
-            for (int i = 0; i < 7; i++) {
-                var iconObj = new GameObject("BombIcon_" + i);
-                iconObj.transform.SetParent(rowObj.transform, false);
-                var iconRect = iconObj.GetComponent<RectTransform>() ?? iconObj.AddComponent<RectTransform>();
-                iconRect.anchorMin = Vector2.zero;
-                iconRect.anchorMax = Vector2.zero;
-                iconRect.pivot   = new Vector2(0.5f, 0.5f);
-                iconRect.sizeDelta = new Vector2(_bombSlotSize, _bombSlotSize);
-                iconRect.offsetMin = new Vector3(i * spacing, 0f);
-                iconRect.offsetMax = new Vector3((i + 1) * spacing, (float)_bombSlotSize);
+            var rowRect = NewRect("BombRow", transform);
+            Place(rowRect, Vector2.zero, new Vector2(_padding, _padding), new Vector2(rowWidth, _bombSlotSize));
 
-                var iconImage = iconObj.AddComponent<Image>();
-                // Fill colour starts friendly (available bomb).
-                _bombIcons[i] = iconImage;
+            _bombIcons = new Image[slots];
+            for (int i = 0; i < slots; i++) {
+                var iconRect = NewRect("BombIcon_" + i, rowRect);
+                Place(iconRect, Vector2.zero,
+                    new Vector2(i * (_bombSlotSize + _bombSlotGap), 0f),
+                    new Vector2(_bombSlotSize, _bombSlotSize));
+
+                var icon = iconRect.gameObject.AddComponent<Image>();
+                icon.raycastTarget = false;
+                icon.sprite = _bombIconSprite;
+                icon.preserveAspect = true;   // ui_bomb_icon is portrait (96x128)
+                icon.color = FriendlyCol;
+                _bombIcons[i] = icon;
             }
-        }
-
-        // ── Sprite caching (single Resources.Load call per sprite) ─────────
-
-        private Sprite _bombIconSprite;
-        private void CacheSprites() {
-            _bombIconSprite = Resources.Load<Sprite>("Sprites/ui/ui_bomb_icon");
         }
 
         // ── Event handlers (reactive updates, no polling) ──────────────────
 
-        /// <summary>Handles GameEvents.PlayerDamageChanged — updates damage fill and smoke warning.</summary>
+        /// <summary>GameEvents.PlayerDamageChanged: damage fill and smoke warning.</summary>
         private void OnPlayerDamageChanged(float damage) {
             if (_damageFill != null) {
                 _damageFill.fillAmount = Mathf.Clamp01(damage / 100f);
-
-                // Transition fill colour at smoke threshold: ink → hostile (UI_SPEC §2).
-                if (damage >= 70f) {
-                    // Lerp from ink towards hostile based on how far past 70%.
-                    float t = Mathf.InverseLerp(70f, 100f, damage);
-                    _damageFill.color = Color.Lerp(_inkCol, _hostileCol, t);
+                // Ink up to the smoke threshold, then towards hostile (UI_SPEC §2).
+                if (damage >= _smokeThreshold) {
+                    float t = Mathf.InverseLerp(_smokeThreshold, 100f, damage);
+                    _damageFill.color = Color.Lerp(InkCol, HostileCol, t);
                 } else {
-                    _damageFill.color = _inkCol;
+                    _damageFill.color = InkCol;
                 }
             }
 
-            // Smoke warning: visible when damage >= smokeThreshold (UI_SPEC §3.3).
             if (_smokeIconObj != null) {
-                GameBalance balance = GameBalance.Get();
-                float threshold = balance != null && balance.player != null ? balance.player.smokeThreshold : 70f;
-                _smokeIconObj.SetActive(damage >= threshold);
+                _smokeIconObj.SetActive(damage >= _smokeThreshold);
             }
         }
 
-        /// <summary>Handles GameEvents.ScoreChanged — updates score display text (UI_SPEC §3.3).</summary>
+        /// <summary>GameEvents.ScoreChanged: score display text.</summary>
         private void OnScoreChanged(int score) {
             if (_scoreText != null) {
                 _scoreText.text = $"Score: {score:D4}";
             }
         }
 
-        /// <summary>Handles GameEvents.BombsChanged — updates bomb icons row (UI_SPEC §3.3).</summary>
+        /// <summary>GameEvents.BombsChanged: friendly icons for available bombs, pencil for spent.</summary>
         private void OnBombsChanged(int bombsRemaining) {
+            if (_bombIcons == null) return;
+            int available = Mathf.Clamp(bombsRemaining, 0, _bombIcons.Length);
             for (int i = 0; i < _bombIcons.Length; i++) {
                 if (_bombIcons[i] == null) continue;
-
-                bool isAvailable = i < bombsRemaining;
-                // Filled friendly #F2C14E when available, grey pencil #9DB4CC when empty (UI_SPEC §2).
-                _bombIcons[i].color = isAvailable
-                    ? new Color(0.949f, 0.757f, 0.306f, 1f)   // friendly #F2C14E
-                    : new Color(0.616f, 0.706f, 0.8f, 1f);    // pencil #9DB4CC
-
-                if (_bombIconSprite != null) {
-                    _bombIcons[i].sprite = _bombIconSprite;
-                } else {
-                    Debug.LogWarning("HudView: Missing sprite 'Sprites/ui/ui_bomb_icon', using filled rect fallback.");
-                    // Fallback: tinted solid rectangle.
-                    _bombIcons[i].color = isAvailable
-                        ? new Color(0.949f, 0.757f, 0.306f, 1f)   // friendly yellow
-                        : new Color(0.616f, 0.706f, 0.8f, 1f);    // grey pencil
-                }
+                _bombIcons[i].color = i < available ? FriendlyCol : PencilCol;
             }
+            DisplayedBombs = available;
         }
 
-        /// <summary>Handles GameEvents.EntityDestroyed — decrements objective counter (UI_SPEC §3.3).</summary>
+        /// <summary>GameEvents.EntityDestroyed: decrements the objective counter.</summary>
         private void OnEntityDestroyed(string entityType, Team team) {
-            if (_objectiveText == null || !_objectiveActive) return;
+            if (_objectiveText == null || !_objectiveActive || entityType == null) return;
 
-            // Only track the active target type.
-            if (!string.IsNullOrEmpty(_objectiveTargetType) && !entityType.Equals(_objectiveTargetType, System.StringComparison.OrdinalIgnoreCase)) {
+            if (!string.IsNullOrEmpty(_objectiveTargetType)
+                && !entityType.Equals(_objectiveTargetType, System.StringComparison.OrdinalIgnoreCase)) {
                 return;
             }
 
             _objectiveRemaining = Mathf.Max(0, _objectiveRemaining - 1);
-
-            string targetLabel = entityType.ToLowerInvariant();
-            _objectiveText.text = $"Destroy {_objectiveRemaining} more {targetLabel}s";
+            _objectiveText.text = $"Destroy {_objectiveRemaining} more {entityType.ToLowerInvariant()}s";
 
             if (_objectiveRemaining == 0) {
-                // Objective complete: brief green flash (heal colour).
-                _objectiveText.color = new Color(0.47f, 0.83f, 0.54f, 1f);  // heal #7BD389
+                _objectiveText.color = HealCol;
             }
         }
 
         /// <summary>Set or update the active mission objective (called by MissionRunner).</summary>
         public void SetObjective(string targetType, int total) {
-            _objectiveTargetType = targetType;
+            _objectiveTargetType = targetType ?? "";
             _objectiveRemaining  = total;
             _objectiveActive     = true;
 
             if (_objectiveText != null) {
-                string label = targetType.ToLowerInvariant();
-                _objectiveText.text = $"Destroy {total} more {label}s";
-                _objectiveText.color = new Color(0.62f, 0.71f, 0.8f, 1f); // pencil #9DB4CC (reset)
-                if (_objectiveText.gameObject != null) {
-                    _objectiveText.gameObject.SetActive(true);
-                }
+                _objectiveText.text = $"Destroy {total} more {_objectiveTargetType.ToLowerInvariant()}s";
+                _objectiveText.color = PencilCol;
+                _objectiveText.gameObject.SetActive(true);
             }
         }
 
-        /// <summary>Called when the mission objective is fully completed.</summary>
+        /// <summary>GameEvents.ObjectiveCompleted: shows a short completion message.</summary>
         private void OnObjectiveCompleted(string objectiveId) {
             if (!_objectiveActive) return;
 
-            // Show completion text briefly then hide.
-            if (_objectiveText != null && _objectiveText.gameObject != null) {
+            if (_objectiveText != null) {
                 _objectiveText.text = "Objective Complete!";
-                _objectiveText.color = new Color(0.47f, 0.83f, 0.54f, 1f);  // heal #7BD389
-
-                StartCoroutine(HideObjectiveAfterDelay(2f));
+                _objectiveText.color = HealCol;
+                if (isActiveAndEnabled) StartCoroutine(HideObjectiveAfterDelay(2f));
             }
             _objectiveActive = false;
         }
 
-        /// <summary>Coroutine: hide the objective text after a delay (UI_SPEC §4 — flash feedback).</summary>
+        /// <summary>Hides the objective text after a delay (UI_SPEC §4 flash feedback).</summary>
         private System.Collections.IEnumerator HideObjectiveAfterDelay(float delay) {
             yield return new WaitForSeconds(delay);
-            if (_objectiveText != null && _objectiveText.gameObject != null) {
+            if (_objectiveText != null) {
                 _objectiveText.gameObject.SetActive(false);
             }
         }
 
         // ── Helpers ────────────────────────────────────────────────────────
 
-        /// <summary>Creates a 1×1 white sprite for fallback when a resource is missing.</summary>
-        private static Sprite CreateWhiteSprite() {
-            var texture = new Texture2D(1, 1);
-            texture.SetPixel(0, 0, Color.white);
-            texture.Apply();
-            return Sprite.Create(texture, new Rect(0, 0, 1, 1), Vector2.one * 0.5f);
+        private static RectTransform NewRect(string name, Transform parent) {
+            var go = new GameObject(name, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            return (RectTransform)go.transform;
+        }
+
+        /// <summary>Anchor and pivot at the same corner, then position and size. No offsets.</summary>
+        private static void Place(RectTransform rect, Vector2 corner, Vector2 position, Vector2 size) {
+            rect.anchorMin = corner;
+            rect.anchorMax = corner;
+            rect.pivot     = corner;
+            rect.sizeDelta = size;
+            rect.anchoredPosition = position;
+        }
+
+        private static Text AddText(GameObject go, string text, int size, TextAnchor align, Color color) {
+            var t = go.AddComponent<Text>();
+            t.font = _font;
+            t.text = text;
+            t.fontSize = size;
+            t.alignment = align;
+            t.color = color;
+            t.raycastTarget = false;
+            t.horizontalOverflow = HorizontalWrapMode.Wrap;
+            t.verticalOverflow = VerticalWrapMode.Overflow;
+            return t;
+        }
+
+        /// <summary>A shared 1x1 white sprite, tinted by Image.color.</summary>
+        private static Sprite WhiteSprite() {
+            if (_whiteSprite == null) {
+                var texture = new Texture2D(1, 1);
+                texture.SetPixel(0, 0, Color.white);
+                texture.Apply();
+                _whiteSprite = Sprite.Create(texture, new Rect(0, 0, 1, 1), Vector2.one * 0.5f);
+            }
+            return _whiteSprite;
         }
     }
 }

@@ -1,0 +1,15 @@
+TASK: B022
+AGENT: mechanics
+STATUS: DONE
+FILES:
+- Biplanes/Assets/Biplanes/Scripts/UI/HudView.cs (layout + init rewrite)
+- Biplanes/Assets/Biplanes/Scripts/Player/BombBay.cs (capacity from Balance, raises count in Start/Refill)
+- Biplanes/Assets/Biplanes/Tests/EditMode/HudBombIconsTests.cs (new, 6 EditMode tests)
+- Biplanes/Assets/Biplanes/Tests/EditMode/Biplanes.Tests.EditMode.asmdef (added "UnityEngine.UI" reference so tests can use Image/Text)
+SUMMARY: Root cause confirmed: BuildBombIcons added Images with no sprite (the sprite was only assigned in OnBombsChanged), and set offsetMin/offsetMax after sizeDelta, which turned seven 36x36 slots into touching 44x36 rects, i.e. one white bar. Nothing raised BombsChanged before the first drop. HudView now loads ui_bomb_icon (it exists) before building, places every rect with anchor+pivot+anchoredPosition+sizeDelta, builds one slot per Balance player.bombCapacity (7) at 36 px with an 8 px gap 16 px from the bottom-left, and paints the full bay at build time. BombBay reads its capacity in Awake and raises BombsChanged in Start (after the HUD subscribes) and in Refill. A missing sprite warns once per session.
+Other HUD widgets had the same bugs: (1) DamageFill was a Filled Image with no sprite, which ignores fillAmount and drew a full white bar at 0% damage; its anchors were Vector2.left (-1,0), off the frame. (2) Every HUD Text (score, objective, SMOKE) had no font, so none of them drew anything. (3) DamageFrame and SmokeWarning ended up with negative widths (offsetMax=0), and the score rect was only 16 px tall for 24 pt text, so it was truncated. (4) The damage frame sprite was tinted paper-dark, which hid its ink lines. All fixed: LegacyRuntime.ttf font, white sprite on the fill, real sizes, and the frame drawn untinted. The fill/smoke threshold now reads Balance smokeThreshold instead of a hard-coded 70.
+VERIFY: python tools/compile_check.py -> PASS Biplanes, PASS Biplanes.Editor, exit 0 (bash tools/unity.sh compile exited 3: UNITY_PATH not set). compile_check skips /Tests/, so HudBombIconsTests is not compile-checked yet. In Unity: Test Runner > EditMode > HudBombIconsTests (6 tests). Play mission 1: seven separate yellow bomb icons in the bottom-left from frame 1; dropping a bomb greys one out; the damage bar starts empty; score and objective text are visible top-right. Retry and Next also start at 7.
+REQUESTS:
+- orchestrator: UI_SPEC §3.3 smoke warning says pencil colour; the code has always drawn "SMOKE" in hostile #E4572E for visibility. Either update the spec to hostile or file a P2 to switch it.
+- orchestrator: ARCHITECTURE §3 UI: you could add the HUD rule "BombBay raises BombsChanged in Start; HudView builds showing a full bay from Balance.player.bombCapacity" and the uGUI rule "every code-built Image gets a sprite, every Text gets LegacyRuntime.ttf, rects use anchoredPosition+sizeDelta (no offsetMin/Max after sizeDelta)".
+- qa: run HudBombIconsTests in the Unity Test Runner (the dotnet check doesn't compile tests).

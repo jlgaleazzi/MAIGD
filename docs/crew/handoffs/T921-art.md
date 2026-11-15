@@ -1,0 +1,8 @@
+TASK: T921
+AGENT: art
+STATUS: DONE
+FILES: art-src/backgrounds/bg_enemyland_far.svg, art-src/backgrounds/bg_enemyland_mid.svg, art-src/backgrounds/bg_enemyland_near.svg, Biplanes/Assets/Biplanes/Resources/Sprites/backgrounds/bg_enemyland_{far,mid,near}.png (rendered by rasterize.py), docs/crew/handoffs/T921-art.md
+SUMMARY: Redrew enemyland in the engraved-sketch style. far: opaque paper, 32 px grid, stains, a ruled sky, engraved clouds, chimneys with billowing smoke, gasholders with lattice guide frames and a sawtooth hall. mid (transparent): a lattice-girder viaduct on X-braced trestle piers, two gantry cranes, a warehouse, a hangar and a gabled shed. near (transparent, y >= 770): coal and rubble heaps made of cells, lattice pylons with wires, stacked crates and two foreshortened tracks.
+After looking at the renders, I merged the smoke puffs into continuous plumes, clipped the abutment stone courses to their shapes, lowered the mid stroke opacity for depth, and thinned the ballast stipple. Seams are clean, the content is wrapped via <use> at +/-1920, and every pattern tile divides 1920. The alpha check passes: far is fully opaque; mid and near have alpha 0 everywhere above y 480. Element counts are 250, 39 and 108. Ink is at most 0.42 opacity and there are no flags or crosses.
+VERIFY: python tools/rasterize.py --check   (all three bg_enemyland_* report OK); then open the three PNGs. In mid and near, everything above y 480 should be transparent.
+REQUESTS: none. One note for whoever owns rasterize.py: its HEX regex also matches 3-hex-char ids in href/url (for example "#cc0"), which gives false off-palette failures. I avoided it here by naming my ids clp*. bg_farmland_far currently fails the check for this reason (#ccbb..).

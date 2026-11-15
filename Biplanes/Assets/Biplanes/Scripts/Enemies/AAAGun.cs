@@ -8,7 +8,7 @@ namespace Biplanes.Enemies {
 
     /// <summary>
     /// Anti-aircraft ground gun that fires bursts of flak shells toward the player's
-    /// predicted position. Ground-bound (y = -4.5 per ARCHITECTURE §3). Destroyable
+    /// predicted position. Ground-bound (terrain height at its spawn x). Destroyable
     /// only by bombs — bullets and flak bounce off harmlessly (GDD: "destroyed with bombs").
     ///
     /// Self-contained IDamageable implementation (no separate Health component) so that
@@ -33,7 +33,11 @@ namespace Biplanes.Enemies {
         private Rigidbody2D _rb;
         private bool _wasAlive = true;                             // death-transition guard
 
-        private const float GROUND_Y = -4.5f;                       // ground height per ARCHITECTURE §3
+        private float _groundY;                                      // terrain height at spawn x (set in Spawn)
+        private Camera _cam;                                        // cached in Awake
+
+        /// <summary>Extra world units beyond the camera edge in which the gun still fires.</summary>
+        private const float FireRangeMargin = 2f;
         private float _lastFireTime = -999f;                        // allow immediate first fire
         private Coroutine _fireCoroutine;
 
@@ -111,7 +115,14 @@ namespace Biplanes.Enemies {
                     $"AAAGun: missing sprite at 'Sprites/enemies/aaa_gun' — using 1x1 white.");
                 sr.sprite = CreateFallbackSprite();
             }
+            sr.sortingOrder = 5;
             gun._sr = sr;
+            gun._groundY = position.y;
+
+            // Trigger collider so bombs can hit the gun (ARCHITECTURE §3 Physics).
+            var col = go.AddComponent<BoxCollider2D>();
+            col.isTrigger = true;
+            col.size = new Vector2(1f, 0.6f);
 
             // Kinematic rigidbody for any future movement (currently ground-bound).
             gun._rb = go.AddComponent<Rigidbody2D>();
@@ -129,20 +140,23 @@ namespace Biplanes.Enemies {
 
         private void Awake() {
             if (_sr == null) _sr = GetComponent<SpriteRenderer>();
+            _groundY = transform.position.y;
+            _cam = Camera.main;
         }
 
         private void LateUpdate() {
             // ── 1. Ground clamp: never leave the ground plane ──────────────
             var pos = transform.position;
-            if (Mathf.Approximately(pos.y, GROUND_Y) == false) {
-                pos.y = GROUND_Y;
+            if (Mathf.Approximately(pos.y, _groundY) == false) {
+                pos.y = _groundY;
                 transform.position = pos;
             }
 
             // ── 2. Fire burst on cooldown ───────────────────────────────────
-            if (PlayerRef != null && !IsDead) {
+            if (PlayerRef != null && !IsDead && IsInFireRange()) {
                 float elapsed = Time.time - _lastFireTime;
                 if (elapsed >= fireRate && _fireCoroutine == null) {
+                    _lastFireTime = Time.time;
                     _fireCoroutine = StartCoroutine(FireBurstRoutine());
                 }
             }
@@ -164,6 +178,14 @@ namespace Biplanes.Enemies {
                 StopCoroutine(_fireCoroutine);
                 _fireCoroutine = null;
             }
+        }
+
+        /// <summary>True while the gun is on screen (plus a small margin), so off-screen guns
+        /// don't drain the shared flak pool.</summary>
+        private bool IsInFireRange() {
+            if (_cam == null) return true;
+            float halfWidth = _cam.orthographicSize * _cam.aspect + FireRangeMargin;
+            return Mathf.Abs(transform.position.x - _cam.transform.position.x) <= halfWidth;
         }
 
         // ── Burst fire routine ────────────────────────────────────────────
@@ -189,20 +211,39 @@ namespace Biplanes.Enemies {
             _fireCoroutine = null;
         }
 
-        /// <summary>Predict where the player will be when a shell reaches their altitude.
-        /// Uses player velocity for leading shots (not just current position).</summary>
+        /// <summary>Predict where the shell meets the player: the point P + v*t where the
+        /// shell, flying straight from the gun at ShellSpeed, arrives at the same time t (B010).
+        /// Solves |D + v*t| = S*t (D = player - gun) directly; falls back to t = |D| / S when no
+        /// positive intercept exists (the player outruns the shell).</summary>
         private Vector3 PredictPosition() {
             if (PlayerRef == null) return transform.position + Vector3.up * 5f;
 
             var playerPos = PlayerRef.transform.position;
-            float dy = transform.position.y - playerPos.y; // positive when gun is below player.
 
-            float shellSpeed = 6f;                         // matches FlakShell.verticalSpeed default.
-            float timeToImpact = dy / shellSpeed;
-            if (timeToImpact < 0f || !float.IsFinite(timeToImpact)) timeToImpact = 2f;
+            // The player is kinematic and moved with MovePosition, so its Rigidbody2D.linearVelocity
+            // is always zero; PlayerPlane.Velocity is the real world velocity (B009b).
+            Vector2 vel = PlayerRef.Velocity;
+            Vector2 d = (Vector2)(playerPos - transform.position);
+            float s = FlakShell.ShellSpeed;
 
-            var rb = PlayerRef.GetComponent<Rigidbody2D>();
-            Vector2 vel = rb != null ? rb.linearVelocity : Vector2.zero;
+            // (v.v - S^2) t^2 + 2 (D.v) t + D.D = 0
+            float a = Vector2.Dot(vel, vel) - s * s;
+            float b = 2f * Vector2.Dot(d, vel);
+            float c = Vector2.Dot(d, d);
+            float timeToImpact = -1f;
+            if (Mathf.Abs(a) < 1e-4f) {
+                if (b < 0f) timeToImpact = -c / b;                 // linear case
+            } else {
+                float disc = b * b - 4f * a * c;
+                if (disc >= 0f) {
+                    float sq = Mathf.Sqrt(disc);
+                    float t1 = (-b - sq) / (2f * a);
+                    float t2 = (-b + sq) / (2f * a);
+                    float lo = Mathf.Min(t1, t2), hi = Mathf.Max(t1, t2);
+                    timeToImpact = lo > 0f ? lo : hi;               // earliest positive intercept
+                }
+            }
+            if (timeToImpact <= 0f || !float.IsFinite(timeToImpact)) timeToImpact = d.magnitude / s;
 
             return new Vector3(playerPos.x + vel.x * timeToImpact,
                                playerPos.y + vel.y * timeToImpact,
@@ -264,11 +305,8 @@ namespace Biplanes.Enemies {
         private void HandleDeath() {
             Debug.LogFormat("AAA gun destroyed at {0}", transform.position);
 
-            // Award score from Balance.json.
-            var balance = GameBalance.Get();
-            int pts = balance != null && balance.scoreData != null
-                      ? balance.scoreData.aaa : 150;
-            ScoreKeeper.Instance?.AddPoints(pts);
+            // Score is awarded once, by ScoreKeeper.OnEntityDestroyed("aaa") when OnDamageTaken
+            // raises GameEvents.EntityDestroyed (B009a). No AddPoints here.
 
             // Destroy game object (death cleanup, not update-loop pooling).
             Destroy(gameObject);

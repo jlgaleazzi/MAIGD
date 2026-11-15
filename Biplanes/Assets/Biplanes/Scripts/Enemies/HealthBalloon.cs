@@ -167,9 +167,7 @@ namespace Biplanes.Enemies {
             return Sprite.Create(tex, Rect.zero, Vector2.one * 0.5f);
         }
 
-        public void Heal(float amount)
-        {
-            throw new System.NotImplementedException();
-        }
+        /// <summary>IDamageable: a pickup isn't healable, so this is a harmless no-op.</summary>
+        public void Heal(float amount) { /* health balloons are not healable */ }
     }
 }

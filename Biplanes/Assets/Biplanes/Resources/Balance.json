@@ -6,14 +6,17 @@
     "bulletDamage": 25.0,
     "bombCapacity": 7,
     "bombDamage": 100.0,
-    "smokeThreshold": 70.0
+    "smokeThreshold": 70.0,
+    "turnEaseSeconds": 0.6,
+    "screenAnchor": 0.3
   },
   "damageTaken": {
     "fighterBullet": 8.0,
     "flak": 15.0,
     "bomberGunner": 10.0,
     "zeppelinTurret": 12.0,
-    "collision": 100.0
+    "collision": 100.0,
+    "planeCollision": 50.0
   },
   "healthBalloonRestore": 30.0,
   "enemyHealth": {
@@ -42,6 +45,27 @@
   },
   "enemySpeed": {
     "fighter": 3.0,
-    "bomber": 1.5
+    "bomber": 1.5,
+    "zeppelin": 1.0
+  },
+  "enemyFire": {
+    "fighterIntervalMin": 1.8,
+    "fighterIntervalMax": 2.5,
+    "fighterConeDegrees": 40.0,
+    "bomberIntervalMin": 2.5,
+    "bomberIntervalMax": 3.0,
+    "firstShotDelayMin": 0.4,
+    "firstShotDelayMax": 1.2,
+    "bulletSpeed": 8.0,
+    "bulletLifetime": 1.6,
+    "range": 11.0,
+    "spreadDegrees": 4.0,
+    "aimToleranceDegrees": 10.0
+  },
+  "pitch": {
+    "maxDegrees": 15.0,
+    "fighterMaxDegrees": 40.0,
+    "easeDegreesPerSecond": 60.0,
+    "fullPitchSpeed": 3.0
   }
 }

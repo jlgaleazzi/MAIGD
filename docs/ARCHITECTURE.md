@@ -51,8 +51,14 @@ MAIGD/
 
 ## 3. Runtime model
 - **Camera:** orthographic, size 5 (10 world units tall, 16:9 means about 17.8 wide).
-  The **world scrolls**: `ScrollController` moves the camera right at `scrollSpeed`
-  (world units/s) taken from the mission JSON. "Mission distance" = the camera's x.
+  The **world scrolls** in the player's facing `Direction` (+1/-1, set by `PlayerPlane`
+  through `SetDirection(Facing)`) at `scrollSpeed` (world units/s) from the mission JSON.
+  On a turn, the x `Velocity` eases linearly toward `Direction * scrollSpeed`, so a full
+  reversal takes `player.turnEaseSeconds`. `SetLimits(minX, maxX)` clamps the camera x,
+  and the velocity is 0 while the camera is pinned at a limit. `FarthestX` = the largest
+  camera x reached so far. "Mission distance" (`MissionDistanceX`) = the current camera
+  x. `Create` resets and reuses a live Instance (direction +1, full speed, no limits,
+  FarthestX = camera x).
 - **Player** stays inside the camera rectangle minus a 0.5 margin. Moves with
   `Rigidbody2D` (Kinematic) and `MovePosition`.
 - **Ground** has its baseline at y = -4.5 and is drawn by `TerrainStrip` from the mission's
@@ -84,7 +90,7 @@ MAIGD/
 namespace Biplanes.Core {
   public enum Team { Player, Enemy, Neutral }
   public interface IDamageable { Team Team { get; } void ApplyDamage(float percent, DamageSource src); bool IsDead { get; } }
-  public enum DamageSource { Bullet, Bomb, Flak, Collision }
+  public enum DamageSource { Bullet, Bomb, Flak, Collision, Heal, ZeppelinTurret, PlaneCollision }
   public static class GameEvents {            // plain C# events; UI and missions listen
     public static event System.Action<int> ScoreChanged;              // new total
     public static event System.Action<float> PlayerDamageChanged;     // 0..100
@@ -114,38 +120,132 @@ planes.
 ### Player (Player/)
 - `PlayerInput`: Input System, reading the keyboard directly with
   `Keyboard.current.wKey.isPressed` and so on. No `.inputactions` asset.
-  W/A/S/D move, Space fires (hold to autofire at `fireRate`), Enter drops a bomb (one per
-  key press).
+  W/S climb and dive. A/D set the facing (Defender-style, see `PlayerPlane`). The left mouse button fires
+  (hold to autofire at `fireRate`), Space drops a bomb (one per key press). Mouse input is read from `Mouse.current` (Input System); it is ignored while a menu, briefing, pause or result view is open. `PlayerInputGate` (pure, EditMode-testable) maps raw keys and mouse to `InputState`: it blocks while MainMenuView/BriefingView/PauseView/ResultView `IsShowing` or timeScale is 0, and a button held across a UI screen, pressed over UI (`EventSystem.IsPointerOverGameObject` at press time) or held when the input was enabled must be released before it counts. Enter no longer drops bombs (it still starts the briefing).
 - `PlayerPlane`: movement, takeoff state (mission 1 starts `onRunway: true`. The plane
   sits at the airfield until the player presses D or W, then climbs out), smoke trail at
-  ≥ 70% damage, crash when damage reaches 100%.
+  ≥ 70% damage, crash when damage reaches 100%. Mid-air contact with a FighterAI/BomberAI destroys the enemy (`DamageSource.Collision`, fatal for enemies) and costs the player `damageTaken.planeCollision` (50, default 50 if missing) via `DamageSource.PlaneCollision`; the plane crashes only at 100% total. For `PlaneCollisionGraceSeconds` (0.5) after a contact, further contacts still kill enemies but do not damage the player. Terrain, buildings, trees, EnemyBase, PlayerHQ and zeppelin rams stay fatal.
+  - `public int Facing` (+1 right, -1 left; starts at +1). While airborne, D sets +1 and A
+    sets -1 (when both are held, the last one pressed wins; when neither is held, Facing is
+    kept). `flipX = Facing < 0` (the art faces right). On the runway, A does nothing, and
+    D/W take off facing right. An A held at takeoff is ignored until it is released and
+    pressed again, so W+A takes off and stays facing right.
+  - Airborne, the plane rides along with the camera, and its screen x eases at
+    `player.speed` toward viewport x `player.screenAnchor` (0.3) when facing right, or
+    `1 - screenAnchor` when facing left, so the view ahead stays open.
+  - Bullets fly in the Facing direction, and the gun offset x is mirrored. Bombs inherit
+    the plane's real world x-velocity.
+  - `PlayerPlane.Velocity` (read-only) is the world velocity over the last physics tick.
+    `Rigidbody2D.linearVelocity` is always zero for the MovePosition-driven body.
 - `BombBay`: holds up to 7 bombs and starts each mission full. Bombs fall under gravity
   and inherit the plane's x-velocity.
 
 ### Enemies (Enemies/), one class each
-`FighterAI`, `BomberAI` (has `targetX`: reaching it = mission fail when an objective
-says so), `AAAGun` (fires flak bursts up at the player's predicted position, ground-bound,
-damaged by `DamageSource.Bomb` only), `ZeppelinAI` (hull plus N `ZeppelinTurret` children;
+`FighterAI` (shoots `EnemyBullet`s along its own nose direction +-`spreadDegrees` while on screen and the player is alive, inside `enemyFire.range` and `fighterConeDegrees` of its flight direction (left): the nose eases toward the player and it fires only when the player is within `enemyFire.aimToleranceDegrees` (10) of the nose; the cooldown runs only on screen: a random first-shot delay, then `fighterInterval*`), `BomberAI` (a gunner fires `EnemyBullet`s in any direction at the player within range while on screen every `bomberInterval*`, without affecting flight or bomb run; `targetX` = world x it flies toward; `SetTargetX(x)`, `TargetX`,
+`HasTargetX`, `ReachedTarget`; bomb run starts 5 units before targetX, based on its own x;
+never despawns; `Spawn(Vector3 position, string id = null)` stores `SpawnId`), `AAAGun` (fires flak bursts up at the exact straight-line intercept of a
+ShellSpeed shell with the player's current `PlayerPlane.Velocity`, falling back to
+distance / ShellSpeed when there is no intercept; only while within 2 units of the screen edge; ground-bound at the
+terrain height of its spawn x; trigger collider; damaged by `DamageSource.Bomb` only),
+`ZeppelinAI` (the underside turret hangs below the gondola line so player bullets fired in level flight reach it (a pitched player's bullets follow the nose, so the player levels off to shoot it); every turret needs a clear horizontal line of fire in level flight because a shielded hull box absorbs bullets; `ZeppelinAI.HalfLength` 4.5 = half the hull length; `SetTargetX`/`TargetX`/`HasTargetX`/`ReachedTarget`; removed silently 20 units
+behind the left screen edge only when it has no targetX ahead of it; hull plus N `ZeppelinTurret` children;
 the hull only takes damage after all turrets are destroyed, or `hullVulnerableEarly` in
-Balance), `BarrageBalloon`, `HealthBalloon` (pickup), `StaticObstacle` (building/tree).
+Balance), `BarrageBalloon`, `HealthBalloon` (pickup), `StaticObstacle` (building/tree),
+`EnemyBase` (ground-bound, trigger, bomb-only damage as a percent of `enemyHealth.enemyBase`,
+raises `EntityDestroyed("enemyBase")` once plus a static `EnemyBase.Destroyed` event with `Id`
+and `KilledByBomb`; `EnemyBase.Spawn(position, id)`), `PlayerHQ` (neutral, not damageable,
+`WorldX`; `PlayerHQ.Spawn(position, id)`). Both sit their bottom edge on the ground point and
+crash the player on contact, like buildings. `ZeppelinAI.Spawn(position, id)` plus
+`Init(PlayerPlane)`: a hull flying left with 3 `ZeppelinTurret` children (2 on top, 1
+underneath). The hull and turrets handle their own damage, like `AAAGun`. While any turret is
+alive the hull absorbs every hit without damage (unless `hullVulnerableEarly`). Turrets fire
+aimed `FlakShell`s at the player along the exact aim, downward included, while near the
+screen; hits use `DamageSource.ZeppelinTurret`, scaled by `damageTaken.zeppelinTurret`. The
+hull flies left at `enemySpeed.zeppelin`. The hull is removed silently 20 units behind
+the left screen edge. Ramming the hull or a turret crashes the player. It raises
+`EntityDestroyed("zeppelin")` and `("zeppelinTurret")` once each.
 All of them are spawned by `MissionRunner` from the mission JSON.
+`BomberAI` mirrors its sprite with `flipX` (it flies left), mirrors its hitbox x offsets to
+match, and uses `sortingOrder` 5. An entity may carry several trigger colliders on its root
+(`BomberAI`: fuselage, wing block and tail fin boxes fitted to its sprite). `Projectile`
+ignores trigger callbacks once it has been recycled, so one projectile damages a
+multi-collider target only once.
+
+### Pitch (Core/PlanePitch.cs, Player, Enemies)
+All planes pitch around the lateral axis: `PlanePitch.Step` eases `PitchAngle` (nose up positive) toward vy/`pitch.fullPitchSpeed` x `pitch.maxDegrees` at `pitch.easeDegreesPerSecond`. The body turns with `_rb.MoveRotation(BodyAngle = PitchAngle x Facing)` so up stays up when facing left; sprite and hitboxes are on the same body. Balance `pitch` block (`PitchData`, read with `PitchData.Resolve`, defaults are consts on `PlanePitch`): `maxDegrees` 15 (player, bomber), `fighterMaxDegrees` 40, `easeDegreesPerSecond` 60, `fullPitchSpeed` 3. All three planes expose `PitchAngle`, `BodyAngle`, `NoseDirection`. The player's terrain check uses `HitboxLowestPoint()` (the rotated hitbox; up to about 0.19 lower than level at 15 degrees, accepted). Player bullets leave along `PlayerPlane.NoseDirection` (x mirrored by facing, muzzle offset rotated with the nose); `Bullet.Spawn(Vector3, Quaternion, Vector2)` accepts any direction. Fighters fire along their own nose direction (`FighterAI.NoseDirection`) +-`spreadDegrees`, from the nose: the pitch eases toward the player's bearing (limit `pitch.fighterMaxDegrees`) while the player is inside the firing cone and range, otherwise follows climb/dive, and the fighter only fires when the player is within `enemyFire.aimToleranceDegrees` (10) of the nose. The bomber's gunner stays a swivel gun from the centre (not nose-bound). Bombs are unchanged (gravity). `Bullet.Spawn(Vector3, Quaternion, Vector2)` takes the nose direction; player bullets spawn at position + `NoseDirection` x 0.7.
 
 ### Weapons (Weapons/)
-`Bullet`, `Bomb`, `FlakShell`, `Projectile` (base class: speed, team, damage, lifetime),
+`Bullet`, `Bomb`, `FlakShell`, `EnemyBullet` (Team.Enemy, own lazy scene-root pool `EnemyBulletPool` like FlakShell; 1 hit unit; damages only the player; recycles on hit, lifetime or leaving the camera view; `EnemyBullet.Spawn(position, dir, source)`; fighters use `DamageSource.Bullet` = damageTaken.fighterBullet, bomber gunners use `DamageSource.Bomb` = damageTaken.bomberGunner; static helpers `InFiringCone`, `AimWithinCone`, `IsOnScreen`), `Projectile` (base class: speed, team, damage, lifetime),
 `ObjectPool<T>` (generic). Nothing calls `Instantiate` in the update loop.
+`Bullet.Spawn(Vector3 position, Quaternion rotation, int direction)` fires along
+`direction` (±1). The 2-argument overload fires +x.
+Every pooled item lives under the pool's hidden root. `ObjectPool<T>.Dispose()` destroys
+the root and all items, including items in flight. Each `X.InitPool` disposes the previous
+pool before rebuilding, so pools are per mission and are freed with it.
+`EnemyBomb` (Team.Enemy, own pool, falls like Bomb, damages only the player) is what
+`BomberAI` drops. `FlakShell` and `EnemyBomb` build their pools lazily on first Spawn under
+a scene root, and rebuild them after a scene reload. Enemy projectiles apply 1 hit unit,
+and the player's Health scales it by `damageTaken` (bomb hits use `bomberGunner`).
+`FlakShell.Spawn(position, dir)` (AAA) always climbs and hits with `DamageSource.Flak`
+(`damageTaken.flak`). `FlakShell.Spawn(position, dir, source)` fires along `dir` exactly and
+hits with `source`. The player's Health maps `ZeppelinTurret` to `damageTaken.zeppelinTurret`.
+On reaching the terrain, a `Bomb` damages every live Team.Enemy IDamageable within 0.5
+units (OverlapCircle) before it recycles, once per target and never the target it already
+hit directly, so fast bombs can't tunnel past ground targets. The burst and explosion are
+placed on the surface at the x where the bomb crossed it (interpolated between the
+previous and current positions), not at the below-ground position.
+Player `Bullet`s and `Bomb`s ignore Team.Neutral IDamageables (health balloons) and fly on.
 
 ### Missions (Missions/)
 - `MissionData` (`[Serializable]` classes matching the JSON in §5, parsed with `JsonUtility`).
-- `MissionRunner`: loads `Resources/Missions/mission_0N`, spawns entries when camera x ≥
-  `atX`, tracks objectives, raises `MissionEnded`. Ground entries (aaa, balloons, buildings,
+- `MissionRunner`: loads `Resources/Missions/mission_0N`, spawns entries when
+  `ScrollController.FarthestX` ≥ `atX` (so turning back never re-triggers or advances a
+  spawn), tracks objectives. Before `ScrollController.Create` it tears down the previous
+  mission (player, spawned entities, HUD, extra ObjectiveTracker, EntityDestroyed
+  subscription) and moves Camera.main back to x = 0 (y and z kept), so Next without a
+  scene reload starts clean. After Create it calls `SetLimits(startCameraX, data.length)`.
+  When length ≤ startCameraX, SetLimits collapses the range and the camera stays pinned at
+  the start. StartMission calls `ScoreKeeper.ResetScore()` after the teardown. The mission
+  end (win via HandleObjectiveComplete, or loss via GameEvents.MissionEnded) is handled
+  once per mission (`_missionEnded`, cleared in StartMission).
+  surviveToEnd and the HUD use the current camera x. It raises `MissionEnded`. Ground entries (aaa, balloons, buildings,
   trees) stay at world x = `atX`, but spawn once that x is 2 units past the right screen
-  edge (camera x ≥ atX − half screen width − 2), so they scroll into view. Enemy planes (`fighter`, `bomber`) don't
+  edge (`FarthestX` ≥ atX − half screen width − 2), so they scroll into view. Enemy planes (`fighter`, `bomber`) don't
   use `atX`/`y` for placement. They enter just past the right screen edge, each one a
   random 0–6 units further out than `spacing` (min 2) from the last, so they arrive at
   random times. Each starts at a random height between terrain + 1.5 and 1 unit below the
   screen top, with `sine` fighters starting 2 higher. `FighterAI.Configure(pattern, escortOf)`
   applies the spawn entry's pattern and escort before Start.
-- `ObjectiveTracker`: evaluates the objective types in §5.
+- Zeppelin spawn trigger: camera reaches atX - (orthographicSize*aspect + ZeppelinAI.HalfLength + ZeppelinEntryMarginX 0.5), so the whole hull starts off screen. Other ground objects keep GroundEntryMarginX 2.
+- `ObjectiveTracker`: evaluates the §5 objective types. Called as
+  `Init(objectives, cameraX, spawns)`. Each objective completes once (`evaluated`, then
+  ObjectiveCompleted).
+  - `destroyAllOfType` counts EntityDestroyed(targetType, Enemy) up to the total `count` of
+    that type in `spawns`.
+  - `destroyById`: EntityDestroyed has no id, so MissionRunner tracks every spawn that has
+    an id (bomber Health, ZeppelinAI, EnemyBase). On EntityDestroyed of that type key it
+    calls `OnTargetDestroyed(id)` if the tracked instance is IsDead. A silent despawn
+    doesn't count.
+  - `bombTarget`: MissionRunner subscribes to `EnemyBase.Destroyed` (unsubscribed in teardown
+    and OnDestroy). If `KilledByBomb` it calls `OnBombTargetDestroyed(id, "enemyBase")`,
+    which matches targetId, or targetType when targetId is empty. No extra score.
+  - `failAtX`: the WORLD x the destroyById target must not reach (it flies left). At spawn,
+    MissionRunner calls `SetTargetX(tracker.GetFailAtXFor(id))`, falling back to the spawn
+    entry's `targetX` (behaviour only). A target that spawns already
+    at or left of its failAtX logs a warning and is ignored (data error). Each Update,
+    `CheckTargetsReached` passes every live watched target's x to
+    `ObjectiveTracker.CheckTargetReached(id, x)`. A hit loses once via
+    `HandleObjectiveFailed` -> `GameManager.LoseMission("Objective failed: <desc> (the
+    <type> reached its target)")`. Camera x is not used.
+  - Map end: `ObjectiveTracker.CheckMapEnd(cameraX, length)` returns the first open
+    non-surviveToEnd objective once the camera reaches `length`; the mission is then lost
+    ("Reached the end of the map with an objective open: <desc>").
+  - Mission end (any): MissionRunner disables the plane's PlayerInput and sets scroll speed
+    to 0. `GameManager.LoseMission(reason)` and `IsMissionOver`; Won/Lost are ignored once
+    the mission has ended. Retry = set `_pendingMission` + `LoadScene("Game")`.
+    `ResultView.Show(mission, won, score, reason)` shows the reason line.
+  - Spawn types `enemyBase`, `playerHQ` and `zeppelin` use the ground look-ahead trigger and
+    sit at (atX, HeightAt(atX) + y). The zeppelin gets `Init(player)`.
 - `TerrainStrip` (`Missions/TerrainStrip.cs`): the ground. One instance per mission.
   ```csharp
   public class TerrainStrip : MonoBehaviour {
@@ -165,7 +265,8 @@ All of them are spawned by `MissionRunner` from the mission JSON.
     the chunk's highest ground point + 0.5. Pixels below the surface are `paper` `#0F2A4A`
     at 100% alpha, the 2 px directly under the surface are `pencil` `#9DB4CC`, and pixels
     above are transparent. `sortingOrder` = 0, `filterMode` = Bilinear.
-  - Only the chunks overlapping [camera x - 10, camera x + 30] exist. Build a chunk when it
+  - Only the chunks overlapping [camera x - 30, camera x + 30] exist (the player can fly
+    either way). Build a chunk when it
     enters that window and `Destroy` it (and its texture) when it leaves. `Create` builds
     the whole initial window at once; after that, never build more than one chunk per frame.
   - Ground contact (no collider, see §3 Physics):
@@ -202,28 +303,33 @@ All of them are spawned by `MissionRunner` from the mission JSON.
   scene unloads. Don't use `DontDestroyOnLoad`.
 
 ### UI (UI/), built with uGUI from code, specified in docs/UI_SPEC.md
+UI code rules: every Image built from code gets a sprite (or a deliberate tint), every Text gets `LegacyRuntime.ttf`, and rects are placed with `anchoredPosition` and `sizeDelta`, never `offsetMin`/`offsetMax` after `sizeDelta`. `BombBay` raises `BombsChanged` in `Start`; `HudView` builds already showing a full bay (`bombCapacity`), 0% damage and score 0.
 `HudView` (damage bar, smoke-warning tint at 70%, bomb icons ×7, score, objective text),
 `MainMenuView` (mission select limited to `unlocked_mission`), `BriefingView`,
 `PauseView` (Esc), `ResultView` (win/lose, score, retry, next).
+Each GameManager state creates its own view on its own canvas when it starts and destroys it when it ends (Briefing 105, Pause 110, Result 120; an EventSystem is created if the scene has none); views are only built in Play mode. API: `GameManager.MissionCount/LoseMission(reason, delay)/ShowResultView(won, reason, delay)/PauseGame()/NextMission(n)/QuitToMenu()`, `ResultView.Create()/HideAll()/IsShowing`, `PauseView.Show()/Hide()/IsShowing`, `BriefingView.Show(n)/Hide()/IsShowing`. Crash flow: input and the collider turn off at once, `LoseMission("Player crashed", 1s)` sets Lost and raises MissionEnded immediately, the wreck falls and tumbles (`PlayerPlane.CrashFallSeconds`) while enemies keep running, and the result screen opens after 1 s of real time, then time freezes. Retry skips the briefing; Next shows the next mission's briefing; Next after mission 5 returns to the menu.
 
 ## 4. Balance.json (defaults; mechanics creates it, mission-design tunes it)
 ```json
 {
   "player": { "speed": 5.0, "fireRate": 8.0, "bulletSpeed": 14.0, "bulletDamage": 25.0,
-              "bombCapacity": 7, "bombDamage": 100.0, "smokeThreshold": 70.0 },
-  "damageTaken": { "fighterBullet": 8.0, "flak": 15.0, "bomberGunner": 10.0, "zeppelinTurret": 12.0, "collision": 100.0 },
+              "bombCapacity": 7, "bombDamage": 100.0, "smokeThreshold": 70.0,
+              "turnEaseSeconds": 0.6, "screenAnchor": 0.3 },
+  "damageTaken": { "fighterBullet": 8.0, "flak": 15.0, "bomberGunner": 10.0, "zeppelinTurret": 12.0, "collision": 100.0, "planeCollision": 50.0 },
   "healthBalloonRestore": 30.0,
   "enemyHealth": { "fighter": 25.0, "bomber": 200.0, "aaa": 100.0, "barrageBalloon": 50.0, "zeppelinTurret": 75.0, "zeppelinHull": 1000.0, "enemyBase": 100.0 },
   "score": { "fighter": 100, "barrageBalloon": 75, "aaa": 150, "zeppelinTurret": 200, "bomber": 500, "enemyBase": 1000, "zeppelin": 2500 },
   "hullVulnerableEarly": false,
   "background": { "farFactor": 0.1, "midFactor": 0.3, "nearFactor": 0.6 },
-  "enemySpeed": { "fighter": 3.0, "bomber": 1.5 }
+  "enemySpeed": { "fighter": 3.0, "bomber": 1.5, "zeppelin": 1.0 }
 }
 ```
 `background` holds the parallax factors for `ParallaxBackground` (0 = fixed to the screen,
 1 = moves with the world). `GameBalance` mirrors it as a `BackgroundData` class with the same
 three float fields, in a `background` field.
-`enemySpeed` is how fast each enemy plane flies left in world units per second, on top of
+`pitch` (mirrored as `PitchData`, read with `PitchData.Resolve`): `maxDegrees` 15, `fighterMaxDegrees` 40, `easeDegreesPerSecond` 60, `fullPitchSpeed` 3. `easeDegreesPerSecond` must stay below about 72 while the runway clearance is 0.02, or the pitching nose drops the tail into the ground on the takeoff tick (guarded by a test).
+`enemyFire` (mirrored as `EnemyFireData`, read with `EnemyFireData.Resolve(GameBalance.Get())`, defaults used when a key is missing): `fighterIntervalMin/Max` 1.8/2.5, `fighterConeDegrees` 40, `bomberIntervalMin/Max` 2.5/3.0, `firstShotDelayMin/Max` 0.4/1.2, `bulletSpeed` 8, `bulletLifetime` 1.6, `range` 11, `spreadDegrees` 4, `aimToleranceDegrees` 10.
+`enemySpeed` is how fast each enemy flyer (fighter, bomber, zeppelin) flies left in world units per second, on top of
 the camera scroll. It is mirrored as `EnemySpeedData` in the `enemySpeed` field.
 Enemy health is in damage points where the player bullet deals `bulletDamage`, so a
 fighter dies in 1 hit, a bomber in 8 bullets or 2 bombs, and the hull in 40. Player damage
@@ -254,16 +360,20 @@ is a percentage. See `Health.SetMaxHitPoints` (§3 Core).
 - `type` must be one of: `fighter`, `bomber`, `aaa`, `zeppelin`, `barrageBalloon`,
   `healthBalloon`, `building`, `tree`, `enemyBase`, `airfield`, `playerHQ`.
 - `pattern` must be one of: `static`, `straight`, `sine`, `dive`, `escort` (follows the
-  nearest entity with `id` == `escortOf`), `drift`.
-- Optional per-spawn fields: `escortOf` (string), `targetX` (float, for bomber/zeppelin).
+  nearest entity whose spawn id equals `escortOf`: a whole-id `[id]` token in the entity name, or `BomberAI.SpawnId`; substrings never match), `drift`.
+- Validator rules (tools/validate_missions.py): a zeppelin's spawn y must be >= 3; bombers spawn at atX + 8 at the closest (4:3 screen) when checking failAtX < spawn x.
+- Optional per-spawn fields: `escortOf` (string), `targetX` (float, for bomber/zeppelin;
+  behaviour only, the bomber's bomb run; the objective's failAtX overrides it for id targets).
 - Objective `type` must be one of:
   - `destroyAllOfType`: every spawned entity of `targetType` destroyed.
   - `destroyById`: the entity with `id` == `targetId` destroyed. If `failAtX` ≥ 0 and the
-    target reaches that x (bomber/zeppelin arriving at its target), the mission is lost.
+    target entity's world x reaches `failAtX` (flying left) before it is destroyed, the
+    mission is lost. It must be left of the target's spawn x.
   - `bombTarget`: the entity with `targetId` destroyed by `DamageSource.Bomb`.
   - `surviveToEnd`: camera reaches `length`.
 - The mission is won when all objectives are complete and lost when player damage reaches
-  100% or any `failAtX` triggers.
+  100%, a `failAtX` target reaches its x, or the camera reaches `length` with a
+  non-surviveToEnd objective still open (missions with only surviveToEnd win there).
 - `y` is the height above the local terrain, in world units.
 
 ## 6. ProjectBuilder (editor automation)

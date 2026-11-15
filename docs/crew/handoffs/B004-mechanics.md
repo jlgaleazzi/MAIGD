@@ -1,0 +1,21 @@
+TASK: B004 + B005
+AGENT: mechanics
+STATUS: DONE
+FILES:
+- Biplanes/Assets/Biplanes/Scripts/Weapons/FlakShell.cs (rewritten)
+- Biplanes/Assets/Biplanes/Scripts/Weapons/EnemyBomb.cs (new, subclass of Projectile; Bomb.cs untouched)
+- Biplanes/Assets/Biplanes/Scripts/Enemies/AAAGun.cs
+- Biplanes/Assets/Biplanes/Scripts/Enemies/BomberAI.cs (the two Bomb.Spawn calls are now EnemyBomb.Spawn, plus the doc comment)
+SUMMARY:
+- B004: FlakShell.Spawn builds its pool lazily (EnsurePool: static, rebuilt when `_root == null`, so a scene reload rebuilds it). InitPool is removed and nothing called it. Shells are Team.Enemy, hit only Team.Player, and apply 1 unit of DamageSource.Flak, so the player's Health gives exactly damageTaken.flak (15%). Before this, `damage = flak` would have been multiplied by flak again (225%, an instant kill). Also fixed: shells flew DOWN (direction y = -1), so they now fly up along the aim vector (normalised, y >= 0.5). Speed and team are set in Awake, not Start. AAAGun never updated `_lastFireTime`, so it now waits fireRate between bursts. The lead calculation had dy inverted. The gun clamped to y = -4.5 instead of its terrain height. It had NO collider, so bombs could never hit it: it now gets a trigger BoxCollider2D (1 x 0.6) and sortingOrder 5. It fires only while within the camera half-width + 2 (Camera.main cached in Awake).
+- B005: EnemyBomb is Team.Enemy and draws from its own lazy pool (12). It uses the same gravity as Bomb (multiplier 12) and the same terrain burst (TriggerExplosion + Recycle). It damages only the player (1 unit of DamageSource.Bomb, then explodes). Enemies are skipped by Projectile's team check, and neutral objects such as pickups and obstacles are ignored.
+- Leak handling: each pool owns a normal scene root ("FlakShellPool" / "EnemyBombPool"). The factory parents every item under it, and ObjectPool's HideAndDontSave inner root (parented under ours through the `parent` ctor argument) has its hideFlags reset to None. Everything dies with the scene, and the Next path reuses the same pool, so nothing is rebuilt or leaked. There are no Instantiate or new GameObject calls after the pool is built (pool exhausted = Pop warns and returns null).
+VERIFY:
+- `python tools/compile_check.py` → PASS Biplanes (+1 new file not yet in csproj), PASS Biplanes.Editor, exit 0.
+- Play (user): BuildScenes, then a mission with AAA. Shells rise toward the plane in bursts of 3 every 3 s. A hit adds 15% (HUD), and there's no "pool not initialised" error. A bomb dropped on the AAA destroys it. With a bomber whose targetX >= 0, its bombs fall and burst on the ground, a hit on the player adds damage, and the player's BombsChanged/bomb count is unaffected. Retry and Next several times: the hierarchy has exactly one FlakShellPool and one EnemyBombPool, and no "not cleaned up" warnings when leaving Play mode.
+- Static: `grep -rn "Bomb.Spawn" Biplanes/Assets/Biplanes/Scripts/Enemies` finds only EnemyBomb.Spawn.
+REQUESTS:
+- mechanics (Health.cs owner): Health.GetDamageMultiplier maps DamageSource.Bomb → damageTaken.fighterBullet for the player. Bombs that reach the player now come only from bombers, so map Bomb → damageTaken.bomberGunner (10). Until then an enemy bomb hit gives 8%. No JSON change is needed; EnemyBomb already passes 1 unit.
+- mechanics/mission-design (MissionRunner.cs owner): BomberAI.targetX is a private SerializeField with no setter. MissionRunner can't set it from the mission JSON, so bombers never drop bombs in real missions (targetX stays -1). This needs a `BomberAI.SetTargetX(float)` (or a Spawn overload) and the MissionRunner wiring.
+- mission-design (optional): flak speed (6) and lifetime (3 s), and enemy bomb gravity (12, same as Bomb) are code constants because Balance.json has no fields for them. Add `flak.speed` etc. only if tuning is wanted.
+- orchestrator: ARCHITECTURE §3 Enemies, AAAGun: replace "ground-bound" with "ground-bound at the terrain height of its spawn x, trigger collider, fires only while on screen". §3 Weapons: add "`EnemyBomb` (Team.Enemy, own pool, falls like Bomb, damages only the player; used by BomberAI). FlakShell and EnemyBomb build their pools lazily on first Spawn under a scene root, rebuilt after a scene reload. Enemy projectiles apply 1 hit unit and the player's Health scales it by damageTaken."

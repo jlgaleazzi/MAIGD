@@ -56,9 +56,9 @@ when they belong to one coherent change. Past that, report `STATUS: PARTIAL`.
 - Editor code goes only in `Editor/` (Editor asmdef). Runtime code never uses `UnityEditor`.
 
 ## GDD mechanics checklist
-- **Controls:** WASD moves, Space held = machine gun, Enter = drop a bomb (7 per mission).
-- **Damage:** 0→100%. Smoke at ≥70%, crash at 100%. Hitting terrain, a building, a tree or
-  an enemy plane = crash.
+- **Controls:** WASD moves, left mouse held = machine gun, Space = drop a bomb (7 per mission).
+- **Damage:** 0→100%. Smoke at ≥70%, crash at 100%. Hitting terrain, a building or a tree = crash.
+  Touching a fighter or bomber costs 50% (the enemy dies).
 - **Enemies:** fighters take direct hits. AAA takes bombs only. Bombers take multiple
   hits and have a `targetX` fail condition. The zeppelin needs its turrets destroyed
   first, then hull hits.

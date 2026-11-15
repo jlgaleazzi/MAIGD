@@ -43,12 +43,14 @@ Layout anchored to canvas center:
 └──────────────────────────────────────┘
 ```
 
-- Mission buttons are only shown if the player has unlocked that mission (`SaveSystem.GetUnlockedMission() ≥ N`).
+- All 5 mission buttons are shown; missions above `SaveSystem.GetUnlockedMission()` are dimmed and can't be clicked (T934, replaces "only shown if unlocked").
 - Each button shows the mission title from `MissionData.title`.
 - Clicking a locked button does nothing.
 - Clicking an unlocked button transitions to BriefingView with that mission's ID.
 
 ### 3.2 Briefing (BriefingView)
+
+The briefing freezes the world, fades in over 0.5 s and starts the mission after 5 s or on Enter, Space or the button. It also appears after Next (not after Retry).
 
 ```
 ┌──────────────────────────────────────┐
@@ -85,7 +87,7 @@ Layout anchored to canvas center:
 | Widget | Anker | Data source | Notes |
 |---|---|---|---|
 | Damage bar fill | Top-left, 16px from corner | `GameEvents.PlayerDamageChanged` | Ink → hostile transition at 70% (smoke threshold). Bar height: 24px. Width: 200px max. Fill is a scaled sprite or rect. |
-| Smoke warning icon | Directly below damage bar | Same event, ≥ 70% = visible | Pencil ⚠️ symbol, visible when smoke active |
+| Smoke warning icon | Directly below damage bar | Same event, ≥ 70% = visible | Hostile-coloured (#E4572E) ⚠️ symbol, visible when smoke active (decision 2026-11-14: stands out better than pencil grey) |
 | Score display | Top-right corner | `GameEvents.ScoreChanged` from ScoreKeeper | Right-anchored, large font (24pt) |
 | Objective text | Below score | `ObjectiveTracker.GetDescription()` left-anchors under score | Shows remaining count; updates on EntityDestroyed |
 | Bomb icons row | Bottom-left, 16px padding | `GameEvents.BombsChanged` from BombBay | 7 slots; filled = friendly yellow; empty = grey pencil color |
@@ -108,11 +110,11 @@ Layout anchored to canvas center:
 ```
 
 - Shown when Esc is pressed during Playing. Hides the canvas (or sets alpha 0) to reveal Playing HUD.
-- Resume sets GameManager back to Playing. Quit loads MainMenu scene.
+- Resume sets GameManager back to Playing. Quit calls `GameManager.QuitToMenu` (loads the MainMenu scene, or shows the menu in place when that scene is not in the build). Esc toggles pause; PlayerInput is off while paused.
 
 ### 3.5 Results (ResultView)
 
-Shown on MissionEnded:
+Shown on MissionEnded (1 s after a crash, while the wreck falls). A Menu button is always shown; Next only after a win below mission 5.
 
 **Won state:**
 ```

@@ -86,6 +86,10 @@ namespace Biplanes.Weapons {
 
         /// <summary>Trigger collision — the single physics entry point for pooled projectiles.</summary>
         private void OnTriggerEnter2D(Collider2D other) {
+            // Already recycled earlier in this physics step (e.g. a bullet overlapping two of
+            // a bomber's hitboxes): the pending callback must not damage the target again (B012).
+            if (!gameObject.activeInHierarchy) return;
+
             var target = other.GetComponentInParent<IDamageable>();
             if (target == null) return;
 
