@@ -74,8 +74,10 @@ the scoring uses:
 | `BULLET-NOSE-PLAYER` | Player bullets leave along the nose (`PlayerPlane.NoseDirection`) | PLAYER |
 | `BULLET-NOSE-ENEMY` | Enemy shots and the fighter's nose agree (`FighterAI.NoseDirection`) | FIGHTER, BOMBER |
 
-Now: 36 requirements, 30 met, 6 open. Nothing has been built for them yet. Run with
-`--max-iterations 6` to let the agent go through them in order.
+Built on the Spark with `gpt-oss:120b` (2026-11-15): all six steps closed, mostly on the first
+attempt. Now 36 requirements, 36 met. QA (T942) then found nine bugs in that code, among them the
+player's gun firing from the tail when facing left; they were fixed by hand (B029) and QA T943
+passed. Nothing has run in Unity yet.
 
 Side effect to re-check once bullets follow the nose: player bullets were strictly
 horizontal, and the zeppelin turret line-of-fire geometry (T939/B021) and the enemy-fire
