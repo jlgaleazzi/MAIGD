@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem; // Keyboard.current for Esc (project uses Input System only)
 using UnityEngine.SceneManagement;
+using Biplanes.Audio;
 using Biplanes.UI;
 
 namespace Biplanes.Core {
@@ -412,6 +413,14 @@ namespace Biplanes.Core {
 
         private void OpenResultView(bool won, string reason) {
             Time.timeScale = 0f;
+            // Win / Lose sting, once per mission end: the result screen opens once per Won /
+            // Lost (SetState ignores a second ending; Retry / Next / Menu never reopen it). PlayUi
+            // because time is frozen from here on (T952).
+            // A second ShowResultView call while the screen is up only refreshes it, silently.
+            if (!ResultView.IsShowing) {
+                var audio = AudioManager.GetOrNull();
+                if (audio != null) audio.PlayUi(won ? SfxId.Win : SfxId.Lose);
+            }
             // Read final score from ScoreKeeper (singleton, created by MissionRunner).
             int finalScore = ScoreKeeper.Instance != null ? ScoreKeeper.Instance.CurrentScore : 0;
             ResultView.Create().Show(ActiveMissionIndex, won, finalScore, reason);

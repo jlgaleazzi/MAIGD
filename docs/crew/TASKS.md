@@ -6,6 +6,12 @@ Bug tasks start with `B`, for example `B007 [P1]`.
 ## Milestone summaries
 _(The orchestrator adds a 5-line summary here at the end of each milestone.)_
 
+**M6 Audio (2026-11-17): PASS (code), pending Unity run.**
+- 23 generated placeholder WAVs (tools/synth_sfx.py, stdlib only, seeded); real recordings can replace them by name.
+- AudioManager (voice pool, priorities, pan, jitter, loops, pause, single listener) + hooks in gameplay, FX and UI.
+- QA T953 found a P0 (no AudioListener: silent game) and 7 P2s; all fixed (B032-B034) and re-verified in T955.
+- Open: run EditMode tests with Unity closed, listening checklist (docs/qa/T953-verify.md), optional music T954.
+
 ## Board
 | ID | Milestone | Owner | Task | Deps | Status |
 |---|---|---|---|---|---|
@@ -163,3 +169,20 @@ _(The orchestrator adds a 5-line summary here at the end of each milestone.)_
 | T942 | all | qa | Review of the goal agent's pitch code (gpt-oss:120b, 6 steps, all compiled): FAIL (1 P0, 2 P1, 6 P2). P0: facing left the player's gun fires right from the tail. See docs/qa/T942-verify.md | DONE |
 | B029 [P0] | all | mechanics | Fix all T942 bugs; decision: fighters fire along their nose (pitch eases toward the player, fire only within aimToleranceDegrees), ease rate and fighter max pitch in Balance | DONE (QA T943) |
 | T943 | all | qa | Re-verify B029: PASS (0 P0, 0 P1, 2 P2). All 9 T942 bugs fixed; M5 turret bands still >= 0.31 in level flight. P2: fighters fire on the first tick the nose is within tolerance (can be ~14 deg off while turning; balance only, tune after playtest E-5). Latent: easeDegreesPerSecond must stay below ~72 or runway takeoff crashes (test guards it) | DONE |
+| T944 | all | art | Redraw FX in pencil-sketch style (explosion_0..5, smoke_puff, flak_burst_0..3), same names/sizes; generator art-src/fx/gen_pencil_fx.py; rasterize --check 40/40; palette checked; orchestrator viewed sheet docs/art/fx_preview.png | DONE |
+| B030 [P2] | all | mechanics | From T944: FxManager plays explosion_0..5 at ~0.08 s/frame instead of scaling explosion_0 0.1x->2x (blurs hatching; if growing keep 0.6x-1.3x); flak shells play flak_burst_0..3; optional smoke_puff trail from damaged planes | DONE (QA T945) |
+| T945 | all | qa | Verify B030: PASS (0 P0, 0 P1, 3 P2). FxManagerTests (11) added; QA fixed a FlakBurst leak in ZeppelinAndBaseTests TearDown. Orchestrator fixed ART_STYLE explosion row. Tests compiled, not run | DONE |
+| B031 [P2] | all | mechanics | From T945: AAA lifetime airbursts happen off-screen (6 u/s x 3 s climb) and use flak-cap slots; consider shorter fuse or proximity burst. Decide after playtest | TODO |
+| T946 | M6 | orchestrator | Audio spec: GDD Style Guide "Sound effects" + ARCHITECTURE §3 Audio, clip list, ownership (art owns tools/synth_sfx.py and Resources/Audio/**), Balance `audio` block | none | DONE |
+| T947 | M6 | orchestrator | Extend .claude/agents/art.md and .opencode/agents/art.md with the audio role (synth_sfx.py, WAV format, listen-check via waveform/spectrum report) | T946 | DONE |
+| T948 | M6 | art | tools/synth_sfx.py: seeded procedural generator for all 23 clips in ARCHITECTURE §3 Audio (period WWI flavour: rotary engine, MG rattle, thumps, paper/pencil foley), writes Resources/Audio/sfx/*.wav; placeholder quality, swappable for recordings later Done: 23 clips, 1.7 MB, --check 0 errors. | T947 | DONE |
+| T949 | M6 | mechanics | AudioManager core: Scripts/Audio/{AudioManager,SfxId,AudioMix}.cs, AudioData + `audio` block in GameBalance/Balance.json, voice pool, pan, jitter, loops, pause handling; EditMode tests for AudioMix | T946 | DONE (QA T953/T955) |
+| T950 | M6 | mechanics | Gameplay hooks 1: player gun, bomb release/impact, enemy guns, flak fire/burst, explosion/explosion_big (FxManager, FlakShell, AAAGun, BombBay/Bomb, PlayerPlane fire, EnemyBullet spawners) | T949 | DONE (QA T953/T955) |
+| T951 | M6 | mechanics | Gameplay hooks 2: engine loop with pitch (climb/dive, sputter at smokeThreshold), smoke crackle loop, hit_player vs hit_enemy, crash, pickup, zeppelin hum, damage warning on crossing smokeThreshold | T949 | DONE (QA T953/T955) |
+| T952 | M6 | mechanics | UI hooks: ui_click, ui_page, ui_pause, briefing typewriter + stamp on Begin, win/lose on MissionEnded | T949 | DONE (QA T953/T955) |
+| T953 | M6 | qa | Verify M6 audio: hooks fire once per event, no loops survive Retry/scene reload, pause behaviour, voice cap, missing clips safe; manual listening checklist FAIL: 1 P0 (no AudioListener, game silent) + 7 P2; AudioManagerQaTests (16) added. | T948,T950,T951,T952 | DONE |
+| B032 [P0] | M6 | mechanics | From T953 B1/B2/B3/B7/B8: AudioManager keeps one AudioListener; crash cue 0.1 s before landing (fallback at result screen); crash tail stopped on unload; no manager on quit; gun/bomb cues only for spawned projectiles | T953 | DONE (QA T955) |
+| B033 [P2] | M6 | mechanics | From T953 B4/B5/B6: one explosion cue per bomb kill; AAA death explosion; turret FlakFire + throttled HitEnemy | T953 | DONE (QA T955) |
+| B034 [P2] | M6 | art | Re-cut crash.wav: 1.0 s, crunch at 0.103 s; other 22 clips byte-identical | T953 | DONE (QA T955) |
+| T955 | M6 | qa | Re-verify B032-B034: PASS, all 8 T953 bugs closed, 0 new bugs. AudioFixesQaTests (12) added. M6 PASS pending the EditMode run and the listening checklist in docs/qa/T953-verify.md | B032,B033,B034 | DONE |
+| T954 | M6 | orchestrator | Optional: music (briefing/result screens only, quiet or none in flight); decide source after T953 playtest | T953 | TODO |

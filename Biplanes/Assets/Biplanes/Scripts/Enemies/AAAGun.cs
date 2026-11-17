@@ -1,6 +1,8 @@
 using System.Collections;
 using UnityEngine;
+using Biplanes.Audio;
 using Biplanes.Core;
+using Biplanes.Fx;
 using Biplanes.Weapons;
 using Biplanes.Player;
 
@@ -206,7 +208,11 @@ namespace Biplanes.Enemies {
                     dirToTarget = new Vector2(-1f, 0f);
                 }
 
-                FlakShell.Spawn(transform.position, dirToTarget);
+                // FlakFire cue once per shell actually fired, at the gun (T950).
+                if (FlakShell.Spawn(transform.position, dirToTarget) != null) {
+                    var audio = AudioManager.GetOrNull();
+                    if (audio != null) audio.Play(SfxId.FlakFire, transform.position);
+                }
             }
             _fireCoroutine = null;
         }
@@ -307,6 +313,13 @@ namespace Biplanes.Enemies {
 
             // Score is awarded once, by ScoreKeeper.OnEntityDestroyed("aaa") when OnDamageTaken
             // raises GameEvents.EntityDestroyed (B009a). No AddPoints here.
+
+            // Death explosion (visual + Explosion cue), like the other enemies (B033 / T953 B5).
+            // A bomb that killed the gun plays its own impact silently (direct hit) or as
+            // BombImpact (ground burst), so this is the one Explosion cue for the kill.
+            // GetOrNull: no manager is created outside Play mode (EditMode tests).
+            var fx = FxManager.GetOrNull();
+            if (fx != null) fx.TriggerExplosion(transform.position);
 
             // Destroy game object (death cleanup, not update-loop pooling).
             Destroy(gameObject);

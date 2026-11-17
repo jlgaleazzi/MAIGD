@@ -1,5 +1,6 @@
 using UnityEngine;
 using Biplanes.Core;
+using Biplanes.Audio;
 
 namespace Biplanes.Enemies {
 
@@ -122,6 +123,9 @@ namespace Biplanes.Enemies {
                 var health = damageable as Health;
                 if (health != null) health.ApplyDamage(-restoreAmount, DamageSource.Heal);
             }
+
+            var audio = AudioManager.GetOrNull();
+            if (audio != null) audio.Play(SfxId.Pickup, transform.position);
 
             Recycle();
         }

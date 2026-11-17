@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using Biplanes.Audio;
 using Biplanes.Core;
 
 namespace Biplanes.UI {
@@ -131,6 +132,9 @@ namespace Biplanes.UI {
             _instance = this;
             _font = Resources.GetBuiltinResource<Font>(FontResource);
             BuildVisuals();
+            // The result screen opens: page turn. Win / Lose is played by GameManager when it
+            // opens this view, once per mission end (T952).
+            PlayUiCue(SfxId.UiPage);
         }
 
         private void OnDestroy() {
@@ -296,6 +300,7 @@ namespace Biplanes.UI {
         private void OnRetryClicked() {
             if (_clicked) return;
             _clicked = true;
+            PlayUiCue(SfxId.UiClick);
             GameManager.Instance.RetryMission(_currentMission);
         }
 
@@ -303,6 +308,7 @@ namespace Biplanes.UI {
         private void OnNextClicked() {
             if (_clicked || !_isWon) return;
             _clicked = true;
+            PlayUiCue(SfxId.UiClick);
             GameManager.Instance.NextMission(_currentMission);
         }
 
@@ -310,7 +316,15 @@ namespace Biplanes.UI {
         private void OnMenuClicked() {
             if (_clicked) return;
             _clicked = true;
+            PlayUiCue(SfxId.UiClick);
             GameManager.Instance.QuitToMenu();
+        }
+
+        /// <summary>UI cue through AudioManager.PlayUi (plays while paused). Skipped when no
+        /// AudioManager exists (EditMode tests) (T952).</summary>
+        private static void PlayUiCue(SfxId id) {
+            var audio = AudioManager.GetOrNull();
+            if (audio != null) audio.PlayUi(id);
         }
 
         // ── Helpers ────────────────────────────────────────────────────────

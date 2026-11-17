@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem; // Keyboard.current (project uses Input System only)
 using UnityEngine.UI;
+using Biplanes.Audio;
 using Biplanes.Core;
 using Biplanes.Missions;
 
@@ -67,6 +68,17 @@ namespace Biplanes.UI {
         [SerializeField] private float _autoDelay = 5f;        // seconds after the fade-in
         [SerializeField] private float _fadeInDuration = 0.5f; // canvas fade-in
 
+        // ── Typewriter cue (T952) ──────────────────────────────────────────
+        // The briefing text appears at once (with the canvas fade), so it gets a short burst
+        // of typewriter clacks on unscaled time rather than one clack per character.
+
+        /// <summary>Clacks in the burst while the briefing text appears.</summary>
+        public const int   TypewriterClacks        = 5;
+        /// <summary>Seconds between two clacks (unscaled).</summary>
+        public const float TypewriterInterval      = 0.06f;
+        /// <summary>Seconds after the view opens before the first clack (after the page turn).</summary>
+        public const float TypewriterStartDelay    = 0.12f;
+
         // ── State ──────────────────────────────────────────────────────────
 
         private static BriefingView _instance;
@@ -82,6 +94,7 @@ namespace Biplanes.UI {
         private Text _briefingText;
         private float _elapsed;
         private bool _transitioned;
+        private int _clacksPlayed;
 
         /// <summary>Mission (1-5) this briefing starts.</summary>
         public int currentMission {
@@ -137,9 +150,11 @@ namespace Biplanes.UI {
             _group.alpha = 0f;
             _elapsed = 0f;
             _transitioned = false;
+            _clacksPlayed = 0;
 
             LoadMissionData(_currentMission);
             BuildVisuals();
+            PlayUiCue(SfxId.UiPage); // the briefing sheet turns over (T952)
         }
 
         private void OnDestroy() {
@@ -152,6 +167,7 @@ namespace Biplanes.UI {
             if (_transitioned) return;
 
             _elapsed += Time.unscaledDeltaTime;
+            UpdateTypewriter();
             if (_group != null) {
                 _group.alpha = _fadeInDuration > 0f ? Mathf.Clamp01(_elapsed / _fadeInDuration) : 1f;
             }
@@ -164,6 +180,26 @@ namespace Biplanes.UI {
                                        || kb.numpadEnterKey.wasPressedThisFrame
                                        || kb.spaceKey.wasPressedThisFrame);
             if (skip || _elapsed >= _fadeInDuration + _autoDelay) TriggerTransition();
+        }
+
+        /// <summary>Play the clacks that are due by now. Runs only from Update, which stops
+        /// after Begin (_transitioned) and when the view is hidden (destroyed).</summary>
+        private void UpdateTypewriter() {
+            int due = TypewriterClacksDue(_elapsed);
+            if (_clacksPlayed >= due) return;
+            _clacksPlayed = due; // never a catch-up burst after a long frame: one clack per frame at most
+            PlayUiCue(SfxId.Typewriter);
+        }
+
+        /// <summary>
+        /// How many typewriter clacks should have played `elapsed` unscaled seconds after the
+        /// briefing opened: 0 before TypewriterStartDelay, then one more every
+        /// TypewriterInterval, capped at TypewriterClacks (T952, pure for EditMode tests).
+        /// </summary>
+        public static int TypewriterClacksDue(float elapsed) {
+            if (elapsed < TypewriterStartDelay) return 0;
+            int due = Mathf.FloorToInt((elapsed - TypewriterStartDelay) / TypewriterInterval) + 1;
+            return Mathf.Clamp(due, 0, TypewriterClacks);
         }
 
         // ── Visual construction (no prefabs) ───────────────────────────────
@@ -289,6 +325,9 @@ namespace Biplanes.UI {
         public void TriggerTransition() {
             if (_transitioned) return;
             _transitioned = true;
+            // Begin (button, Space/Enter or the timer) stamps the orders. Stamp is the Begin
+            // button's click cue, so no UiClick on top of it (T952).
+            PlayUiCue(SfxId.Stamp);
             Debug.Log($"[BriefingView] Starting mission {_currentMission}: {_mission?.title}");
             // StartMission moves GameManager to Playing, which hides this view (or the
             // MainMenu → Game scene load destroys it).
@@ -296,6 +335,13 @@ namespace Biplanes.UI {
         }
 
         // ── Helpers ────────────────────────────────────────────────────────
+
+        /// <summary>UI cue through AudioManager.PlayUi (plays while time is frozen). Skipped
+        /// when no AudioManager exists (EditMode tests) (T952).</summary>
+        private static void PlayUiCue(SfxId id) {
+            var audio = AudioManager.GetOrNull();
+            if (audio != null) audio.PlayUi(id);
+        }
 
         private static RectTransform NewRect(string name, Transform parent) {
             var go = new GameObject(name, typeof(RectTransform));

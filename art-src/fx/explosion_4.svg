@@ -1,54 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <defs><path id="shard" d="M -1.6 -3.2 L 2.4 -0.6 L 1.2 3 L -2.2 1.2 Z" stroke="#E8F1FA" stroke-width="0.6"/></defs>
-  <g id="burst" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <line x1="90.44" y1="67.25" x2="111.21" y2="69.8" stroke="#E8F1FA" stroke-width="0.75" opacity="0.2"/>
-    <line x1="83.48" y1="82.17" x2="92.52" y2="90.6" stroke="#E8F1FA" stroke-width="0.75" opacity="0.2"/>
-    <line x1="76.91" y1="87.3" x2="77.84" y2="88.96" stroke="#E8F1FA" stroke-width="0.5" opacity="0.2"/>
-    <line x1="69.08" y1="90.15" x2="72.62" y2="108.35" stroke="#E8F1FA" stroke-width="0.75" opacity="0.2"/>
-    <line x1="52.74" y1="88.14" x2="48.92" y2="96.33" stroke="#E8F1FA" stroke-width="0.5" opacity="0.2"/>
-    <line x1="45.83" y1="83.48" x2="43.89" y2="85.57" stroke="#E8F1FA" stroke-width="0.5" opacity="0.2"/>
-    <line x1="40.7" y1="76.91" x2="26.56" y2="84.75" stroke="#E8F1FA" stroke-width="0.75" opacity="0.2"/>
-    <line x1="37.56" y1="60.75" x2="16.79" y2="58.2" stroke="#E8F1FA" stroke-width="0.75" opacity="0.2"/>
-    <line x1="44.52" y1="45.83" x2="35.48" y2="37.4" stroke="#E8F1FA" stroke-width="0.75" opacity="0.2"/>
-    <line x1="51.09" y1="40.7" x2="50.16" y2="39.04" stroke="#E8F1FA" stroke-width="0.5" opacity="0.2"/>
-    <line x1="58.92" y1="37.85" x2="55.38" y2="19.65" stroke="#E8F1FA" stroke-width="0.75" opacity="0.2"/>
-    <line x1="75.26" y1="39.86" x2="79.08" y2="31.67" stroke="#E8F1FA" stroke-width="0.5" opacity="0.2"/>
-    <line x1="82.17" y1="44.52" x2="84.11" y2="42.43" stroke="#E8F1FA" stroke-width="0.5" opacity="0.2"/>
-    <line x1="87.3" y1="51.09" x2="101.44" y2="43.25" stroke="#E8F1FA" stroke-width="0.75" opacity="0.2"/>
-    <circle cx="64" cy="64" r="34.25" stroke="#E8F1FA" stroke-width="0.5" stroke-dasharray="3 2.5" opacity="0.4"/>
-    <circle cx="64" cy="64" r="28.54" stroke="#E8F1FA" stroke-width="0.5" stroke-dasharray="3 2.5" opacity="0.32"/>
-    <circle cx="64" cy="64" r="40.9" stroke="#E8F1FA" stroke-width="0.5" stroke-dasharray="1 3" opacity="0.55"/>
-    <line x1="102.63" y1="79.61" x2="106.6" y2="81.21" stroke="#E8F1FA" stroke-width="0.75" opacity="0.68"/>
-    <line x1="91.41" y1="99.08" x2="94.04" y2="102.45" stroke="#E8F1FA" stroke-width="0.5" opacity="0.68"/>
-    <line x1="70.59" y1="110.91" x2="71.19" y2="115.15" stroke="#E8F1FA" stroke-width="0.75" opacity="0.68"/>
-    <line x1="48.39" y1="102.63" x2="46.79" y2="106.6" stroke="#E8F1FA" stroke-width="0.5" opacity="0.68"/>
-    <line x1="28.92" y1="91.41" x2="25.55" y2="94.04" stroke="#E8F1FA" stroke-width="0.75" opacity="0.68"/>
-    <line x1="17.09" y1="70.59" x2="12.85" y2="71.19" stroke="#E8F1FA" stroke-width="0.5" opacity="0.68"/>
-    <line x1="25.37" y1="48.39" x2="21.4" y2="46.79" stroke="#E8F1FA" stroke-width="0.75" opacity="0.68"/>
-    <line x1="36.59" y1="28.92" x2="33.96" y2="25.55" stroke="#E8F1FA" stroke-width="0.5" opacity="0.68"/>
-    <line x1="57.41" y1="17.09" x2="56.81" y2="12.85" stroke="#E8F1FA" stroke-width="0.75" opacity="0.68"/>
-    <line x1="79.61" y1="25.37" x2="81.21" y2="21.4" stroke="#E8F1FA" stroke-width="0.5" opacity="0.68"/>
-    <line x1="99.08" y1="36.59" x2="102.45" y2="33.96" stroke="#E8F1FA" stroke-width="0.75" opacity="0.68"/>
-    <line x1="110.91" y1="57.41" x2="115.15" y2="56.81" stroke="#E8F1FA" stroke-width="0.5" opacity="0.68"/>
-    <use href="#shard" transform="translate(109.12 66.36) rotate(115) scale(0.95)" opacity="0.52"/>
-    <use href="#shard" transform="translate(91.93 105.4) rotate(205) scale(0.95)" opacity="0.52"/>
-    <use href="#shard" transform="translate(48.51 108.97) rotate(295) scale(0.95)" opacity="0.52"/>
-    <use href="#shard" transform="translate(30.42 94.23) rotate(361) scale(0.95)" opacity="0.52"/>
-    <use href="#shard" transform="translate(14.98 54.47) rotate(451) scale(0.95)" opacity="0.52"/>
-    <use href="#shard" transform="translate(43.15 21.25) rotate(541) scale(0.95)" opacity="0.52"/>
-    <use href="#shard" transform="translate(66.36 18.88) rotate(607) scale(0.95)" opacity="0.52"/>
-    <use href="#shard" transform="translate(105.4 36.07) rotate(697) scale(0.95)" opacity="0.52"/>
-    <line x1="101.35" y1="71.26" x2="101.36" y2="71.26" stroke="#E8F1FA" stroke-width="1.4" opacity="0.9"/>
-    <line x1="92.28" y1="97.7" x2="92.29" y2="97.7" stroke="#E8F1FA" stroke-width="1.4" opacity="0.9"/>
-    <line x1="80.26" y1="111.22" x2="80.27" y2="111.22" stroke="#E8F1FA" stroke-width="1.4" opacity="0.9"/>
-    <line x1="49.97" y1="102.55" x2="49.98" y2="102.55" stroke="#E8F1FA" stroke-width="1.4" opacity="0.9"/>
-    <line x1="33.19" y1="99.45" x2="33.2" y2="99.45" stroke="#E8F1FA" stroke-width="1.4" opacity="0.9"/>
-    <line x1="26.53" y1="70.61" x2="26.54" y2="70.61" stroke="#E8F1FA" stroke-width="1.4" opacity="0.9"/>
-    <line x1="20.81" y1="55.61" x2="20.82" y2="55.61" stroke="#E8F1FA" stroke-width="1.4" opacity="0.9"/>
-    <line x1="31.9" y1="25.74" x2="31.91" y2="25.74" stroke="#E8F1FA" stroke-width="1.4" opacity="0.9"/>
-    <line x1="50.64" y1="25.21" x2="50.65" y2="25.21" stroke="#E8F1FA" stroke-width="1.4" opacity="0.9"/>
-    <line x1="80.06" y1="19.86" x2="80.07" y2="19.86" stroke="#E8F1FA" stroke-width="1.4" opacity="0.9"/>
-    <line x1="88.96" y1="35.28" x2="88.97" y2="35.28" stroke="#E8F1FA" stroke-width="1.4" opacity="0.9"/>
-    <line x1="107.33" y1="56.36" x2="107.34" y2="56.36" stroke="#E8F1FA" stroke-width="1.4" opacity="0.9"/>
+  <defs>
+    <clipPath id="massc"><path d="M 103.5 62.9 Q 112 74.5 102.4 81.5 Q 101 96.4 81.6 94.6 Q 67.6 111.8 51.5 98.6 Q 32.5 100.4 30.8 81.2 Q 16.6 72.5 24.8 58.9 Q 20.4 50.5 29.5 45.7 Q 32.3 26.2 55.3 29.5 Q 67.9 16.7 78.5 27 Q 98.1 22.9 101.2 37.7 Q 114.5 46.6 103.5 62.9 Z"/></clipPath>
+  </defs>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g id="mass_hatch" clip-path="url(#massc)">
+    <path d="M 92.9 66.5 Q 94.8 68.5 96.8 70.4 M 85.4 64.5 Q 90.9 69.8 96.2 75.3 M 75.3 61.6 Q 84.5 70.1 93.1 79.4 M 71.3 63 Q 80.8 73 90.7 82.4 M 62 58.9 Q 76.2 72.5 89.8 86.7 M 59.5 63 Q 70.3 72.9 80.3 83.7 M 53.4 64 Q 63.2 73.9 73.2 83.7 M 46.7 64.5 Q 58.2 76 69.7 87.5 M 42.9 66.9 Q 53.9 77.1 64.1 88 M 40.4 69.5 Q 49.9 78.9 59.3 88.4 M 37.7 73.8 Q 46.7 82.3 55.3 91.4 M 32.5 76 Q 38.6 82.1 44.6 88.1" stroke="#9DB4CC" stroke-width="0.5" opacity="0.75"/>
+    <path d="M 42.4 79.6 Q 46.1 76.5 49.2 72.8 M 47.7 81.2 Q 52.5 76.2 57.5 71.5 M 49.5 85.6 Q 57.6 77.3 65.9 69.3 M 53.9 87.2 Q 62 79.8 69.4 71.7 M 62 84.6 Q 67.7 79.7 72.6 74 M 64.9 88 Q 70.7 81.9 76.9 76.1 M 71.5 88.1 Q 77.6 81.9 83.8 75.9 M 79.7 85.9 Q 81.8 83.1 84.6 81" stroke="#9DB4CC" stroke-width="0.5" opacity="0.60"/>
+    </g>
+    <path d="M 34.8 58.7 C 34.6 53.8 43.5 51.9 43.5 56.8 M 82.1 72.6 C 81.6 67.4 90.3 62.3 90.3 67.6 M 27 52.6 C 27 46.5 38.1 46.4 38.1 52.5 M 87.2 63.5 C 87.4 56 100.6 58.4 100.6 65.9 M 69.8 81 C 69.7 75.2 80.2 74 80.2 79.8" stroke="#9DB4CC" stroke-width="0.75" opacity="0.68"/>
+    <path d="M 103.5 62.9 Q 112.9 74.8 102.4 81.5 M 81.6 94.6 Q 67.7 112.2 51.5 98.6 Q 32.6 100.3 30.8 81.2 M 24.8 58.9 Q 20.4 50.5 29.5 45.7 Q 31.5 25.3 55.3 29.5 M 78.5 27 Q 98.9 22 101.2 37.7 Q 115.5 46.3 103.5 62.9" stroke="#9DB4CC" stroke-width="1.0" opacity="0.75"/>
+    <path d="M 102.5 64.3 Q 110.4 75.7 100.7 81.9 M 81.1 93 Q 66.1 113.1 49.7 99.2 Q 30.8 101.7 29.8 82.9 M 23.8 59.7 Q 19 49.8 30.3 44.2 Q 34 25 56.4 28.7 M 77.4 26.3 Q 97.5 21.9 102 36.4 Q 115.9 46.2 102.5 64.3" stroke="#9DB4CC" stroke-width="0.5" opacity="0.52"/>
+    <path d="M 30.7 37 C 27.1 34 26 30.2 27.3 25.6 C 27.5 21.3 26.1 17.7 22.8 14.7" stroke="#9DB4CC" stroke-width="0.75" opacity="0.75"/>
+    <path d="M 32.2 38 C 28.9 35.9 28.3 33.3 30.4 29.9 C 31.5 27 31.1 24.3 29.3 21.7" stroke="#9DB4CC" stroke-width="0.5" opacity="0.45"/>
+    <path d="M 41.3 40.2 C 38 37.6 36.9 34.2 38.1 30.1 C 38.4 26.1 37 22.9 34 20.3" stroke="#9DB4CC" stroke-width="0.75" opacity="0.75"/>
+    <path d="M 42.8 41.2 C 44.3 38.4 43.7 36 41.1 34 C 38.5 32.4 37.6 30.1 38.2 27.1" stroke="#9DB4CC" stroke-width="0.5" opacity="0.45"/>
+    <path d="M 55 42.2 C 57.7 38.4 57.7 34.5 55.2 30.5 C 53.1 26.5 53.5 22.6 56.3 18.9" stroke="#9DB4CC" stroke-width="0.75" opacity="0.75"/>
+    <path d="M 56.5 43.2 C 54.9 40.4 55.1 37.7 57.2 35.1 C 59.5 33 60.3 30.4 59.7 27.3" stroke="#9DB4CC" stroke-width="0.5" opacity="0.45"/>
+    <path d="M 73 45.8 C 71.5 41.8 72.4 38.4 75.7 35.5 C 79.4 33.4 80.9 30.3 80.1 25.9" stroke="#9DB4CC" stroke-width="0.75" opacity="0.75"/>
+    <path d="M 74.5 46.8 C 73.3 43.8 74.1 41.5 76.9 39.7 C 79.2 37.8 79.8 35.4 78.6 32.5" stroke="#9DB4CC" stroke-width="0.5" opacity="0.45"/>
+    <path d="M 83.2 51.3 C 85.8 47.5 85.9 43.6 83.5 39.5 C 81.7 35.1 82.6 31.3 86.2 28" stroke="#9DB4CC" stroke-width="0.75" opacity="0.75"/>
+    <path d="M 84.7 52.3 C 82.9 49.4 83.2 46.7 85.5 44.1 C 87.4 41.4 87.5 38.7 85.7 35.8" stroke="#9DB4CC" stroke-width="0.5" opacity="0.45"/>
+    <path d="M 98.5 46.1 C 102.6 44.6 104.3 41.6 103.7 37.1 C 102.2 33 103.3 29.8 107.2 27.4" stroke="#9DB4CC" stroke-width="0.75" opacity="0.75"/>
+    <path d="M 100 47.1 C 99.7 44 101 42 104.1 41.1 C 106.3 39.5 107.3 37.4 107.2 34.6" stroke="#9DB4CC" stroke-width="0.5" opacity="0.45"/>
   </g>
 </svg>

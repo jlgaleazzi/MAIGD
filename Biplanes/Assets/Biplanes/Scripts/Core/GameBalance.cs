@@ -215,6 +215,65 @@ namespace Biplanes.Core {
     }
 
     /// <summary>
+    /// Serializable data class matching the "audio" section of Balance.json (T949, ARCHITECTURE
+    /// §3 Audio). Volumes are 0..1 multipliers; a one-shot plays at master * sfx. Read it through
+    /// Resolve: a missing block, or a key that is missing or not positive, falls back to the
+    /// Default* value (JsonUtility can't tell a missing key from 0, so mute with e.g. 0.001).
+    /// </summary>
+    [System.Serializable]
+    public class AudioData {
+        public const float DefaultMaster = 0.8f;
+        public const float DefaultSfx = 1.0f;
+        public const float DefaultMusic = 0.6f;
+        public const float DefaultPitchJitter = 0.06f;
+        public const float DefaultVolumeJitter = 0.15f;
+        public const float DefaultOffscreenVolume = 0.4f;
+        public const int DefaultMaxVoices = 12;
+        /// <summary>Upper bound for maxVoices, so a typo can't allocate hundreds of sources.</summary>
+        public const int AbsoluteMaxVoices = 32;
+
+        /// <summary>Overall volume.</summary>
+        public float master;
+        /// <summary>Sound-effect channel volume.</summary>
+        public float sfx;
+        /// <summary>Music channel volume (no music yet).</summary>
+        public float music;
+        /// <summary>One-shot pitch is 1 +/- this.</summary>
+        public float pitchJitter;
+        /// <summary>One-shot volume is 1 - random(0..this).</summary>
+        public float volumeJitter;
+        /// <summary>Volume factor for positioned cues outside the camera view.</summary>
+        public float offscreenVolume;
+        /// <summary>Size of the gameplay one-shot voice pool.</summary>
+        public int maxVoices;
+
+        /// <summary>A sanitised copy of balance.audio: missing or non-positive values become the
+        /// defaults, volumes and jitters are clamped to 0..1, maxVoices to 1..AbsoluteMaxVoices.
+        /// Never null.</summary>
+        public static AudioData Resolve(GameBalance balance) {
+            var src = balance != null ? balance.audio : null;
+            var r = new AudioData();
+            r.master = Clamp01(Pick(src != null ? src.master : 0f, DefaultMaster));
+            r.sfx = Clamp01(Pick(src != null ? src.sfx : 0f, DefaultSfx));
+            r.music = Clamp01(Pick(src != null ? src.music : 0f, DefaultMusic));
+            r.pitchJitter = Clamp01(Pick(src != null ? src.pitchJitter : 0f, DefaultPitchJitter));
+            r.volumeJitter = Clamp01(Pick(src != null ? src.volumeJitter : 0f, DefaultVolumeJitter));
+            r.offscreenVolume = Clamp01(Pick(src != null ? src.offscreenVolume : 0f, DefaultOffscreenVolume));
+            int voices = src != null && src.maxVoices > 0 ? src.maxVoices : DefaultMaxVoices;
+            r.maxVoices = Mathf.Clamp(voices, 1, AbsoluteMaxVoices);
+            return r;
+        }
+
+        private static float Pick(float value, float fallback) {
+            return value > 0f ? value : fallback;
+        }
+
+        private static float Clamp01(float value) {
+            return Mathf.Clamp01(value);
+        }
+    }
+
+    /// <summary>
     /// Root serialisable class matching Balance.json. Loaded once from Resources at
     /// runtime and cached in the static _instance field for fast access by all systems.
     ///
@@ -260,6 +319,10 @@ namespace Biplanes.Core {
         /// <summary>Mirrors the "pitch" key in Balance.json (T942/B029). Read it through
         /// PitchData.Resolve(GameBalance.Get()), which fills in defaults.</summary>
         public PitchData pitch;
+
+        /// <summary>Mirrors the "audio" key in Balance.json (T949). Read it through
+        /// AudioData.Resolve(GameBalance.Get()), which fills in defaults.</summary>
+        public AudioData audio;
 
         // --- cached instance for Get() singleton pattern ---
 

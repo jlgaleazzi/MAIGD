@@ -1,4 +1,5 @@
 using UnityEngine;
+using Biplanes.Audio;
 using Biplanes.Core;
 using Biplanes.Player;
 using Biplanes.Weapons;
@@ -49,6 +50,7 @@ namespace Biplanes.Enemies {
         private float _maxHitPoints;           // Balance enemyHealth.zeppelinTurret
         private bool _destroyed;               // EntityDestroyed raised (once-only guard)
         private float _nextFireTime;
+        private float _lastHitCueTime = -1f;   // Time.time of the last HitEnemy; negative = none
         private ZeppelinAI _owner;
         private SpriteRenderer _sr;
         private Camera _cam;
@@ -83,8 +85,21 @@ namespace Biplanes.Enemies {
                     return;   // Flak / Heal: no effect on enemy turrets.
             }
 
+            float before = _damagePercent;
             _damagePercent = Mathf.Clamp(_damagePercent + actual, 0f, 100f);
             if (IsDead) Die();
+            else if (_damagePercent > before) PlayHitCue();
+        }
+
+        /// <summary>HitEnemy for a non-fatal hit (a fatal one gets Die's explosion), at most one
+        /// per Health.HitCueMinInterval, like Health and ZeppelinAI (B033 / T953 B6).</summary>
+        private void PlayHitCue() {
+            float now = Time.time;
+            if (_lastHitCueTime >= 0f && now - _lastHitCueTime < Health.HitCueMinInterval) return;
+            var audio = AudioManager.GetOrNull();
+            if (audio == null) return;
+            _lastHitCueTime = now;
+            audio.Play(SfxId.HitEnemy, transform.position);
         }
 
         public void Heal(float amount) { /* turrets are not healable */ }
@@ -167,8 +182,11 @@ namespace Biplanes.Enemies {
 
             // Exact-direction overload: no forced climb (the zeppelin usually sits above the
             // player), and the hit is scaled by damageTaken.zeppelinTurret. A null return
-            // (pool exhausted) just skips this shot.
-            FlakShell.Spawn(transform.position, dir, DamageSource.ZeppelinTurret);
+            // (pool exhausted) just skips this shot, and its FlakFire cue (B033 / T953 B6).
+            if (FlakShell.Spawn(transform.position, dir, DamageSource.ZeppelinTurret) != null) {
+                var audio = AudioManager.GetOrNull();
+                if (audio != null) audio.Play(SfxId.FlakFire, transform.position);
+            }
         }
 
         /// <summary>Same straight-line intercept as AAAGun.PredictPosition: solves

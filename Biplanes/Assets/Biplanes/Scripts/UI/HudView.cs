@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using Biplanes.Core;
+using Biplanes.Audio;
 
 namespace Biplanes.UI {
 
@@ -78,6 +79,10 @@ namespace Biplanes.UI {
         private Sprite _damageFrameSprite;  // ui_damage_frame, or the white fallback
         private float  _smokeThreshold = FallbackSmokeThreshold;
         private int    _bombCapacity   = FallbackBombCapacity;
+
+        /// <summary>True while the damage is at or above the smoke threshold. The damage-warning
+        /// cue plays on the upward crossing only and re-arms once the damage drops below (T951).</summary>
+        private bool   _damageWarningLatched;
 
         // Objective tracking state, set by MissionRunner during mission init.
         private string _objectiveTargetType = "";
@@ -276,6 +281,24 @@ namespace Biplanes.UI {
             if (_smokeIconObj != null) {
                 _smokeIconObj.SetActive(damage >= _smokeThreshold);
             }
+
+            UpdateDamageWarningCue(damage);
+        }
+
+        /// <summary>DamageWarning once when the damage crosses smokeThreshold upward (T951).
+        /// Re-arms only after the damage falls back below it (a health balloon). A fatal jump
+        /// to 100% plays no warning: the crash cue covers it. Ui priority, so PlayUi.</summary>
+        private void UpdateDamageWarningCue(float damage) {
+            bool above = damage >= _smokeThreshold;
+            if (!above) {
+                _damageWarningLatched = false;
+                return;
+            }
+            if (_damageWarningLatched) return;
+            _damageWarningLatched = true;
+            if (damage >= 100f) return;
+            var audio = AudioManager.GetOrNull();
+            if (audio != null) audio.PlayUi(SfxId.DamageWarning);
         }
 
         /// <summary>GameEvents.ScoreChanged: score display text.</summary>

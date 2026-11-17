@@ -4,6 +4,7 @@ using Biplanes.Weapons;
 using Biplanes.Missions;
 using Biplanes.Enemies;
 using Biplanes.Fx;
+using Biplanes.Audio;
 
 namespace Biplanes.Player {
 
@@ -20,7 +21,8 @@ namespace Biplanes.Player {
     ///    the trailing anchor (viewport screenAnchor facing right, 1 - screenAnchor facing left).
     ///  - Machine gun (PlayerInput.OnFire → Bullet.Spawn) and bombs
     ///    (PlayerInput.OnDropBomb → BombBay.TryDropBomb).
-    ///  - Smoke trail visual when damage ≥ smokeThreshold (default 70%).
+    ///  - Smoke trail when damage ≥ smokeThreshold (default 70%): a smoke_puff behind the
+    ///    tail every SmokePuffInterval through FxManager (B030), plus the damage tint.
     ///  - Crash handling at 100% damage — input off at once, the mission is lost at once
     ///    (GameManager.LoseMission), and the plane falls and tumbles for CrashFallSeconds
     ///    (scripted, no physics) before GameManager opens the result screen (T937).
@@ -36,8 +38,6 @@ namespace Biplanes.Player {
 
         /// <summary>If ≥ 0, overrides the smoke-threshold from Balance.json.</summary>
         [SerializeField] private float _smokeThresholdOverride = -1f;
-
-        [SerializeField] private Transform _smokeTrailRoot;
 
         // ── Runtime state ─────────────────────────────────────────────────
 
@@ -109,6 +109,63 @@ namespace Biplanes.Player {
 
         /// <summary>Seconds of plane-collision grace left; counted down in FixedUpdate.</summary>
         private float _planeCollisionGrace;
+
+        // ── Smoke trail (B030) ───────────────────────────────────────────
+
+        /// <summary>Seconds between smoke puffs while damage ≥ smokeThreshold (visual only).</summary>
+        public const float SmokePuffInterval = 0.12f;
+        /// <summary>Distance behind the plane centre, along the body, where puffs appear.</summary>
+        private const float SmokeTailOffset = 0.75f;
+        /// <summary>Seconds until the next puff; ≤ 0 emits at once.</summary>
+        private float _smokeTimer;
+
+        // ── Audio (T951, ARCHITECTURE §3 Audio) ──────────────────────────
+        // Loops are mastered at the one-shot peak (-3 dBFS), so they run below 1 to sit
+        // under the guns. Mix values, not gameplay tunables.
+
+        /// <summary>AudioManager loop key for the engine drone.</summary>
+        public const string EngineLoopKey = "player_engine";
+        /// <summary>AudioManager loop key for the smoke crackle.</summary>
+        public const string SmokeLoopKey  = "player_smoke";
+
+        /// <summary>Engine loop volume in flight.</summary>
+        public const float EngineFlightVolume = 0.65f;
+        /// <summary>Engine loop volume idling on the runway.</summary>
+        public const float EngineIdleVolume   = 0.35f;
+        /// <summary>Engine loop pitch idling on the runway (below level flight's 1.0).</summary>
+        public const float EngineIdlePitch = 0.8f;
+        /// <summary>Smoke crackle loop volume while damage is at or above smokeThreshold.</summary>
+        public const float SmokeCrackleVolume = 0.5f;
+
+        /// <summary>Sputter at or above smokeThreshold: Perlin noise sampled at SputterRate per
+        /// second; above SputterThreshold the engine dips by up to the pitch/volume fractions.</summary>
+        private const float SputterRate = 3.5f;
+        private const float SputterNoiseRow = 0.37f;
+        private const float SputterThreshold = 0.6f;
+        private const float SputterPitchDip = 0.12f;
+        private const float SputterVolumeDip = 0.5f;
+
+        /// <summary>Engine pitch the falling wreck winds down to before the loop stops on landing.</summary>
+        private const float CrashEngineEndPitch = 0.45f;
+        /// <summary>Length of the crash clip (seconds). Since B032 the clip is just the crunch
+        /// and its tail; the engine loop's wind-down already gives the falling whine.</summary>
+        public const float CrashClipSeconds = 1.0f;
+        /// <summary>Where the ground crunch sits in the crash clip (seconds). The clip starts
+        /// this long before the predicted landing, so the crunch lands with the wreck.</summary>
+        public const float CrashCrunchOffset = 0.1f;
+
+        /// <summary>The plane whose loops currently play under the shared keys, so an old plane
+        /// torn down late never stops the new plane's engine.</summary>
+        private static PlayerPlane _audioOwner;
+        /// <summary>Set when the mission ended: no more loops from this plane.</summary>
+        private bool _audioStopped;
+        private bool _missionEndSubscribed;
+        private bool _crashSoundPlayed;
+        private float _crashElapsed;
+        private float _crashStartPitch = 1f;
+        private float _crashStartVolume = EngineFlightVolume;
+        private float _enginePitch = EngineIdlePitch;
+        private float _engineVolume = EngineIdleVolume;
 
         // ── Cached components ────────────────────────────────────────────
 
@@ -285,10 +342,28 @@ namespace Biplanes.Player {
                 PlayerInput.OnDropBomb += OnDropBomb;
                 _inputSubscribed = true;
             }
+            if (!_missionEndSubscribed) {
+                GameEvents.MissionEnded += OnMissionEndedAudio;
+                _missionEndSubscribed = true;
+            }
         }
 
         private void OnDestroy() {
             UnsubscribeInput();
+            if (_missionEndSubscribed) {
+                GameEvents.MissionEnded -= OnMissionEndedAudio;
+                _missionEndSubscribed = false;
+            }
+        }
+
+        private void OnDisable() {
+            StopPlayerLoops();
+        }
+
+        /// <summary>Visual and audio per-frame work: smoke puffs, engine and smoke loops.</summary>
+        private void Update() {
+            EmitSmoke(Time.deltaTime);
+            UpdateAudio();
         }
 
         /// <summary>Called every FixedUpdate to check for ground contact and crash.</summary>
@@ -495,7 +570,10 @@ namespace Biplanes.Player {
             Vector2 nose = NoseDirection;
             Vector3 muzzle = transform.position + (Vector3)(nose * GunOffset.x);
             float angle = Mathf.Atan2(nose.y, nose.x) * Mathf.Rad2Deg;
-            Bullet.Spawn(muzzle, Quaternion.Euler(0f, 0f, angle), nose);
+            Bullet bullet = Bullet.Spawn(muzzle, Quaternion.Euler(0f, 0f, angle), nose);
+            if (bullet == null) return; // pool exhausted: no bullet, no rattle (B032)
+            var audio = AudioManager.GetOrNull();
+            if (audio != null) audio.Play(SfxId.PlayerGun, muzzle);
         }
 
         /// <summary>Flight attitude in degrees, nose up positive in either facing, within
@@ -564,17 +642,43 @@ namespace Biplanes.Player {
 
         // ── Smoke trail (≥ 70% damage per GDD) ───────────────────────────
 
-        /// <summary>Activates/deactivates the smoke trail visual based on current damage.</summary>
+        /// <summary>True while puffs should be emitted: damage ≥ smokeThreshold and the plane
+        /// is flying, or falling as a wreck (not yet landed).</summary>
+        private bool IsSmoking =>
+            _health != null && _health.CurrentDamagePercent >= _smokeThreshold
+            && !_crashLanded && gameObject.activeInHierarchy;
+
+        /// <summary>
+        /// Smoke trail (B030): while IsSmoking, one FxManager smoke puff every SmokePuffInterval
+        /// behind the tail. Puffs live in world space (they don't follow the plane); FxManager
+        /// rises, grows, fades and caps them. Below the threshold no puffs. A paused game
+        /// (dt 0) emits nothing.
+        /// </summary>
+        private void EmitSmoke(float dt) {
+            if (dt <= 0f) return;
+            if (!IsSmoking) {
+                _smokeTimer = 0f;   // the first puff comes at once when the threshold is crossed
+                return;
+            }
+
+            _smokeTimer -= dt;
+            if (_smokeTimer > 0f) return;
+            _smokeTimer = SmokePuffInterval;
+
+            var fx = FxManager.GetOrNull();
+            if (fx == null) return;
+            // The drawn nose in world space, from the body rotation (pitch, or the wreck's spin).
+            Vector3 nose = transform.rotation * new Vector3(_facing, 0f, 0f);
+            fx.SpawnSmokePuff(transform.position - nose * SmokeTailOffset);
+        }
+
+        /// <summary>Damage tint of the plane sprite (amber at ≥ smokeThreshold). The smoke
+        /// puffs themselves are emitted by EmitSmoke from Update.</summary>
         private void UpdateSmokeTrail() {
             if (_health == null) return;
 
             float dmg = _health.CurrentDamagePercent;
             bool needsSmoke = dmg >= _smokeThreshold;
-
-            // Toggle smoke trail root visibility.
-            if (_smokeTrailRoot != null) {
-                _smokeTrailRoot.gameObject.SetActive(needsSmoke);
-            }
 
             // Tint the plane sprite amber when in danger zone so the player sees they're damaged.
             if (_sr != null) {
@@ -618,6 +722,12 @@ namespace Biplanes.Player {
             // Tumble from the attitude the plane had (the pending MoveRotation target).
             _crashAngle = BodyAngle;
             _crashLanded = false;
+            _crashElapsed = 0f;
+            _crashSoundPlayed = false;
+            _crashStartPitch = _enginePitch;
+            _crashStartVolume = _engineVolume;
+            // Without a body there is no fall to time the crunch against.
+            if (_rb == null) PlayCrashSound();
 
             var gm = GameManager.Instance;
             if (gm != null) {
@@ -636,15 +746,27 @@ namespace Biplanes.Player {
         private void UpdateCrashFall(float dt) {
             if (_crashLanded || _rb == null || dt <= 0f) return;
 
+            _crashElapsed += dt;
             _crashVelocity.y -= CrashGravity * dt;
             Vector2 pos = _rb.position + _crashVelocity * dt;
             _crashAngle -= _facing * CrashSpinDegPerSec * dt; // nose goes down in the facing direction
 
             var terrain = TerrainStrip.Instance;
             float ground = terrain != null ? terrain.HeightAt(pos.x) : TerrainStrip.GroundBaseY;
+
+            // Start the crash clip CrashCrunchOffset before the predicted landing, so its
+            // crunch lands with the wreck (or when the result screen freezes a long fall).
+            if (!_crashSoundPlayed
+                && ShouldStartCrashSound(
+                    CrashTimeToGround(pos.y - (ground + CrashRestHeight), _crashVelocity.y, CrashGravity),
+                    _crashElapsed)) {
+                PlayCrashSound();
+            }
+
             if (pos.y <= ground + CrashRestHeight) {
                 pos.y = ground + CrashRestHeight;
                 _crashLanded = true;
+                if (!_crashSoundPlayed) PlayCrashSound();
                 var fx = FxManager.Instance;
                 if (fx != null) fx.TriggerExplosion(pos);
             }
@@ -656,6 +778,120 @@ namespace Biplanes.Player {
         /// <summary>Direct crash trigger (used if a collision component calls this).</summary>
         public void ForceCrash() {
             TriggerCrash();
+        }
+
+        // ── Audio (T951) ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Engine and smoke loops, once per frame. Engine: idle pitch/volume on the runway;
+        /// in flight AudioMix.EnginePitch(vy, damage, pitch.fullPitchSpeed) plus an irregular
+        /// sputter at or above smokeThreshold; while the wreck falls the pitch winds down to
+        /// CrashEngineEndPitch and the loop stops on landing. The smoke crackle runs while
+        /// IsSmoking. Does nothing without an AudioManager (EditMode).
+        /// </summary>
+        private void UpdateAudio() {
+            if (_audioStopped || !gameObject.activeInHierarchy) return;
+            var audio = AudioManager.GetOrNull();
+            if (audio == null) return;
+            _audioOwner = this;
+
+            if (_hasCrashed) {
+                if (_crashLanded) {
+                    audio.StopLoop(EngineLoopKey);
+                } else {
+                    float t = Mathf.Clamp01(_crashElapsed / CrashFallSeconds);
+                    _enginePitch = Mathf.Lerp(_crashStartPitch, CrashEngineEndPitch, t);
+                    _engineVolume = Mathf.Lerp(_crashStartVolume, _crashStartVolume * 0.5f, t);
+                    audio.SetLoopPitch(EngineLoopKey, _enginePitch);
+                    audio.SetLoopVolume(EngineLoopKey, _engineVolume);
+                }
+            } else {
+                audio.StartLoop(SfxId.EngineLoop, EngineLoopKey);
+                float damage = _health != null ? _health.CurrentDamagePercent : 0f;
+                if (_onRunway) {
+                    _enginePitch = EngineIdlePitch;
+                    _engineVolume = EngineIdleVolume;
+                } else {
+                    float fullPitchSpeed = _pitch != null ? _pitch.fullPitchSpeed : PlanePitch.DefaultFullPitchSpeed;
+                    _enginePitch = AudioMix.EnginePitch(_velocity.y, damage, fullPitchSpeed);
+                    _engineVolume = EngineFlightVolume;
+                    if (damage >= _smokeThreshold) {
+                        float dip = SputterAmount(Time.time);
+                        _enginePitch *= 1f - dip * SputterPitchDip;
+                        _engineVolume *= 1f - dip * SputterVolumeDip;
+                    }
+                }
+                audio.SetLoopPitch(EngineLoopKey, _enginePitch);
+                audio.SetLoopVolume(EngineLoopKey, _engineVolume);
+            }
+
+            if (IsSmoking) {
+                audio.StartLoop(SfxId.SmokeCrackle, SmokeLoopKey);
+                audio.SetLoopVolume(SmokeLoopKey, SmokeCrackleVolume);
+            } else {
+                audio.StopLoop(SmokeLoopKey);
+            }
+        }
+
+        /// <summary>Sputter depth 0..1 at time t: Perlin noise above SputterThreshold, so the
+        /// engine gives brief irregular coughs rather than a steady wobble. Deterministic in t.</summary>
+        public static float SputterAmount(float t) {
+            float n = Mathf.PerlinNoise(t * SputterRate, SputterNoiseRow);
+            if (n <= SputterThreshold) return 0f;
+            return Mathf.Clamp01((n - SputterThreshold) / (1f - SputterThreshold));
+        }
+
+        /// <summary>Seconds until a body `height` above its rest point, moving at vy (up is
+        /// positive) under `gravity`, reaches it. 0 when it is already there.</summary>
+        public static float CrashTimeToGround(float height, float vy, float gravity) {
+            if (height <= 0f) return 0f;
+            if (gravity <= 0f) return vy < 0f ? height / -vy : float.PositiveInfinity;
+            return (vy + Mathf.Sqrt(vy * vy + 2f * gravity * height)) / gravity;
+        }
+
+        /// <summary>
+        /// Whether the falling wreck should start the crash clip this tick (B032). True when
+        /// the predicted time to ground is within CrashCrunchOffset, so the crunch (at
+        /// CrashCrunchOffset into the clip) lands with the wreck. Also true once
+        /// elapsed + CrashCrunchOffset reaches CrashFallSeconds: the result screen freezes time
+        /// then, and a longer fall (top altitude, about 1.12 s) would otherwise never land
+        /// and stay silent, so the crunch marks the result screen instead.
+        /// </summary>
+        public static bool ShouldStartCrashSound(float timeToGround, float elapsed) {
+            return timeToGround <= CrashCrunchOffset || elapsed + CrashCrunchOffset >= CrashFallSeconds;
+        }
+
+        /// <summary>
+        /// The crash clip, once per crash. It plays on the UI pool (PlayUi) on purpose: the
+        /// result screen freezes time CrashFallSeconds after the crash, which pauses the
+        /// listener and would cut a gameplay voice. A scene unload (Retry, Menu) still stops
+        /// it, because Crash is not a UI-screen cue (AudioManager.KeepsPlayingOnSceneUnload).
+        /// </summary>
+        private void PlayCrashSound() {
+            if (_crashSoundPlayed) return;
+            _crashSoundPlayed = true;
+            var audio = AudioManager.GetOrNull();
+            if (audio != null) audio.PlayUi(SfxId.Crash);
+        }
+
+        /// <summary>Mission over: a flying plane's loops stop at once. A crashing plane keeps
+        /// its engine wind-down (the loss is raised at crash start) and stops it on landing.</summary>
+        private void OnMissionEndedAudio(bool won, string reason) {
+            if (_hasCrashed) return;
+            StopPlayerLoops();
+            _audioStopped = true;
+        }
+
+        /// <summary>Stops the engine and smoke loops if this plane owns them. Safe from OnDisable
+        /// at quit: GetOrNull never creates a manager while the application is quitting (B032).</summary>
+        private void StopPlayerLoops() {
+            if (_audioOwner != this) return;
+            var audio = AudioManager.GetOrNull();
+            if (audio != null) {
+                audio.StopLoop(EngineLoopKey);
+                audio.StopLoop(SmokeLoopKey);
+            }
+            _audioOwner = null;
         }
 
         // ── Helpers ───────────────────────────────────────────────────────

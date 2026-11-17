@@ -3,6 +3,7 @@ using UnityEngine;
 using Biplanes.Core;
 using Biplanes.Player;
 using Biplanes.Fx;
+using Biplanes.Audio;
 
 namespace Biplanes.Enemies {
 
@@ -44,6 +45,17 @@ namespace Biplanes.Enemies {
         /// <summary>Explosions played along the hull on death (local x, art facing right).</summary>
         private static readonly float[] DeathExplosionOffsetsX = { -2.5f, 0f, 2.5f };
         private const int FallbackPixelsPerUnit = 10;
+
+        // ── Audio (T951) ──────────────────────────────────────────────────
+
+        /// <summary>Hum loop volume (0..1 of master*sfx) while the hull is on screen. The
+        /// zeppelin_hum clip is mastered loud (RMS about -12.6 dBFS), so it sits under the guns.</summary>
+        public const float HumVolume = 0.45f;
+        /// <summary>World units beyond the screen edge (nearest point of the hull) over which
+        /// the hum fades from HumVolume to silent; farther away the loop is stopped.</summary>
+        public const float HumFadeDistance = 8f;
+        /// <summary>Minimum seconds between two HitEnemy cues on the hull.</summary>
+        private const float HitCueMinInterval = 0.05f;
 
         /// <summary>The zeppelin always flies left: mirror the right-facing art and offsets.</summary>
         private const bool FlipsToFlyLeft = true;
@@ -106,6 +118,9 @@ namespace Biplanes.Enemies {
         private PlayerPlane _player;
         private float _targetX = -1f;           // world x it must not reach; -1 = none
         private readonly List<ZeppelinTurret> _turrets = new List<ZeppelinTurret>();
+        private static int _humKeyCounter;      // makes each hum loop key unique
+        private string _humKey;                 // unique AudioManager loop key per zeppelin
+        private float _lastHitCueTime = -1f;
 
         /// <summary>Mission spawn id (e.g. "zeppelin_01"); empty when none was given.</summary>
         public string Id { get; private set; } = "";
@@ -155,8 +170,13 @@ namespace Biplanes.Enemies {
                     return;   // Flak / Heal: no effect.
             }
 
+            float before = _damagePercent;
             _damagePercent = Mathf.Clamp(_damagePercent + actual, 0f, 100f);
-            if (IsDead) Die();
+            if (IsDead) {
+                Die();
+            } else if (_damagePercent > before) {
+                PlayHitCue();
+            }
         }
 
         public void Heal(float amount) { /* the zeppelin is not healable */ }
@@ -239,6 +259,51 @@ namespace Biplanes.Enemies {
             if (_rb == null) _rb = GetComponent<Rigidbody2D>();
             if (_sr == null) _sr = GetComponent<SpriteRenderer>();
             _cam = Camera.main;
+            _humKey = "zeppelin_hum_" + (++_humKeyCounter);
+        }
+
+        /// <summary>Hum loop: on while the hull is on screen or within HumFadeDistance of it,
+        /// fading with the distance; off beyond that and once destroyed (T951).</summary>
+        private void Update() {
+            if (_destroyed) return;
+            var audio = AudioManager.GetOrNull();
+            if (audio == null) return;
+            if (_cam == null) _cam = Camera.main;
+            if (_cam == null) return;
+
+            float halfW = _cam.orthographicSize * _cam.aspect;
+            float camX = _cam.transform.position.x;
+            float x = transform.position.x;
+            // Gap between the screen and the nearest end of the hull (0 when any of it shows).
+            float gap = Mathf.Max(0f, Mathf.Abs(x - camX) - halfW - HalfLength);
+            if (gap >= HumFadeDistance) {
+                audio.StopLoop(_humKey);
+                return;
+            }
+            audio.StartLoop(SfxId.ZeppelinHum, _humKey);
+            audio.SetLoopVolume(_humKey, HumVolume * (1f - gap / HumFadeDistance));
+        }
+
+        private void OnDisable() {
+            StopHum();
+        }
+
+        /// <summary>Stops this zeppelin's hum. Safe from OnDisable at quit: GetOrNull never
+        /// creates a manager while the application is quitting (B032).</summary>
+        private void StopHum() {
+            if (string.IsNullOrEmpty(_humKey)) return;
+            var audio = AudioManager.GetOrNull();
+            if (audio != null) audio.StopLoop(_humKey);
+        }
+
+        /// <summary>HitEnemy for a non-fatal hull hit (not while shielded), throttled.</summary>
+        private void PlayHitCue() {
+            float now = Time.time;
+            if (_lastHitCueTime >= 0f && now - _lastHitCueTime < HitCueMinInterval) return;
+            var audio = AudioManager.GetOrNull();
+            if (audio == null) return;
+            _lastHitCueTime = now;
+            audio.Play(SfxId.HitEnemy, transform.position);
         }
 
         private void Start() {
@@ -276,6 +341,7 @@ namespace Biplanes.Enemies {
                 float leftEdge = _cam.transform.position.x - _cam.orthographicSize * _cam.aspect;
                 if (pos.x < leftEdge - DespawnBehindMargin) {
                     _destroyed = true;
+                    StopHum();
                     Destroy(gameObject);
                 }
             }
@@ -312,8 +378,14 @@ namespace Biplanes.Enemies {
             float sign = FlipsToFlyLeft ? -1f : 1f;
             var fx = FxManager.Instance;
             for (int i = 0; i < DeathExplosionOffsetsX.Length; i++) {
-                fx.TriggerExplosion(transform.position + new Vector3(DeathExplosionOffsetsX[i] * sign, 0f, 0f));
+                fx.TriggerExplosion(transform.position + new Vector3(DeathExplosionOffsetsX[i] * sign, 0f, 0f),
+                    playSound: false);   // ExplosionBig below is the one death cue
             }
+
+            // Big explosion cue once, on top of the FxManager explosions (T951).
+            StopHum();
+            var audio = AudioManager.GetOrNull();
+            if (audio != null) audio.Play(SfxId.ExplosionBig, transform.position);
 
             // Turrets are children: destroying the hull removes them without extra score events.
             _turrets.Clear();

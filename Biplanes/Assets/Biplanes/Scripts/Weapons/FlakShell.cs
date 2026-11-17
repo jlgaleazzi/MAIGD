@@ -1,5 +1,6 @@
 using UnityEngine;
 using Biplanes.Core;
+using Biplanes.Fx;
 
 namespace Biplanes.Weapons {
 
@@ -11,6 +12,10 @@ namespace Biplanes.Weapons {
     ///   given source, e.g. ZeppelinTurret turrets (damageTaken.zeppelinTurret).
     /// Pooled: the pool is built lazily on the first Spawn and rebuilt only after its root
     /// was destroyed (scene reload), so it never leaks.
+    /// FX (B030): a flak burst plays where the shell hits the player and where it reaches the
+    /// end of its lifetime (an airburst). A plain Recycle (pool dispose, scene reload) shows none.
+    /// Sound (T950): the burst's FlakBurst cue comes from FxManager.TriggerFlakBurst, so it
+    /// follows the same rule (none on Recycle). The FlakFire cue is played by the shooter (AAAGun).
     /// </summary>
     public class FlakShell : Projectile {
 
@@ -132,7 +137,22 @@ namespace Biplanes.Weapons {
             if (target == null || target.Team != Team.Player) return;
 
             target.ApplyDamage(damage, _source);
+            PlayBurst();
             Recycle();
+        }
+
+        /// <summary>Lifetime over without a hit: the shell airbursts, then returns to the pool.</summary>
+        public override void OnLifetimeEnd() {
+            PlayBurst();
+            base.OnLifetimeEnd();
+        }
+
+        /// <summary>Flak burst FX at the shell's position. Skipped when no FxManager can be
+        /// had (EditMode) or the shell is already back in the pool.</summary>
+        private void PlayBurst() {
+            if (!gameObject.activeInHierarchy) return;
+            var fx = FxManager.GetOrNull();
+            if (fx != null) fx.TriggerFlakBurst(transform.position);
         }
     }
 }

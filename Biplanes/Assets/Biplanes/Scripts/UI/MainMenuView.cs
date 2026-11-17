@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI; // InputSystemUIInputModule (project uses Input System only)
 using UnityEngine.UI;
+using Biplanes.Audio;
 using Biplanes.Core;
 using Biplanes.Missions;
 
@@ -134,6 +135,7 @@ namespace Biplanes.UI {
             _buttonSprite = LoadSprite(ButtonSpritePath);
             BuildVisuals();
             RefreshUnlocked();
+            PlayUiCue(SfxId.UiPage); // the menu screen opens (T952)
         }
 
         private void OnDestroy() {
@@ -316,13 +318,22 @@ namespace Biplanes.UI {
 
         private void OnMissionClicked(int missionIndex) {
             if (missionIndex > SaveSystem.GetUnlockedMission()) return; // locked: do nothing
+            PlayUiCue(SfxId.UiClick);
             // Menu → Briefing (UI_SPEC §3.1): leaving Menu hides this view; BriefingView
             // then calls GameManager.StartMission (T937).
             GameManager.Instance.ShowBriefing(missionIndex);
         }
 
         private void OnHowToPlayClicked() {
+            PlayUiCue(SfxId.UiClick);
             if (_helpPanel != null) _helpPanel.SetActive(!_helpPanel.activeSelf);
+        }
+
+        /// <summary>UI cue through AudioManager.PlayUi (plays while paused). Skipped when no
+        /// AudioManager exists (EditMode tests) (T952).</summary>
+        private static void PlayUiCue(SfxId id) {
+            var audio = AudioManager.GetOrNull();
+            if (audio != null) audio.PlayUi(id);
         }
     }
 }

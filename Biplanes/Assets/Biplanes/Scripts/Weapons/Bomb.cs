@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using Biplanes.Audio;
 using Biplanes.Core;
 using Biplanes.Fx;
 using Biplanes.Missions;
@@ -105,7 +106,10 @@ namespace Biplanes.Weapons {
                 // position, so a fast fall or a low frame rate can't sink the burst (B008).
                 Vector2 p = ImpactPoint(terrain, _prevPos, pos);
                 BurstDamage(p);
-                FxManager.Instance.TriggerExplosion(p);
+                // Ground impact: the BombImpact thump replaces the generic explosion cue (T950).
+                FxManager.Instance.TriggerExplosion(p, false);
+                var audio = AudioManager.GetOrNull();
+                if (audio != null) audio.Play(SfxId.BombImpact, (Vector3)p);
                 Recycle();
                 return;
             }
@@ -141,8 +145,10 @@ namespace Biplanes.Weapons {
             _directHit = target;
             target.ApplyDamage(damage, DamageSource.Bomb);
 
-            // VFX hook: trigger explosion effect for ground hits (and enemies).
-            FxManager.Instance.TriggerExplosion(transform.position);
+            // VFX hook: explosion effect on a direct hit (T950). When this hit killed the target,
+            // the victim's own death explosion owns the Explosion cue, so this one is silent
+            // and a kill plays exactly one cue (B033 / T953 B4).
+            FxManager.Instance.TriggerExplosion(transform.position, !target.IsDead);
 
             Recycle();
         }

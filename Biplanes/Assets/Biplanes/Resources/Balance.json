@@ -67,5 +67,14 @@
     "fighterMaxDegrees": 40.0,
     "easeDegreesPerSecond": 60.0,
     "fullPitchSpeed": 3.0
+  },
+  "audio": {
+    "master": 0.8,
+    "sfx": 1.0,
+    "music": 0.6,
+    "pitchJitter": 0.06,
+    "volumeJitter": 0.15,
+    "offscreenVolume": 0.4,
+    "maxVoices": 12
   }
 }

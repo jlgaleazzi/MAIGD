@@ -1,4 +1,5 @@
 using UnityEngine;
+using Biplanes.Audio;
 using Biplanes.Core;
 using Biplanes.Weapons;
 using Biplanes.Fx;
@@ -259,6 +260,10 @@ namespace Biplanes.Enemies {
                 GunnerConeDegrees, _fire.spreadDegrees);
             // Pool exhausted: keep the expired cooldown and try again next tick.
             if (EnemyBullet.Spawn(transform.position, dir, GunnerShotSource) == null) return false;
+
+            // EnemyGun cue once per bullet fired, at the shooter (T950).
+            var audio = AudioManager.GetOrNull();
+            if (audio != null) audio.Play(SfxId.EnemyGun, transform.position);
 
             _gunnerCooldown = Random.Range(_fire.bomberIntervalMin, _fire.bomberIntervalMax);
             return true;

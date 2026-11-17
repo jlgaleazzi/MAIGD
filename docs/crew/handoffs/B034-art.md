@@ -1,0 +1,10 @@
+TASK: B034
+AGENT: art
+STATUS: DONE
+FILES: tools/synth_sfx.py (c_crash recipe, plus the crash duration range in CLIPS changed from 1.5-2.0 s to 0.8-1.2 s), Biplanes/Assets/Biplanes/Resources/Audio/sfx/crash.wav (written by the script), docs/ART_STYLE.md (crash row in "Sound")
+SUMMARY: crash.wav now holds only the landing crunch, because the engine loop already does the whine-down. It is 1.000 s long. 0-0.1 s: a 700 -> 1050 Hz whistle with 1.2 kHz wind, rising quadratically from -50 to -22 dB. At 0.10 s comes the crunch: a dirt thump (82 -> 30 Hz), 320 Hz dirt noise, a short splinter crack, wood modes (230/410/760 Hz) and bent-metal ring (1.17/1.74/2.63 kHz). Then the settle tail: two stick-slip wood creaks (at 0.36 s and 0.58 s), debris ticks, and a paper crumple that fades to silence by about 0.9 s.
+ Measured from the file: the sample peak is at **0.1030 s** (-3.0 dBFS). The 10 ms RMS jumps from -28 dB (0.09 s) to -9 dB (0.10 s). The crunch window (0.09-0.25 s) is 91.5% low band (<300 Hz) and the whole clip is 91.5/8.0/0.5 low/mid/high. RMS is -20.4 dBFS, DC is 0, and the first and last samples are 0.
+ Changes after reading the report: in round 1 the tail layers sat about 45 dB under the crunch, which is inaudible, and the clip went silent at 0.8 s. I raised the creaks by about 18 dB and the debris/crumple by about 8 dB, and slowed the crumple decay (tau 0.3 -> 0.4 s). Now the mid band sits at -37 dB for 0.28-0.5 s and -40 dB for 0.6-0.7 s, then fades through -50/-60 dB to silence at 0.92 s. I also doubled the splinter layer.
+ Only crash changed. md5 before/after matched for all 22 other WAVs; only crash.wav differs.
+VERIFY: python tools/synth_sfx.py --check (expect 23 rows OK, "0 error(s)"); crash row reads 1.000 s, -3.0 dBFS, low% about 91.
+REQUESTS: mechanics (B032): crash is now 1.0 s with the crunch peak at 0.103 s, so start it about 0.1 s before the wreck lands. Any CrashCrunchOffset constant should be about 0.10 (it was 1.25). The T948 handoff's "crash 1.8 s (crunch at 1.25 s)" is outdated.

@@ -1,5 +1,6 @@
 using UnityEngine;
 using Biplanes.Core;
+using Biplanes.Audio;
 
 namespace Biplanes.Player {
 
@@ -33,11 +34,14 @@ namespace Biplanes.Player {
     }
 
     /// <summary>Drop one bomb at <paramref name="position"/> inheriting the
-    /// plane's velocity. Returns false when no bombs remain.</summary>
+    /// plane's velocity. Returns false when no bombs remain, or when the Bomb pool is
+    /// exhausted (Spawn returns null): then no bomb is spent and no release cue plays (B032).</summary>
     public bool TryDropBomb(Vector3 position, Vector2 parentVelocity) {
       if (_remaining <= 0) return false;
+      if (Weapons.Bomb.Spawn(position, parentVelocity) == null) return false;
       _remaining--;
-      Weapons.Bomb.Spawn(position, parentVelocity);
+      var audio = AudioManager.GetOrNull();
+      if (audio != null) audio.Play(SfxId.BombRelease, position);
       RaiseChanged();
       return true;
     }

@@ -1,4 +1,5 @@
 using UnityEngine;
+using Biplanes.Audio;
 
 namespace Biplanes.Core {
 
@@ -25,6 +26,15 @@ namespace Biplanes.Core {
 
         private float currentDamage = 0f;
         TeamTag tag;
+
+        // ── Hit cues (T951) ───────────────────────────────────────────────
+
+        /// <summary>Minimum seconds between two hit cues from the same Health, so a burst of
+        /// bullets doesn't stack more than one HitPlayer / HitEnemy per window.</summary>
+        public const float HitCueMinInterval = 0.05f;
+
+        /// <summary>Time.time of the last hit cue; negative = none yet.</summary>
+        private float _lastHitCueTime = -1f;
 
         // ── IDamageable implementation ────────────────────────────────────
 
@@ -71,7 +81,9 @@ namespace Biplanes.Core {
                 actualDamage = percent * GetDamageMultiplier(src);
             }
 
+            float before = currentDamage;
             currentDamage = Mathf.Clamp(currentDamage + actualDamage, 0f, 100f);
+            PlayHitCue(currentDamage - before);
 
             // Notify listeners if the entity is a player-side one
             if (Team == Team.Player) {
@@ -104,6 +116,28 @@ namespace Biplanes.Core {
         }
 
         // ── Internal helpers ──────────────────────────────────────────────
+
+        /// <summary>
+        /// Hit cue for a hit that added `added` percent (T951): HitPlayer when the player is
+        /// hurt, HitEnemy for a non-fatal hit on an enemy (a fatal one gets an explosion; enemy
+        /// IDamageables only take damage from the player's weapons and rams). No cue for a
+        /// 0-damage hit or a heal, and at most one per HitCueMinInterval. Never throws when the
+        /// AudioManager is absent (EditMode).
+        /// </summary>
+        private void PlayHitCue(float added) {
+            if (added <= 0f) return;
+            SfxId id;
+            if (Team == Team.Player) id = SfxId.HitPlayer;
+            else if (Team == Team.Enemy && !IsDead) id = SfxId.HitEnemy;
+            else return;
+
+            float now = Time.time;
+            if (_lastHitCueTime >= 0f && now - _lastHitCueTime < HitCueMinInterval) return;
+            var audio = AudioManager.GetOrNull();
+            if (audio == null) return;
+            _lastHitCueTime = now;
+            audio.Play(id, transform.position);
+        }
 
         private float GetDamageMultiplier(DamageSource src) {
             var balance = GameBalance.Get();

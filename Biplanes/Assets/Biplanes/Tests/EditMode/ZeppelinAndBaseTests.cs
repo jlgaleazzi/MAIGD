@@ -58,7 +58,8 @@ namespace Biplanes.Tests {
             foreach (var go in Resources.FindObjectsOfTypeAll<GameObject>()) {
                 if (go == null) continue;
                 bool pool = go.name == "FlakShellPool" || go.name.StartsWith("Pool<");
-                bool fx = go.name == "Explosion";
+                // B030: a flak hit on the player now also plays a "FlakBurst" (T945).
+                bool fx = go.name == "Explosion" || go.name == "FlakBurst" || go.name == "SmokePuff";
                 if ((pool || fx) && (go.scene.IsValid() || go.hideFlags == HideFlags.HideAndDontSave)) {
                     Object.DestroyImmediate(go);
                 }
