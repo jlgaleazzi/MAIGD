@@ -1,0 +1,9 @@
+TASK: B058
+AGENT: mechanics
+STATUS: DONE
+FILES: Biplanes/Assets/Biplanes/Scripts/UI/MainMenuView.cs, docs/crew/handoffs/B058-mechanics.md
+SUMMARY: New BuildTitleArt() (called before BuildTitle) loads Resources "Sprites/ui/title_planes" once. If the sprite is there, it adds an Image (white tint, preserveAspect, raycastTarget off) in a 640-unit-wide band that runs from 8 units above the logo top to 12 units below the canvas top, so the art shrinks to fit and never overlaps the logo. If it is missing, one LogWarning and nothing is drawn. The logo fallback text now reads "Biplanes".
+  To make room, the logo moved from y 190 / 640x160 to y 145 / 520x130 (it spans y 80..210, still 32 units clear of the mission row top at 48). Buttons, locking, audio cues and press inversion are unchanged.
+  Approximate art size in reference units (1280x720 ref, match 0.5): 1280x720 and 1920x1080 give a band of ~138, so the art is ~441x138 (about 662x207 px at 1080p, centre ~y 279 = ~419 px). 1024x768 gives a band of ~193, so the art is ~617x193. Art aspect is assumed to be ~3.2:1. At 16:9 the band is shorter than the spec's ~300 px.
+VERIFY: python tools/compile_check.py -> PASS Biplanes, PASS Biplanes.Editor (exit 0). Unity was closed, so I ran UNITY_PATH="/d/Program Files/6000.6.5f1/Editor/Unity.exe" bash tools/unity.sh test -> total=482 passed=482 failed=0. Visual check pending for the user (BuildScenes, then Play, at 1920x1080, 1280x720 and 1024x768), once art A-TITLE delivers title_planes.png.
+REQUESTS: orchestrator: UI_SPEC §3.1. Record the logo resize (y 145, 520x130 ref units). Also record that title_planes fills the band between the logo top and the canvas top, so at 16:9 it draws ~660x210 px at 1080p rather than 960x300 (centre ~y 419 px). Getting the full 960x300 at 16:9 would mean moving the mission row down, which this brief ruled out.

@@ -18,11 +18,17 @@ namespace Biplanes.Weapons {
 
         private const int PoolSize = 32;
         private const float ColliderRadius = 0.08f;
+        /// <summary>Sprite size in pixels: 3 long (along +x, the flight direction) by 1 thick (B039).</summary>
+        private const int SpriteWidth = 3;
+        private const int SpriteHeight = 1;
+        /// <summary>Art scale: 100 px = 1 world unit.</summary>
+        private const float PixelsPerUnit = 100f;
         /// <summary>World units past the screen edge before a bullet counts as off screen.</summary>
         private const float OffScreenMargin = 0.5f;
 
-        /// <summary>Hostile tint (#E4572E) on the same 6x2 white rect the player's bullet uses.</summary>
-        private static readonly Color HostileTint = new Color(0xE4 / 255f, 0x57 / 255f, 0x2E / 255f, 1f);
+        /// <summary>Ink white (#E8F1FA). White-only palette (GDD Style Guide, 2026-11-18): enemy
+        /// tracers differ from the player's solid streak by SHAPE, not colour.</summary>
+        private static readonly Color Ink = new Color(0xE8 / 255f, 0xF1 / 255f, 0xFA / 255f, 1f);
 
         private static ObjectPool<EnemyBullet> _pool;
         /// <summary>Scene object that owns every enemy bullet. Unity-null after a scene unload → rebuild.</summary>
@@ -114,7 +120,7 @@ namespace Biplanes.Weapons {
             _pool?.Dispose();
             _root = new GameObject("EnemyBulletPool");
             _cam = null;
-            if (_sprite == null) _sprite = CreateSolidSprite(Color.white, 6, 2, 32f);
+            if (_sprite == null) _sprite = CreateDotGapDotSprite(Ink);
 
             var rootTransform = _root.transform;
             _pool = new ObjectPool<EnemyBullet>(() => MakeBullet(rootTransform), PoolSize, rootTransform);
@@ -131,7 +137,6 @@ namespace Biplanes.Weapons {
 
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = _sprite;
-            sr.color = HostileTint;
             sr.sortingOrder = 15;
 
             var rb = go.AddComponent<Rigidbody2D>();
@@ -141,22 +146,44 @@ namespace Biplanes.Weapons {
             col.isTrigger = true;
             col.radius = ColliderRadius;
 
-            return go.AddComponent<EnemyBullet>();
+            var bullet = go.AddComponent<EnemyBullet>();
+            // Configure at construction too: Awake doesn't run outside Play mode (EditMode
+            // tests), which left unprimed pool bullets on Team.Neutral (B047).
+            bullet.ApplyStats();
+            return bullet;
         }
 
-        private static Sprite CreateSolidSprite(Color color, int width, int height, float pixelsPerUnit) {
-            var tex = new Texture2D(width, height);
-            var pixels = new Color[width * height];
-            for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
+        /// <summary>
+        /// Builds the enemy tracer (B039): a 3x1 "dot-gap-dot" burst, ink pixels at both ends and
+        /// a transparent middle pixel, so it reads apart from the player's solid 3x1 line by shape.
+        /// Point filter, clamp, pivot centre, long axis along +x, 100 ppu. Called once (cached).
+        /// </summary>
+        private static Sprite CreateDotGapDotSprite(Color color) {
+            var tex = new Texture2D(SpriteWidth, SpriteHeight, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Point;
+            tex.wrapMode = TextureWrapMode.Clamp;
+            var clear = new Color(color.r, color.g, color.b, 0f);
+            var pixels = new Color[SpriteWidth * SpriteHeight];
+            for (int y = 0; y < SpriteHeight; y++) {
+                for (int x = 0; x < SpriteWidth; x++) {
+                    pixels[y * SpriteWidth + x] = (x == SpriteWidth / 2) ? clear : color;
+                }
+            }
             tex.SetPixels(pixels);
             tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), pixelsPerUnit);
+            return Sprite.Create(tex, new Rect(0, 0, SpriteWidth, SpriteHeight),
+                                 new Vector2(0.5f, 0.5f), PixelsPerUnit);
         }
 
         // ── Lifecycle ─────────────────────────────────────────────────────
 
         private void Awake() {
             // Set in Awake, not Start: Projectile.Init applies speed on the first Pop, before Start.
+            ApplyStats();
+        }
+
+        /// <summary>Team, speed, lifetime and damage from Balance.json (enemyFire). Idempotent.</summary>
+        private void ApplyStats() {
             var fire = EnemyFireData.Resolve(GameBalance.Get());
             team = Team.Enemy;
             speed = fire.bulletSpeed;

@@ -200,7 +200,11 @@ namespace Biplanes.Tests {
             public void Start(int mission) {
                 Runner.StartMission(mission);
                 if (ScrollController.Instance == null) {
-                    ScrollController.Instance = Object.FindFirstObjectByType<ScrollController>();
+                    // T962: pick the controller bound to this fixture's camera, not one leaked
+                    // by another fixture (its camera is destroyed, so MissionDistanceX is 0).
+                    foreach (var sc in Object.FindObjectsByType<ScrollController>(FindObjectsInactive.Include, FindObjectsSortMode.None)) {
+                        if (sc != null && sc.Camera == Cam) { ScrollController.Instance = sc; break; }
+                    }
                 }
                 Assert.IsNotNull(ScrollController.Instance, "StartMission creates a ScrollController");
             }
@@ -228,6 +232,7 @@ namespace Biplanes.Tests {
                 DestroyAll<EnemyBase>();
                 DestroyAll<PlayerHQ>();
                 if (ScrollController.Instance != null) Object.DestroyImmediate(ScrollController.Instance.gameObject);
+                DestroyAll<ScrollController>();   // T962: Next/Retry may have made more than one in EditMode
                 ScrollController.Instance = null;
                 Object.DestroyImmediate(RunnerGo);
 

@@ -14,6 +14,8 @@ namespace Biplanes.Missions {
     /// Objective types (ARCHITECTURE §5):
     ///   - destroyAllOfType: completes when the Team.Enemy kills of targetType reach the number
     ///     of that type the mission JSON spawns (sum of `count` over matching spawn entries).
+    ///     Enemy-pressure reinforcements ("fighterReinforcement") count as "fighter" kills
+    ///     (B050, GDD "Enemy pressure"); the required number stays the JSON spawn total.
     ///   - destroyById: completes when MissionRunner reports the spawn with id == targetId
     ///     destroyed (OnTargetDestroyed).
     ///   - bombTarget: completes when MissionRunner reports a bomb kill of targetId, or of
@@ -70,7 +72,7 @@ namespace Biplanes.Missions {
             for (int i = 0; i < _objectives.Length; i++) {
                 var obj = _objectives[i];
                 if (obj == null || obj.evaluated || obj.type != "destroyAllOfType") continue;
-                if (!SameType(obj.targetType, entityType)) continue;
+                if (!CountsAsKillOf(obj.targetType, entityType)) continue;
 
                 _kills[i]++;
                 Debug.Log($"ObjectiveTracker: destroyed {entityType} {_kills[i]}/{_required[i]} for objective {obj.id}");
@@ -209,6 +211,30 @@ namespace Biplanes.Missions {
         }
 
         public bool AllComplete => _completedCount >= (_objectives?.Length ?? 0);
+
+        /// <summary>
+        /// destroyAllOfType objective `index`: kills still needed (required - counted, never
+        /// below 0). 0 for other objective types, completed objectives or a bad index. Lets the
+        /// HUD show the tracker's own count instead of keeping a second one.
+        /// </summary>
+        public int RemainingKills(int index) {
+            if (_objectives == null || index < 0 || index >= _objectives.Length) return 0;
+            var obj = _objectives[index];
+            if (obj == null || obj.evaluated || obj.type != "destroyAllOfType") return 0;
+            return Mathf.Max(0, _required[index] - _kills[index]);
+        }
+
+        /// <summary>
+        /// True when a kill of `entityType` (the EntityDestroyed key) counts toward a
+        /// destroyAllOfType objective on `targetType`: the same key (case-insensitive), or a
+        /// reinforcement fighter (ScoreKeeper.ReinforcementFighterKey) for a "fighter" target
+        /// (B050). Shared so the HUD, minimap and escape logic can match the tracker exactly.
+        /// </summary>
+        public static bool CountsAsKillOf(string targetType, string entityType) {
+            if (SameType(targetType, entityType)) return true;
+            return SameType(targetType, "fighter")
+                && SameType(entityType, ScoreKeeper.ReinforcementFighterKey);
+        }
 
         // ── Internal helpers ─────────────────────────────────────────
 

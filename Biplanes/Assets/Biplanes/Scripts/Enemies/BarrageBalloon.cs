@@ -172,8 +172,9 @@ namespace Biplanes.Enemies {
             _tetherLine.positionCount = 2;
             _tetherLine.startWidth = 0.03f;
             _tetherLine.endWidth   = 0.03f;
-            _tetherLine.startColor = new Color(0.6f, 0.55f, 0.4f, 0.7f); // muted brown
-            _tetherLine.endColor   = new Color(0.6f, 0.55f, 0.4f, 0.1f); // fades at bottom
+            // Pencil #9DB4CC (white-only palette), fading towards the ground.
+            _tetherLine.startColor = new Color(0x9D / 255f, 0xB4 / 255f, 0xCC / 255f, 0.7f);
+            _tetherLine.endColor   = new Color(0x9D / 255f, 0xB4 / 255f, 0xCC / 255f, 0.1f);
             _tetherLine.material   = null; // use default UI line shader for thin lines
         }
 
@@ -228,7 +229,7 @@ namespace Biplanes.Enemies {
         /// <summary>Creates a minimal 1×1 white Sprite — never crash on missing assets.</summary>
         private static Sprite CreateWhiteSprite() {
             var tex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-            tex.SetPixel(0, 0, Color.white);
+            tex.SetPixel(0, 0, new Color(0xE8 / 255f, 0xF1 / 255f, 0xFA / 255f, 1f)); // ink #E8F1FA
             tex.Apply();
             return Sprite.Create(tex, Rect.zero, Vector2.one * 0.5f);
         }

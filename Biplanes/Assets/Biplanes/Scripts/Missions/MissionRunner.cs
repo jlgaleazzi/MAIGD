@@ -99,11 +99,62 @@ namespace Biplanes.Missions {
         private const float MinPlaneHeight = 1.5f;
         /// <summary>Keep planes at least this far below the top of the screen.</summary>
         private const float PlaneTopMargin = 1f;
-        /// <summary>Sine fighters weave ±2 (FighterAI.sineAmplitude); keep the dip above ground.</summary>
+        /// <summary>Extra lowest spawn height for "sine" fighters. Since B059 the sine pattern is
+        /// only a ±0.5 wobble on the chase height (FighterAI.sineAmplitude), and the chase keeps
+        /// every fighter at least FighterAI.ChaseGroundClearance above the terrain, so 2 is more
+        /// than the dip needs: sine fighters just spawn a little higher (harmless).</summary>
         private const float SineDipAllowance = 2f;
 
         /// <summary>List of entity GameObjects spawned this mission (for cleanup)."</summary>
         private readonly List<GameObject> _spawnedEntities = new List<GameObject>();
+
+        /// <summary>Enemy aircraft spawned this mission (FighterAI, BomberAI, ZeppelinAI, and
+        /// EnemyPressure reinforcements). Destroyed ones turn Unity-null and are pruned on the
+        /// next spawn. EnemyPressure reads it instead of a per-frame scene search (B035).</summary>
+        private readonly List<MonoBehaviour> _enemyAircraft = new List<MonoBehaviour>();
+
+        /// <summary>Enemy-pressure safety net (B035), one per mission.</summary>
+        private EnemyPressure _pressure;
+
+        /// <summary>Movement pattern of EnemyPressure reinforcement fighters.</summary>
+        private const string ReinforcementPattern = "straight";
+
+        /// <summary>Enemy aircraft spawned this mission (may hold destroyed entries: null-check).</summary>
+        public IReadOnlyList<MonoBehaviour> EnemyAircraft => _enemyAircraft;
+
+        /// <summary>Ground enemies spawned this mission (AAAGun, BarrageBalloon, EnemyBase).
+        /// Destroyed ones turn Unity-null and are pruned on the next spawn. Read by the HUD
+        /// minimap (B044) instead of a scene search.</summary>
+        private readonly List<MonoBehaviour> _groundEnemies = new List<MonoBehaviour>();
+
+        /// <summary>Ground enemies spawned this mission (may hold destroyed entries: null-check).</summary>
+        public IReadOnlyList<MonoBehaviour> GroundEnemies => _groundEnemies;
+
+        /// <summary>Mission length in world units (0 outside a mission).</summary>
+        public float MissionLength => _missionData != null ? _missionData.length : 0f;
+
+        /// <summary>Number of spawn entries this mission (MissionData.spawns), 0 outside a mission.</summary>
+        public int SpawnEntryCount => _spawnedFlags != null ? _spawnedFlags.Length : 0;
+
+        /// <summary>True while spawn entry `index` (MissionData.spawns) hasn't triggered yet.
+        /// False for an out-of-range index or outside a mission (B044 minimap).</summary>
+        public bool IsSpawnPending(int index) {
+            return _spawnedFlags != null && index >= 0 && index < _spawnedFlags.Length && !_spawnedFlags[index];
+        }
+
+        /// <summary>The mission's player plane (null outside a mission).</summary>
+        public PlayerPlane Player => _playerPlane;
+
+        /// <summary>A mission is running and has an objective still open (not won, lost or
+        /// otherwise ended).</summary>
+        public bool ObjectivesOpen => _missionData != null && !_missionEnded
+            && _objectiveTracker != null && !_objectiveTracker.AllComplete;
+
+        /// <summary>The mission is loaded and the player's first input has started it (B049).
+        /// False while waiting: the scroll is held, the plane holds still and EnemyPressure's
+        /// timer stays reset. Stays true after the mission ends.</summary>
+        public bool HasStarted => _missionData != null
+            && (ScrollController.Instance == null || !ScrollController.Instance.IsHeld);
 
         // ── Public API ──────────────────────────────────────────────────────
 
@@ -153,12 +204,17 @@ namespace Biplanes.Missions {
             // a length <= start pins the camera at the start instead of leaving it unbounded.
             float startCameraX = sc.MissionDistanceX;
             sc.SetLimits(startCameraX, _missionData.length);
+            // Mission start gate (B049): the world holds still until the player's first input
+            // (PlayerPlane releases the scroll). Retry and Next run StartMission again, so they
+            // wait again too.
+            sc.Hold();
 
             // --- Background and ground (ARCHITECTURE §3 Missions) ---
             // StartMission can run again without a scene reload (ResultView "Next"),
             // so replace the previous mission's world first.
-            if (_background != null) Destroy(_background.gameObject);
-            if (_terrain != null) Destroy(_terrain.gameObject);
+            // DestroyNow: DestroyImmediate outside Play mode (EditMode tests), Destroy in Play.
+            if (_background != null) DestroyNow(_background.gameObject);
+            if (_terrain != null) DestroyNow(_terrain.gameObject);
             _background = ParallaxBackground.Create(_missionData.background, Camera.main);
             _terrain = TerrainStrip.Create(_missionData.terrain, _missionData.length);
 
@@ -207,6 +263,11 @@ namespace Biplanes.Missions {
             // --- Create HUD ---
             CreateHud();
 
+            // --- Enemy pressure (B035): reinforcements when the sky stays empty ---
+            _pressure = GetComponent<EnemyPressure>();
+            if (_pressure == null) _pressure = gameObject.AddComponent<EnemyPressure>();
+            _pressure.Init(this, PressureData.Resolve(GameBalance.Get()));
+
             // NOTE: Do NOT call GameManager.StartMission() here. GameManager owns the
             // state machine and calls this method; calling back caused infinite recursion
             // (stack overflow crash on launch). GameManager sets Playing after we return.
@@ -252,16 +313,14 @@ namespace Biplanes.Missions {
 
                 switch (typeLower) {
                     case "fighter": {
-                        var fighter = FighterAI.Spawn(position);
-                        // Before its Start runs, so sine/dive use the random start height.
-                        fighter.Configure(entry.pattern, entry.escortOf);
-                        entityGO = fighter.gameObject;
+                        entityGO = SpawnFighter(position, entry.pattern, entry.escortOf).gameObject;
                         break;
                     }
 
                     case "bomber": {
                         // The id lets escorts find it (FighterAI.FindEscortTarget, B020).
                         var bomber = BomberAI.Spawn(position, entry.id);
+                        RegisterAircraft(bomber);
                         // targetX = the world x it must not reach (objective failAtX, B018).
                         bool watch = ResolveTargetX(entry, position, out float bomberTargetX);
                         bomber.SetTargetX(bomberTargetX);
@@ -275,6 +334,7 @@ namespace Biplanes.Missions {
                         // AAA guns are ground-bound (y = -4.5 per ARCHITECTURE §3).
                         var gun = AAAGun.Spawn(new Vector3(posX, GetTerrainHeightAt(posX), 0f));
                         _aaagunsToInit.Add(gun);
+                        RegisterGroundEnemy(gun);
                         entityGO = gun.gameObject;
                         break;
                     }
@@ -287,6 +347,7 @@ namespace Biplanes.Missions {
 
                     case "barrageballoon": {
                         var balloon = BarrageBalloon.Spawn(position);
+                        RegisterGroundEnemy(balloon);
                         entityGO = balloon.gameObject;
                         break;
                     }
@@ -302,6 +363,7 @@ namespace Biplanes.Missions {
                         // Ground-bound: the factory rests its bottom edge on `position`.
                         var enemyBase = EnemyBase.Spawn(position, entry.id);
                         TrackIdTarget(entry.id, EnemyBase.TypeKey, enemyBase);
+                        RegisterGroundEnemy(enemyBase);
                         entityGO = enemyBase.gameObject;
                         break;
                     }
@@ -315,6 +377,7 @@ namespace Biplanes.Missions {
                         // Not a random-placement plane: keeps atX and its JSON y (the hull
                         // clamps itself below the screen top in Start).
                         var zeppelin = ZeppelinAI.Spawn(position, entry.id);
+                        RegisterAircraft(zeppelin);
                         if (_playerPlane != null) zeppelin.Init(_playerPlane);
                         // targetX = the world x it must not reach (objective failAtX, B018);
                         // while it has one it never despawns behind the camera.
@@ -339,6 +402,105 @@ namespace Biplanes.Missions {
         }
 
         /// <summary>
+        /// The one fighter factory path (JSON fighters and reinforcements): FighterAI.Spawn,
+        /// then Configure before its Start runs (so sine/dive use the start height), then
+        /// tracked for cleanup and for EnemyPressure.
+        /// </summary>
+        private FighterAI SpawnFighter(Vector3 position, string pattern, string escortOf) {
+            var fighter = FighterAI.Spawn(position);
+            fighter.Configure(pattern, escortOf);
+            RegisterAircraft(fighter);
+            return fighter;
+        }
+
+        /// <summary>Adds an enemy aircraft to the EnemyPressure list, dropping destroyed ones.</summary>
+        private void RegisterAircraft(MonoBehaviour aircraft) {
+            _enemyAircraft.RemoveAll(a => a == null);
+            if (aircraft != null) _enemyAircraft.Add(aircraft);
+        }
+
+        /// <summary>Adds a ground enemy to the minimap list, dropping destroyed ones.</summary>
+        private void RegisterGroundEnemy(MonoBehaviour enemy) {
+            _groundEnemies.RemoveAll(e => e == null);
+            if (enemy != null) _groundEnemies.Add(enemy);
+        }
+
+        /// <summary>
+        /// EnemyPressure reinforcement (B035, B040): plane `index` of a `count`-plane wave. It
+        /// enters just past the screen edge the player faces (EnemyPressure.EntryX /
+        /// EntryOffset: plane 0 within half a unit of being on screen, later planes
+        /// EntryStagger further out) and flies the straight pattern toward the player, at a
+        /// height in slice `index` of the flight band (terrain + MinPlaneHeight .. screen top -
+        /// PlaneTopMargin). It is named ScoreKeeper.ReinforcementFighterKey: it scores like a
+        /// fighter and its kill counts toward destroyAllOfType "fighter" (B050; the required
+        /// total stays the JSON fighter count). Returns null when no
+        /// camera exists.
+        /// </summary>
+        public FighterAI SpawnReinforcementFighter(int index, int count) {
+            var cam = ScrollController.Instance != null && ScrollController.Instance.Camera != null
+                ? ScrollController.Instance.Camera : Camera.main;
+            if (cam == null) return null;
+
+            int facing = PlayerFacing;
+            float x = EnemyPressure.EntryX(cam.transform.position.x, cam.orthographicSize * cam.aspect,
+                facing, EnemyPressure.EntryOffset(index, Random.value));
+            float low = GetTerrainHeightAt(x) + MinPlaneHeight;
+            float high = cam.transform.position.y + cam.orthographicSize - PlaneTopMargin;
+            float y = EnemyPressure.SliceHeight(low, high, index, count, Random.value);
+
+            var fighter = SpawnFighter(new Vector3(x, y, 0f), ReinforcementPattern, "");
+            fighter.gameObject.name = ScoreKeeper.ReinforcementFighterKey;
+            fighter.SetFlightDirection(EnemyPressure.EntryFlightDirection(facing));
+            _spawnedEntities.Add(fighter.gameObject);
+            return fighter;
+        }
+
+        /// <summary>The way the player faces (+1 right, -1 left): the scroll direction, else the
+        /// plane's Facing, else right.</summary>
+        public int PlayerFacing {
+            get {
+                if (ScrollController.Instance != null) return ScrollController.Instance.Direction < 0 ? -1 : 1;
+                if (_playerPlane != null) return _playerPlane.Facing < 0 ? -1 : 1;
+                return 1;
+            }
+        }
+
+        /// <summary>
+        /// True while the mission runs and an unevaluated destroyAllOfType objective counts
+        /// entities of `typeKey` (case-insensitive, the ObjectiveTracker match). EnemyPressure
+        /// asks it for escaped fighters (B040): needed ones re-enter, the rest are removed.
+        /// </summary>
+        public bool OpenDestroyAllCounts(string typeKey) {
+            if (!ObjectivesOpen || string.IsNullOrEmpty(typeKey) || _missionData.objectives == null) return false;
+            foreach (var obj in _missionData.objectives) {
+                if (obj == null || obj.evaluated || obj.type != "destroyAllOfType") continue;
+                if (string.Equals(obj.targetType, typeKey, System.StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Escaped-fighter re-entry (B040, GDD "Enemy pressure"): the same fighter (same name
+        /// and damage, so it still counts for its objective) re-enters just past the screen edge
+        /// the player faces, flying toward the player, at a random height in the flight band
+        /// (RandomPlaneY, so sine fighters keep their dip allowance). Returns false without a
+        /// camera.
+        /// </summary>
+        public bool ReEnterFighter(FighterAI fighter) {
+            if (fighter == null) return false;
+            var cam = ScrollController.Instance != null && ScrollController.Instance.Camera != null
+                ? ScrollController.Instance.Camera : Camera.main;
+            if (cam == null) return false;
+
+            int facing = PlayerFacing;
+            float x = EnemyPressure.EntryX(cam.transform.position.x, cam.orthographicSize * cam.aspect,
+                facing, EnemyPressure.EntryOffset(0, Random.value));
+            float y = RandomPlaneY(cam, x, fighter.Pattern);
+            fighter.ReEnter(new Vector3(x, y, 0f), EnemyPressure.EntryFlightDirection(facing));
+            return true;
+        }
+
+        /// <summary>
         /// Called when an entity is destroyed. Delegates to ObjectiveTracker for objective
         /// evaluation and checks if the last objective just completed — triggering mission end.
         /// </summary>
@@ -353,7 +515,8 @@ namespace Biplanes.Missions {
             if (_objectiveTracker != null && _objectiveTracker.AllComplete) {
                 _missionEnded = true;
                 Debug.Log("MissionRunner: all objectives complete — mission won!");
-                GameManager.Instance?.SetState(GameManager.GameState.Won);
+                // GetOrNull: never builds a GameManager outside Play mode (B047).
+                GameManager.GetOrNull()?.SetState(GameManager.GameState.Won);
 
                 // Persist score and unlock next mission via ScoreKeeper.
                 var sk = ScoreKeeper.Instance;
@@ -415,7 +578,7 @@ namespace Biplanes.Missions {
             _missionEnded = true;
             Debug.Log($"MissionRunner: objective '{objectiveId}' failed — mission lost ({reason}).");
 
-            var gm = GameManager.Instance;
+            var gm = GameManager.GetOrNull();
             if (gm != null) {
                 gm.LoseMission(reason);
             } else {
@@ -723,6 +886,8 @@ namespace Biplanes.Missions {
                 if (go != null) DestroyNow(go);
             }
             _spawnedEntities.Clear();
+            _enemyAircraft.Clear();
+            _groundEnemies.Clear();
             _aaagunsToInit.Clear();
 
             if (_hud != null) DestroyNow(_hud.gameObject);
@@ -751,6 +916,8 @@ namespace Biplanes.Missions {
             GameEvents.MissionEnded -= OnMissionEnded;
             EnemyBase.Destroyed -= OnEnemyBaseDestroyed;
             _spawnedEntities.Clear();
+            _enemyAircraft.Clear();
+            _groundEnemies.Clear();
             _idTargets.Clear();
         }
 

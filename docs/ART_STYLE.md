@@ -3,20 +3,20 @@
 Owner: art agent. Per the GDD: duotone. Main elements (hero, enemies, targets) are crisp
 **wireframes**. Backgrounds are looser **pencil illustration**.
 
-## Palette (duotone plus one accent per team)
+## Palette (white only: four colours, no accents)
 | Token | Hex | Use |
 |---|---|---|
 | `paper` | `#0F2A4A` | Blueprint background fill (deep blueprint blue) |
 | `paper-grid` | `#1C3F66` | Blueprint grid lines, 1px, 32px spacing |
 | `ink` | `#E8F1FA` | All wireframe strokes (near-white chalk) |
 | `pencil` | `#9DB4CC` | Background pencil strokes (mountains, buildings, clouds) |
-| `friendly` | `#F2C14E` | Player bullets only |
-| `hostile` | `#E4572E` | Enemy tracers and flak bursts only |
-| `heal` | `#7BD389` | Health balloon cross only |
 
-Don't use any color outside this table. Accents are used only for projectiles, flak and
-the health cross, so the screen stays duotone. **Faction marks are ink white** (user
-decision, T918).
+Don't use any color outside this table. **White only** (user decision 2026-11-18: "only
+use white color for all game elements"): every game element (planes, targets, bullets,
+bombs, flak, pickups, faction marks, UI) is ink white. There are no accent colours; the
+former friendly yellow, hostile red and heal green were removed in A-WHITE. Things that
+used colour now read by **shape**: flak by its bold spiky star, the health balloon by its
+bold double-outlined solid cross. **Faction marks are ink white** (user decision, T918).
 
 ## Blueprint detail style (sprites)
 This replaces the old wireframe stroke rules (3 / 1.5 px). The target look is the user's
@@ -31,9 +31,8 @@ blueprint-sourced sprites alike.
   wheel spokes and hubs, hatching for shading, and small serial or label marks drawn as
   tiny stroked paths (no `<text>`). Propeller: a dashed disc plus a blade line.
 - Dimension and callout lines are optional on large sprites (bomber, zeppelin).
-- **No 3 px strokes, and no fills** except faction marks (ink) and accents.
-- Accents (only these): `friendly` #F2C14E for player bullets, `hostile` #E4572E for
-  enemy tracers and flak, `heal` #7BD389 for the health cross.
+- **No 3 px strokes, and no fills** except faction marks (ink) and the health cross (ink, `id="cross"`).
+- No accent colours (white only, user decision 2026-11-18).
 - Faction marks are **ink white**: player roundel = bullseye ink / paper / ink; enemy
   Iron Cross = a true cross pattee (arms narrow at the centre, flared at the ends) filled
   ink, on the fuselage and on the tail where visible.
@@ -92,8 +91,9 @@ FX are the one in-world exception to crisp wireframes: they are hand-drawn penci
 - **Wisps:** wavy S-curves (amplitude ≤ 0.3 × wave length), never straight lines.
 - **Debris:** small stroked 3–4 sided shards with two short motion lines toward the centre.
 - **Colour:** ink `#E8F1FA` for bright/near strokes, pencil `#9DB4CC` for soft smoke and
-  dissipating frames, opacity 0.35–1. Only flak may use `hostile` `#E4572E` (flash, hot
-  core, embers). Explosions use no accents.
+  dissipating frames, opacity 0.35–1. No accents (white only,
+  2026-11-18). Flak reads by shape: a bold spiky ink star (1.75 px flash, small 1.25–1.5 px
+  star core in frames 1–2) with dense ink cross-hatching; explosions have lobed cores.
 - Keep ~6 px padding; transparent background; check at 1:1 on `paper`.
 
 ## Asset list (name = file name; size in px)
@@ -101,6 +101,7 @@ FX are the one in-world exception to crisp wireframes: they are hand-drawn penci
 |---|---|---|---|
 | player | `player_biplane` | 160×80 | **From `blueprints/airplane_blueprint_256px.png`** via `tools/import_blueprints.py` (not SVG). "U" plus roundel bullseye on the fuselage; the roundel is redrawn ink / paper / ink by the importer |
 | player | `player_biplane_frame2` | 160×80 | Propeller animation frame 2. **From the same blueprint** via `tools/import_blueprints.py`: identical to `player_biplane` (same crop and pivot) except the propeller, which is a dashed disc with a short foreshortened blade |
+| player | `player_bomb` | 32×14 | SVG `art-src/player/player_bomb.svg`. The player's falling bomb: a small copy of `ui_bomb_icon` lying horizontally, **nose right (+x)**, fins left; code rotates it along the velocity. **Ink white** strokes (user decision: game elements are white, not friendly yellow) (outline 1.25, fins 1, seams 0.5–0.6), paper body fill as opaque backing. Pivot = visual centre; ~1–2 px padding (too small for 8) |
 | enemies | `enemy_fighter` | 150×75 | **From `blueprints/fokker_blueprint_transparent_256px.png`** via `tools/import_blueprints.py` (not SVG), mirrored to face right. Iron Crosses on fuselage and tail, redrawn as ink crosses pattee by the importer; line weight normalized to the player |
 | enemies | `enemy_bomber` | 320×140 | **From `blueprints/enemy_bomber_blueprint_clean_256px.png`** via `tools/import_blueprints.py` (not SVG), mirrored to face right. Two-seat biplane with a rear gunner's gun; Iron Crosses on fuselage and tail, redrawn as ink crosses pattee by the importer; serial "VII" trimmed to "V" (mirroring would read "IIV"); line weight normalized to the player |
 | enemies | `zeppelin_hull` | 900×220 | Rib lines, gondola, Iron Cross on the tail fin |
@@ -111,14 +112,15 @@ FX are the one in-world exception to crisp wireframes: they are hand-drawn penci
 | obstacles | `tree_a`, `tree_b` | 80×120 | Wireframe (collidable) |
 | targets | `enemy_base` | 260×120 | Hangar plus flag, hostile mark |
 | targets | `airfield`, `player_hq` | 400×100 | Friendly mark |
-| pickups | `health_balloon` | 70×100 | heal-colored cross |
-| projectiles | `bullet`, `enemy_bullet`, `bomb`, `flak_shell` | 16–24 | Accent colored |
+| pickups | `health_balloon` | 70×100 | Bold ink cross: paper knock-out with 1.25 px ink outline, solid ink inner cross (double outline), group `id="cross"` |
+| projectiles | `bullet`, `enemy_bullet`, `bomb`, `flak_shell` | 16–24 | Ink white; player bullets solid streaks, enemy tracers dashed pairs (code tints removed, B038) |
 | fx | `explosion_0..5` | 128×128 | Pencil FX (section above). 0 spiky flash + rays + debris (FxManager plays all 6 frames at 0.08 s each, B030), 1–3 growing hatched billows, 4–5 broken contour and wavy wisps. Ink/pencil only, no accents |
 | fx | `smoke_puff` | 48×48 | Pencil FX: one lobed puff, sketchy double contour, hatched underside, two small wisps |
-| fx | `flak_burst_0..3` | 96×96 | Pencil FX: 0 hostile hatched star flash + ink rays, 1–2 ink billows with a hostile hatched hot core, 3 broken cloud with a few hostile embers |
+| fx | `flak_burst_0..3` | 96×96 | Pencil FX: 0 bold ink star flash (densely cross-hatched) + ink rays, 1–2 ink billows with a small bold cross-hatched star core, 3 broken cloud with a few ink embers. White only, reads by the star shape |
 | backgrounds | `bg_<theme>_far/mid/near` | 1920×1080 | Engraved sketch, tileable; only `far` opaque, `mid`/`near` transparent. Themes: `farmland` (M1–2), `frontline` (M3), `enemyland` (M4), `stormsky` (M5) |
 | ui | `ui_bomb_icon`, `ui_damage_frame`, `ui_panel`, `ui_button` | various | Blueprint-styled |
-| ui | `title_logo` | 1200×300 | "BIPLANES" in blueprint stencil lettering, built from paths (no font dependency) |
+| ui | `title_logo` | 1200×300 | SVG `art-src/ui/title_logo.svg` (rendered 2× = 2400×600). The word "Biplanes" (capital B, lowercase rest) in monoline technical lettering built from paths (no `<text>`): 4 px ink strokes, cap line y70, x-height y130, baseline y210, descender y255, r40 bowls. Paper panel with 32 px grid, double frame, corner marks, dashed pencil guide lines, width and cap-height dimension callouts. Displayed at 640×160 on the menu (A-TITLE) |
+| ui | `title_planes` | 960×300 | **Composite from blueprints** via `tools/import_blueprints.py` `COMPOSITES` (no SVG): player biplane (1.47× its source, roundel) chasing the mirrored enemy fighter (1.38×, gain 2.0, ink crosses pattee, serial and cockpit mark erased so nothing reads mirrored), each with its paper backing; drawn under them: dashed flight-path arcs, ink tracer streaks, two dimension lines and callout bubbles I / II. Transparent background. Shown above the logo (A-TITLE) |
 
 ## Blueprint-sourced sprites
 **Aircraft backing:** every plane sprite (the blueprint sprites, and SVG aircraft listed
@@ -137,6 +139,9 @@ them to the asset-list size with 2 px padding. Currently:
   alpha gain 2.2)
 - `enemy_bomber` <- `blueprints/enemy_bomber_blueprint_clean_256px.png` (mirrored,
   alpha gain 0.65: its 1 px lines are fully opaque, so they are dimmed to the metric)
+
+- `ui/title_planes` <- a `COMPOSITES` entry: both blueprints placed on one canvas plus a
+  vector overlay function (flight paths, tracers, callouts) drawn at 8x supersampling.
 
 Their old SVG masters are retired in `art-src/_retired/` (skipped by `rasterize.py`). A
 sprite in the `SPRITES` table must not also have an SVG in `art-src/`.
@@ -178,9 +183,12 @@ re-run). Never hand-place a WAV; real recordings may later replace a clip under 
   `Biplanes/Assets/Biplanes/Resources/Audio/sfx/<name>.wav`. `--check` regenerates in
   memory, compares with disk and validates, writing nothing (exit 1 on any error).
   `--only name ...` limits the run. The script prints a per-clip report (duration, peak and
-  RMS dBFS, DC, first/last sample, loop seam jump, low <300 Hz / mid / high >3 kHz energy %).
+  RMS dBFS, DC, first/last sample, loop seam jump, low <300 Hz / mid / high >3 kHz energy %,
+  ring% = energy above 2 kHz left after the first 15 ms, the "tin" check), then the peak of a
+  1 s autofire burst (8 shots/s, summed) for each gun; a burst above -0.5 dBFS is an error.
 - **Format:** mono, 16-bit PCM, 44.1 kHz. Gameplay peak -3 dBFS; UI cues (`ui_*`,
-  `typewriter`) peak -13 dBFS (about 10 dB quieter); `stamp` and the muted `lose` -6 dBFS.
+  `typewriter`) peak -13 dBFS (about 10 dB quieter); `stamp`, the muted `lose` and the
+  distant `enemy_gun` -6 dBFS.
   One-shots: 20 Hz DC blocker, 2 ms fade-in, 10 ms fade-out (first/last sample 0). Loops are
   synthesised circularly (events wrap, noise filtered twice round the ring, tones with whole
   periods) so the last sample runs into the first.
@@ -188,11 +196,11 @@ re-run). Never hand-place a WAV; real recordings may later replace a clip under 
 | Clip | Length | Recipe |
 |---|---|---|
 | engine_loop | 1.5 s loop | 9-cyl rotary: 54 noise pops at 36 Hz (band-pass 650 Hz + 1.8 kHz bark), 118 Hz body per pop, prop-wash noise, faint 36/72 Hz drone |
-| player_gun | 0.13 s | high-passed noise crack + metal ring 2.25/3.4/5.15 kHz + small thump + bolt tick at 45 ms |
-| enemy_gun | 0.2 s | same family, ring 1.35/2.05/2.9 kHz, low-passed 2.6 kHz, early reflections (distance) |
+| player_gun | 0.15 s | Vickers round, noise only (no ringing sine modes, which read as tin): 1.5 ms broadband muzzle crack + 1.1 kHz wide noise bark + powder thump (sine 150 -> 75 Hz + 260 Hz low-passed noise, tau 16 ms, soft tanh) + dull 650 Hz bolt clack at 34 ms and belt clack at 56 ms + 2.5 kHz low-passed air tail; low 67% / high 4%, ring 0.7% |
+| enemy_gun | 0.2 s, -6 dBFS | same recipe, lower and duller: softer crack, 700 Hz bark, thump 115 -> 55 Hz (quieter), 480 Hz clacks, longer 1.5 kHz air tail, low-passed 2.2 kHz + early reflections at 19/34/53 ms (distance); low 73% / high 0.1% |
 | bomb_release | 0.45 s | double latch tick, then whistle 1.9 -> 1.15 kHz with breathy noise |
 | bomb_impact | 0.5 s | sine 75 -> 34 Hz + low-passed noise + wood modes + dirt crackle |
-| hit_enemy | 0.1 s | metallic tick 3.25/4.75 kHz + 45 ms grainy canvas rip (bright, light) |
+| hit_enemy | 0.1 s | round through doped canvas: 2.6 kHz noise tick (no ringing modes) + small 320 -> 200 Hz thup + 45 ms grainy canvas rip at 1.7 kHz (light, brighter than hit_player) |
 | hit_player | 0.3 s | low-passed crack + wood modes 225/470/910 Hz + 115 Hz thump + pencil scratch at 60 ms |
 | flak_fire | 0.35 s | dull pop: sine 125 -> 55 Hz + 600 Hz noise + low echoes |
 | flak_burst | 0.45 s | sharp high-passed crack + 95 Hz body + 800 Hz air puff + short crackle |

@@ -169,18 +169,25 @@ namespace Biplanes.Tests {
         // ── EnemyBullet ─────────────────────────────────────────────────
 
         [Test]
-        public void EnemyBullet_FighterShotDeals8Percent_BomberShotDeals10Percent() {
+        public void EnemyBullet_FighterShotDealsBalanceFighterBullet_BomberShotDealsBalanceBomberGunner() {
             PrimeBulletPool();
+            var taken = GameBalance.Get().damageTaken;
+            // B040 / GDD change log 2026-11-18: a fighter shot costs 5%, a bomber gunner shot 10%.
+            Assert.AreEqual(5f, taken.fighterBullet, 1e-4f, "Balance damageTaken.fighterBullet is 5 (B040)");
+            Assert.AreEqual(10f, taken.bomberGunner, 1e-4f, "Balance damageTaken.bomberGunner is 10");
 
+            // B052: player hits are divided by Balance player.resistance (1.5).
+            float res = PlayerData.ResistanceOrDefault(GameBalance.Get().player);
             var player = MakeHealth("player", Team.Player);
             var fighterShot = EnemyBullet.Spawn(Vector3.zero, Vector2.left, FighterAI.ShotSource);
             InvokeOnHit(fighterShot, player);
-            Assert.AreEqual(8f, player.CurrentDamagePercent, 1e-4f, "fighter shot = damageTaken.fighterBullet (8%)");
+            Assert.AreEqual(taken.fighterBullet / res, player.CurrentDamagePercent, 1e-4f, "fighter shot = damageTaken.fighterBullet / resistance");
             Assert.IsFalse(fighterShot.gameObject.activeSelf, "the bullet recycles on a hit");
 
             var bomberShot = EnemyBullet.Spawn(Vector3.zero, Vector2.left, BomberAI.GunnerShotSource);
             InvokeOnHit(bomberShot, player);
-            Assert.AreEqual(18f, player.CurrentDamagePercent, 1e-4f, "bomber shot = damageTaken.bomberGunner (10%)");
+            Assert.AreEqual((taken.fighterBullet + taken.bomberGunner) / res, player.CurrentDamagePercent, 1e-4f,
+                "bomber shot = damageTaken.bomberGunner / resistance");
             Assert.IsFalse(bomberShot.gameObject.activeSelf);
         }
 
@@ -200,7 +207,7 @@ namespace Biplanes.Tests {
         }
 
         [Test]
-        public void EnemyBullet_TeamEnemy_OneHitUnit_SpeedFromBalance_HostileTint() {
+        public void EnemyBullet_TeamEnemy_OneHitUnit_SpeedFromBalance_InkDotGapDot() {
             PrimeBulletPool();
             var fire = EnemyFireData.Resolve(GameBalance.Get());
 
@@ -215,10 +222,24 @@ namespace Biplanes.Tests {
             Assert.AreEqual(-0.6f, v.normalized.x, 1e-3f);
             Assert.AreEqual(0.8f, v.normalized.y, 1e-3f);
 
-            var c = bullet.GetComponent<SpriteRenderer>().color;
-            Assert.AreEqual(0xE4 / 255f, c.r, 1e-3f);
-            Assert.AreEqual(0x57 / 255f, c.g, 1e-3f);
-            Assert.AreEqual(0x2E / 255f, c.b, 1e-3f);
+            // White only (B038a/B039): the renderer is untinted and the ink lives in a 3x1
+            // dot-gap-dot sprite at 100 ppu (ink, transparent, ink).
+            var sr = bullet.GetComponent<SpriteRenderer>();
+            Assert.AreEqual(Color.white, sr.color, "no tint: the pixels carry the ink");
+            Assert.IsNotNull(sr.sprite);
+            Assert.AreEqual(3f, sr.sprite.rect.width, 1e-4f);
+            Assert.AreEqual(1f, sr.sprite.rect.height, 1e-4f);
+            Assert.AreEqual(100f, sr.sprite.pixelsPerUnit, 1e-4f);
+            var tex = sr.sprite.texture;
+            var ink = new Color(0xE8 / 255f, 0xF1 / 255f, 0xFA / 255f, 1f);
+            foreach (int x in new[] { 0, 2 }) {
+                var p = tex.GetPixel(x, 0);
+                Assert.AreEqual(ink.r, p.r, 2e-3f, "pixel " + x + " r");
+                Assert.AreEqual(ink.g, p.g, 2e-3f, "pixel " + x + " g");
+                Assert.AreEqual(ink.b, p.b, 2e-3f, "pixel " + x + " b");
+                Assert.AreEqual(1f, p.a, 2e-3f, "pixel " + x + " opaque");
+            }
+            Assert.AreEqual(0f, tex.GetPixel(1, 0).a, 2e-3f, "middle pixel is the gap");
         }
 
         [Test]
@@ -385,6 +406,83 @@ namespace Biplanes.Tests {
                     "the shot flies along the nose, ± spread");
                 Assert.Less(b.transform.position.x, 6f, "fired from the nose, ahead of the centre");
             }
+        }
+
+        // ── Right-flying fighters (B040, T958) ──────────────────────────
+
+        /// <summary>A fighter flying right, as SpawnReinforcementFighter / ReEnterFighter leave it:
+        /// Awake run, SetFlightDirection(+1) before Start.</summary>
+        private FighterAI MakeRightFighter(Vector2 position, PlayerPlane player) {
+            var f = MakeFighter(position, player);
+            f.SetFlightDirection(1);
+            return f;
+        }
+
+        [Test]
+        public void RightFighter_Start_KeepsSpriteUnmirrored_NoseAndBodyPointRight() {
+            var player = MakePlayer(new Vector2(20f, 0f));
+            var f = MakeRightFighter(new Vector2(0f, 0f), player);
+            var sr = f.GetComponent<SpriteRenderer>();
+            Assert.IsFalse(sr.flipX, "SetFlightDirection(+1): the right-facing art is not mirrored");
+
+            var start = typeof(FighterAI).GetMethod("Start", Private);
+            Assert.IsNotNull(start, "FighterAI.Start not found by reflection");
+            start.Invoke(f, null);
+            Assert.IsFalse(sr.flipX, "Start must not mirror a right-flying fighter (no tail-first sprite)");
+            Assert.Greater(f.NoseDirection.x, 0f, "the nose points right");
+
+            f.SetFlightDirection(-1);
+            Assert.IsTrue(sr.flipX, "back to left: mirrored again");
+        }
+
+        [Test]
+        public void RightFighter_PlayerAhead_FiresRight_FromTheNose() {
+            var fire = EnemyFireData.Resolve(GameBalance.Get());
+            var player = MakePlayer(new Vector2(6f, 0f));
+            var f = MakeRightFighter(new Vector2(0f, 0f), player);
+
+            PrimeBulletPool();
+            for (int i = 0; i < 10; i++) {
+                Assert.IsTrue(Tick(f, "TickFire", fire.fighterIntervalMax + 0.01f), $"shot {i}: player dead ahead on the right");
+            }
+            foreach (var b in ActiveBullets()) {
+                Vector2 v = b.GetComponent<Rigidbody2D>().linearVelocity;
+                Assert.Greater(v.x, 0f, "a right-flying fighter never shoots backwards");
+                Assert.LessOrEqual(Vector2.Angle(Vector2.right, v), fire.spreadDegrees + 0.05f, "along the level nose ± spread");
+                Assert.Greater(b.transform.position.x, 0f, "fired from the nose (ahead on the right)");
+                float z = b.transform.eulerAngles.z;
+                Assert.That(Mathf.DeltaAngle(0f, z), Is.InRange(-fire.spreadDegrees - 0.05f, fire.spreadDegrees + 0.05f),
+                    "the 3x1 tracer is turned along +x");
+            }
+        }
+
+        [Test]
+        public void RightFighter_PlayerBehindOnTheLeft_HoldsFire() {
+            var player = MakePlayer(new Vector2(-6f, 0f));
+            var f = MakeRightFighter(new Vector2(0f, 0f), player);
+            Assert.IsFalse(Tick(f, "TickFire", 10f), "player behind a right-flying fighter: no shot");
+            Assert.AreEqual(0, ActiveBullets().Count);
+        }
+
+        [Test]
+        public void RightFighter_PitchesNoseUpTowardAPlayerAbove() {
+            var fire = EnemyFireData.Resolve(GameBalance.Get());
+            var player = MakePlayer(new Vector2(6f, 3.5f));
+            var f = MakeRightFighter(new Vector2(0f, 0f), player);
+            Assert.IsFalse(Tick(f, "TickFire", fire.firstShotDelayMax + 0.01f), "level nose, player 30 degrees up: held");
+
+            TrackPlayer(f);
+            Assert.Greater(f.PitchAngle, 0f, "nose up");
+            Assert.Greater(f.BodyAngle, 0f, "unmirrored body turns counter-clockwise to climb (BodyAngle = +pitch)");
+            Assert.Greater(f.NoseDirection.x, 0f);
+            Assert.Greater(f.NoseDirection.y, 0f);
+            Assert.LessOrEqual(Vector2.Angle(f.NoseDirection, new Vector2(6f, 3.5f)), fire.aimToleranceDegrees);
+            Assert.IsTrue(Tick(f, "TickFire", 0.01f), "nose on the player: fires");
+            var shots = ActiveBullets();
+            Assert.AreEqual(1, shots.Count);
+            Vector2 v = shots[0].GetComponent<Rigidbody2D>().linearVelocity;
+            Assert.Greater(v.x, 0f);
+            Assert.Greater(v.y, 0f, "climbing shot");
         }
 
         // ── BomberAI gunner ─────────────────────────────────────────────

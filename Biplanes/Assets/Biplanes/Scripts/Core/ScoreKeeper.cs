@@ -45,6 +45,14 @@ namespace Biplanes.Core {
 
         #region Public API
 
+        /// <summary>
+        /// Type key (GameObject name) of an EnemyPressure reinforcement fighter (B035). It scores
+        /// like "fighter". Its kills count toward a destroyAllOfType "fighter" objective (B050,
+        /// ObjectiveTracker.CountsAsKillOf), but its spawns never raise the required total,
+        /// which stays the mission's JSON fighter count.
+        /// </summary>
+        public const string ReinforcementFighterKey = "fighterReinforcement";
+
         /// <summary>Current total score.</summary>
         public int CurrentScore { get; private set; }
 
@@ -120,6 +128,7 @@ namespace Biplanes.Core {
 
             switch (entityType) {
                 case "fighter":        return balance.score.fighter;
+                case ReinforcementFighterKey: return balance.score.fighter;
                 case "barrageBalloon": return balance.score.barrageBalloon;
                 case "aaa":            return balance.score.aaa;
                 case "zeppelinTurret": return balance.score.zeppelinTurret;

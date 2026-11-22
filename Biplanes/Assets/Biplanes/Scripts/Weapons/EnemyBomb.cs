@@ -27,6 +27,8 @@ namespace Biplanes.Weapons {
         /// <summary>Scene object that owns every enemy bomb. Unity-null after a scene unload → rebuild.</summary>
         private static GameObject _root;
         private static Sprite _sprite;
+        /// <summary>Pencil (#9DB4CC): white-only palette (GDD Style Guide, 2026-11-18).</summary>
+        private static readonly Color Pencil = new Color(0x9D / 255f, 0xB4 / 255f, 0xCC / 255f, 1f);
 
         /// <summary>Drop an enemy bomb at `position` with the bomber's velocity as its start
         /// velocity. Returns null only if the pool is exhausted.</summary>
@@ -50,7 +52,7 @@ namespace Biplanes.Weapons {
             // Application.quitting (its items and root died with the old scene and are skipped) (B009c).
             _pool?.Dispose();
             _root = new GameObject("EnemyBombPool");
-            if (_sprite == null) _sprite = CreateSolidSprite(new Color(0.35f, 0.35f, 0.35f), 4, 6, 32f);
+            if (_sprite == null) _sprite = CreateSolidSprite(Pencil, 4, 6, 32f);
 
             var rootTransform = _root.transform;
             _pool = new ObjectPool<EnemyBomb>(() => MakeBomb(rootTransform), PoolSize, rootTransform);

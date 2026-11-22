@@ -33,6 +33,8 @@ namespace Biplanes.Weapons {
         /// <summary>Scene object that owns every shell. Unity-null after a scene unload → rebuild.</summary>
         private static GameObject _root;
         private static Sprite _sprite;
+        /// <summary>Ink white (#E8F1FA): white-only palette (GDD Style Guide, 2026-11-18).</summary>
+        private static readonly Color Ink = new Color(0xE8 / 255f, 0xF1 / 255f, 0xFA / 255f, 1f);
 
         /// <summary>Damage source reported on a hit. Set on every Spawn (pooled shells are reused).</summary>
         private DamageSource _source = DamageSource.Flak;
@@ -80,7 +82,7 @@ namespace Biplanes.Weapons {
             // Application.quitting (its items and root died with the old scene and are skipped) (B009c).
             _pool?.Dispose();
             _root = new GameObject("FlakShellPool");
-            if (_sprite == null) _sprite = CreateSolidSprite(new Color(1f, 0.85f, 0.4f), 4, 4, 32f);
+            if (_sprite == null) _sprite = CreateDiamondSprite(Ink, 4, 32f);
 
             var rootTransform = _root.transform;
             _pool = new ObjectPool<FlakShell>(() => MakeShell(rootTransform), PoolSize, rootTransform);
@@ -113,13 +115,23 @@ namespace Biplanes.Weapons {
             return go.AddComponent<FlakShell>();
         }
 
-        private static Sprite CreateSolidSprite(Color color, int width, int height, float pixelsPerUnit) {
-            var tex = new Texture2D(width, height);
-            var pixels = new Color[width * height];
-            for (int i = 0; i < pixels.Length; i++) pixels[i] = color;
+        /// <summary>Small ink diamond placeholder (size x size, transparent corners).</summary>
+        private static Sprite CreateDiamondSprite(Color color, int size, float pixelsPerUnit) {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Point;
+            tex.wrapMode = TextureWrapMode.Clamp;
+            var clear = new Color(color.r, color.g, color.b, 0f);
+            float c = (size - 1) * 0.5f;
+            var pixels = new Color[size * size];
+            for (int y = 0; y < size; y++) {
+                for (int x = 0; x < size; x++) {
+                    bool inside = Mathf.Abs(x - c) + Mathf.Abs(y - c) <= c + 0.5f;
+                    pixels[y * size + x] = inside ? color : clear;
+                }
+            }
             tex.SetPixels(pixels);
             tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), pixelsPerUnit);
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), pixelsPerUnit);
         }
 
         private void Awake() {

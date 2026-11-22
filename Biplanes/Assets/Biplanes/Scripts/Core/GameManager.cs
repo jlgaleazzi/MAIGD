@@ -43,10 +43,19 @@ namespace Biplanes.Core {
                 if (_instance == null) {
                     var go = new GameObject("GameManager");
                     _instance = go.AddComponent<GameManager>();
-                    DontDestroyOnLoad(go);
+                    // DontDestroyOnLoad throws outside Play mode (EditMode tests, B047).
+                    if (Application.isPlaying) DontDestroyOnLoad(go);
                 }
                 return _instance;
             }
+        }
+
+        /// <summary>The manager if it exists, or a new one in Play mode. Null outside Play mode
+        /// when none exists (EditMode tests), so gameplay callers fall back to GameEvents
+        /// instead of building a manager (same pattern as AudioManager/FxManager.GetOrNull).</summary>
+        public static GameManager GetOrNull() {
+            if (_instance != null) return _instance;
+            return Application.isPlaying ? Instance : null;
         }
 
         // ── Runtime state ────────────────────────────────────────────────

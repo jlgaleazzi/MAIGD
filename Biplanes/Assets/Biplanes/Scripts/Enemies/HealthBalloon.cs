@@ -7,7 +7,8 @@ namespace Biplanes.Enemies {
     /// <summary>
     /// Health-balloon pickup: spawns at mission-defined positions, drifts gently in place.
     /// When the player flies through it (any Collider2D with TeamTag == Player), the
-    /// player receives a heal of GameBalance.healthBalloonRestore points and the balloon
+    /// player receives a heal of GameBalance.healthBalloonRestore points (100 = full repair,
+    /// B062) and the balloon
     /// recycles itself.
     ///
     /// Implements IDamageable so it plugs into the same trigger-collision system as other
@@ -17,9 +18,14 @@ namespace Biplanes.Enemies {
 
         // ── Constants ─────────────────────────────────────────────────────
 
-        /// <summary>The green cross tint from ART_STYLE.md palette (heal token).</summary>
+        /// <summary>Ink white (#E8F1FA): white-only palette (GDD Style Guide, 2026-11-18).</summary>
+        private static readonly Color Ink = new Color(0xE8 / 255f, 0xF1 / 255f, 0xFA / 255f, 1f);
+
         private const float DRIFT_AMPLITUDE = 0.4f;
         private const float DRIFT_SPEED = 1.2f;
+
+        /// <summary>Heal used when Balance.json can't be read: a full repair (GDD, B062).</summary>
+        public const float FallbackRestore = 100f;
 
         // ── IDamageable contract ──────────────────────────────────────────
 
@@ -29,7 +35,7 @@ namespace Biplanes.Enemies {
         public bool IsDead { get; private set; }
 
         void Awake() {
-            // Build visual: sprite with heal-colored tint via SpriteRenderer.
+            // Build visual: ink-white sprite via SpriteRenderer.
             var sr = GetComponent<SpriteRenderer>();
             if (sr == null) {
                 sr = gameObject.AddComponent<SpriteRenderer>();
@@ -47,8 +53,8 @@ namespace Biplanes.Enemies {
                 sr.sprite = CreateWhiteSprite();
             }
 
-            // Heal-colored cross per ART_STYLE.md palette (heal token #7BD389).
-            sr.color = new Color(123f / 255f, 211f / 255f, 137f / 255f);
+            // White-only palette: no heal-green tint; the cross reads by its bold shape (art).
+            sr.color = Ink;
 
             // Ensure trigger collider exists (collider size set by caller via Spawn).
             var col = GetComponent<Collider2D>();
@@ -114,9 +120,11 @@ namespace Biplanes.Enemies {
         private void Collect(TeamTag playerTag) {
             IsDead = true;
 
-            // Restore the player's health directly via Heal() (no damage multiplier).
+            // Restore the player's health through the Heal source (no multiplier, no resistance).
+            // Balance healthBalloonRestore is 100: a full repair (B062, GDD 2026-11-20). Health
+            // clamps the result at 0% damage, so a balloon taken at full health is still used up.
             var balance = GameBalance.Get();
-            float restoreAmount = balance != null ? balance.healthBalloonRestore : 30f;
+            float restoreAmount = balance != null ? balance.healthBalloonRestore : FallbackRestore;
 
             var damageable = playerTag.GetComponentInParent<IDamageable>();
             if (damageable != null) {
@@ -166,7 +174,7 @@ namespace Biplanes.Enemies {
         /// <summary>Creates a minimal 1×1 white Sprite — never crash on missing assets.</summary>
         private static Sprite CreateWhiteSprite() {
             var tex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-            tex.SetPixel(0, 0, Color.white);
+            tex.SetPixel(0, 0, new Color(0xE8 / 255f, 0xF1 / 255f, 0xFA / 255f, 1f)); // ink #E8F1FA
             tex.Apply();
             return Sprite.Create(tex, Rect.zero, Vector2.one * 0.5f);
         }

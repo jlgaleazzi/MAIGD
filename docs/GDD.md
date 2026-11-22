@@ -30,13 +30,51 @@ attacks. It is marked with a **bullseye (roundel)** on the center of its body.
 
 ### Enemies
 1. **Airplanes:** marked with an **Iron Cross** on the center of the body and on the tail.
-   They shoot at the player and can only be destroyed by direct hits.
-2. **Anti-Aircraft Artillery (AAA):** fires up from the ground at the player. It can only
-   be destroyed with **bombs**.
+   They shoot at the player and can only be destroyed by direct hits: **three** machine-gun
+   hits bring one down. A hit fighter **trails pencil smoke** from its first hit, thicker after
+   the second, so the player can see which planes are already damaged. **Fighters hunt the
+   player:** every enemy fighter always faces the player's plane and chases it, turning around
+   when the player gets behind it, climbing and diving to match its height and firing when its
+   nose is on target. They hold a short distance instead of ramming, and spread out so they
+   don't stack. At most three fighters shoot at the player at the same time; the rest of the
+   pack keeps chasing and waits for a turn. A fighter never flies backwards: one ahead of the
+   player flies at it, passes above or below, then turns and chases. Where the player cruises
+   faster than the fighters (missions 2-4) a fighter left behind falls away and leaves the fight;
+   in missions 1 and 5 the pack can keep up. Escort fighters stay with their bomber or zeppelin until the player comes close, then
+   chase too. Bombers and zeppelins keep their own course.
+2. **Anti-Aircraft Artillery (AAA):** fires up from the ground at the player. One **bomb**
+   destroys it, and so do **five** machine-gun hits.
 3. **Bombers:** bigger airplanes, usually with a fighter escort, that try to bomb friendly
    targets. They take **multiple hits** to destroy.
 4. **Zeppelins:** big aircraft with several gun positions. The player must dodge their fire
    and disable the **turrets** by hitting them. A zeppelin takes **several hits** to destroy.
+
+### Enemy pressure
+The sky is never empty for long. Missions are packed with fighter waves, and during play
+there is **never more than 2 seconds without an enemy aircraft on screen**. If the screen has
+been clear of enemy planes for 2 seconds, a small wave of reinforcement fighters (2 by default)
+enters ahead of the player. Reinforcements score like any fighter and **count toward a
+"destroy them all" objective** like any other fighter of that type: every kill the player sees
+moves the counter. The objective still needs the mission's own number of kills (the fighters
+listed in the mission), so reinforcements only help reach it sooner. They stop once the
+mission's objectives are complete, and never come while the plane still sits on the runway.
+They enter past the screen edge the player is flying toward. An enemy fighter that gets past
+the player circles back in from ahead while a "destroy them all" objective still needs it;
+otherwise it leaves the battle for good.
+
+### Mission start
+Every mission waits for the player. After the briefing, the world holds still: the
+background does not scroll, the plane holds its position, no enemy appears and no
+reinforcement timer runs, until the player presses a flight key (W, A, S or D), the fire
+button or the bomb key. That first input starts the mission. (Mission 1 already waited on the
+runway; now every mission does.)
+
+### Minimap
+A minimap strip at the top centre of the screen shows the whole mission from start to end:
+where the player is and which way they face, the part of the map on screen, live enemies,
+enemies still to come (faint ticks), and the mission objectives (marked with diamonds, plus
+the line a target must not cross). Like everything else it is drawn in white. Layout in
+`docs/UI_SPEC.md` §3.3.1.
 
 ### Obstacles
 1. **Barrage balloons:** low-flying balloons, usually protected by AAA. The player destroys
@@ -46,7 +84,7 @@ attacks. It is marked with a **bullseye (roundel)** on the center of its body.
 ### Airplane damage
 - Damage goes up with each hit. At **100%** the airplane is destroyed.
 - At about **70%** damage, a smoke trail shows behind the plane.
-- **Health balloons** appear at some points on the map. Flying through one restores health.
+- **Health balloons** appear at some points on the map. Flying through one **restores all of the plane's health (100%)**.
 
 ### Controls (keyboard and mouse)
 | Action | Input |
@@ -57,14 +95,14 @@ attacks. It is marked with a **bullseye (roundel)** on the center of its body.
 | Drop bomb | Space |
 
 ### Flight attitude (pitch)
-All airplanes (the player's and the enemies') **pitch** around their lateral axis: the nose tips up while the plane climbs and down while it dives, eased smoothly and limited to a modest angle, and the sprite and its hitboxes rotate with it. Machine-gun bullets (the player's and the fighters') leave the gun along the **nose direction**, so what you see is the way the shot flies. A fighter swings its nose onto you and fires only when you are close to where it points. The bomber's tail gunner is the one exception: it is a swivel gun that fires at you in any direction. Bombs still drop with gravity from the plane's position.
+All airplanes (the player's and the enemies') **pitch** around their lateral axis: the nose tips up while the plane climbs and down while it dives, eased smoothly and limited to a modest angle, and the sprite and its hitboxes rotate with it. Machine-gun bullets (the player's and the fighters') leave the gun along the **nose direction**, so what you see is the way the shot flies. A fighter swings its nose onto you and fires only when you are close to where it points. The bomber's tail gunner is the one exception: it is a swivel gun that fires at you in any direction. Bombs fall **ballistically**: a released bomb keeps the plane's full velocity (forward speed and any climb or dive) and gravity bends it into a parabola, so it lands ahead of the drop point and the pilot has to lead the target. A bomb always leaves in the direction the plane faces, even right after a turn. The bomb's nose turns to follow its path.
 
 ## Missions (increasing difficulty)
 1. **Destroy incoming airplanes:** the player starts at the airfield as a wave of enemy
    airplanes approaches. Take off and destroy every incoming enemy airplane.
 2. **Destroy enemy bomber:** an enemy bomber with a fighter escort is approaching the
    airfield. Destroy it before it reaches its target and drops its bomb.
-3. **Destroy enemy defenses:** fly into enemy territory and destroy AAA with bombs while
+3. **Destroy enemy defenses:** fly into enemy territory and destroy AAA with bombs or gunfire while
    dodging fire from the ground and from enemy airplanes.
 4. **Destroy enemy base:** go deeper into enemy territory, destroying barrage balloons,
    AAA and enemy planes, and finally drop a bomb on the enemy base.
@@ -78,19 +116,20 @@ The look is an engineer's drawing board: light lines on dark blueprint paper. Pr
 detail (stroke widths, SVG rules, pipeline, asset list) lives in `docs/ART_STYLE.md`; this
 section is the design intent it must serve.
 
-### Palette: duotone plus three accents
+### Palette: white on blueprint blue, nothing else
 | Colour | Hex | Used for |
 |---|---|---|
 | Paper | `#0F2A4A` | Background, UI panel fill, the opaque silhouette behind each plane |
 | Paper grid | `#1C3F66` | Faint 32 px blueprint grid on the far background |
-| Ink | `#E8F1FA` | All crisp lines: planes, targets, UI borders and text, faction marks |
+| Ink | `#E8F1FA` | Every game element: planes, targets, bullets, bombs, flak, pickups, faction marks, UI borders, text and HUD |
 | Pencil | `#9DB4CC` | Background illustration, soft smoke, empty UI slots |
-| Friendly | `#F2C14E` | Player bullets and full bomb icons only |
-| Hostile | `#E4572E` | Enemy tracers, flak bursts, the damage bar past 70% and the smoke warning only |
-| Heal | `#7BD389` | The health balloon cross only |
 
-No other colours. Accents are rare on purpose, so anything that is coloured is a
-projectile, a threat or a pickup, and the screen otherwise stays duotone.
+**Only white is used for game elements** (user decision, 2026-11-18): ink white, drawn on
+paper blue, with pencil for the softer layer. There are no colour accents. What tells the
+player apart from the enemy, or a threat from a pickup, is **shape, motion and line
+weight**: player bullets are solid 3-pixel line bursts and enemy tracers are dot-gap-dot bursts; flak
+bursts are spiky pencil sketches; the health balloon carries a bold cross; a bomb still in
+the rack is a bright ink icon, a spent one a faint pencil icon; the damage warning flashes.
 
 ### Three drawing styles, one per layer of meaning
 1. **Crisp blueprint wireframes: everything you can hit or must avoid.** The player's
@@ -106,20 +145,20 @@ projectile, a threat or a pickup, and the screen otherwise stays duotone.
 2. **Engraved pencil backgrounds: everything you fly past.** Three parallax layers (far,
    mid, near) drawn like an old pen-and-ink engraving: tone comes from hatching and
    cross-hatching, never flat fills; far things are big, simple and faint, near things are
-   dense and outlined. Backgrounds use only paper, grid, pencil and faint ink, never an
-   accent, and keep the flight band quiet so nothing in the scenery can pass for a plane,
+   dense and outlined. Backgrounds use only paper, grid, pencil and faint ink, and keep the flight band quiet so nothing in the scenery can pass for a plane,
    gun or mark. Four themes: farmland, front line, enemy land, storm sky.
 3. **Loose pencil sketches: effects.** Explosions, smoke and flak are the one in-world
    exception to crisp lines (T944): wobbly contours drawn two or three times, cauliflower
    billows, hatched cores, wavy wisps (never straight), debris shards with motion lines.
-   Explosions use ink and pencil only; flak keeps its hostile red flash. Effects animate
+   Explosions and flak use ink and pencil only; a flak burst reads by its spiky star. Effects animate
    frame by frame (explosion 6 frames, flak 4, a smoke-puff trail from a plane at 70%
    damage or more) rather than being scaled up, so the fine hatching stays sharp.
 
 ### UI
 UI panels are paper with a 2 px ink wireframe border; text is ink in the default font.
-The HUD uses the accents only for meaning: friendly yellow for bombs left, hostile red for
-the damage bar past 70% and the smoke warning. Full layout is in `docs/UI_SPEC.md`.
+The HUD is ink white too: bombs left are bright ink icons and spent ones faint pencil; past 70%
+the damage bar fill turns to hatching and it and the smoke warning flash. Full layout is in
+`docs/UI_SPEC.md`.
 
 ### Sound effects
 No audio exists in the game yet; this is the target. The sound matches the picture: a
@@ -133,9 +172,9 @@ the places where the art is sketchy.
 - **Paper and pencil for the drawn layer.** UI, effects and transitions borrow drafting
   sounds: pencil scratch, paper rustle, a ruler tap, a stamp. The blueprint look is heard
   as well as seen, but always underneath the gameplay sound, never instead of it.
-- **Sound follows colour.** What the palette marks as important is what the mix makes
-  loud: threats (hostile red: flak, enemy fire, damage warning) and the player's own
-  weapons (friendly yellow). Scenery is silent apart from a light wind bed.
+- **Sound follows importance.** Threats (flak, enemy fire, the damage warning) and the
+  player's own weapons are what the mix makes loud. Scenery is silent apart from a light
+  wind bed.
 - **Readable at a glance.** Every gameplay event has one short, distinct cue; an enemy hit
   on the player must never sound like the player hitting an enemy.
 - **Restraint.** Short cues (most under 0.5 s), few simultaneous voices, and repeated
@@ -166,14 +205,65 @@ the places where the art is sketchy.
 **Music**: sparse and period-flavoured (snare, brass, solo piano), under the briefing and
 result screens, and quiet or absent in flight so engines and guns carry the action.
 
+### Narrative voice
+Every word the player reads belongs to the same world as the art: a WWI squadron on the
+western front, 1914-1918. Mission titles and briefings are orders from the squadron
+commander to the pilot.
+- **Setting:** period, but invented. The other side is always "the enemy"; no real
+  nations, leaders, units or battles are named.
+- **Briefings** are a commander's dispatch: second person ("you"), present tense, 2 or 3
+  sentences and at most 40 words. The first sentence states the threat, the last gives the
+  order, and the order names the mission's target. It mentions only enemies the player will meet in that
+  mission. At most one exclamation mark.
+- **Titles** are 2 to 4 words in Title Case and name the target or the order, matching
+  the mission list above.
+- **Tone:** urgent and plain, never jokey or gory. The player destroys machines, not
+  people.
+- **Vocabulary:** period words only. No modern technology or slang; use the left column
+  instead of the right.
+
+| Use | Instead of |
+|---|---|
+| anti-aircraft batteries | AAA batteries |
+| anti-aircraft guns | AAA guns, AAA |
+| bombs | payload, ordnance, munitions |
+| destroy | neutralize, take out, eliminate |
+| the enemy | Germany, Germans, German, the Kaiser, the Hun, Allies, Allied |
+| wireless | radio |
+| (remove) | radar, missile, jet, helicopter, drone, satellite, GPS, laser |
+
 ### Hard rules
-- Tone by line, not by fill (fills only for faction marks, accents and the plane
-  silhouette).
+- Tone by line, not by fill (fills only for faction marks and the plane silhouette). A filled shape no thicker than a line (a tapered stroke, a grass tuft, a
+  rivet or stipple dot) counts as a line.
 - Gameplay objects crisp, scenery engraved, effects sketchy: never mix them up.
 - Readability first: nothing at full-opacity ink in the backgrounds, and nothing in the
   scenery that looks like a gameplay object.
 - Every sprite is reproducible from source (SVG, blueprint import or generator script);
   no hand-painted PNGs.
+
+### Enforced rules
+The style loop (`tools/style_loop`) reads this table, the palette and the vocabulary table
+above, and enforces them on every generated or existing asset. `auto` rules are checked
+and fixed by code; `judge` rules are checked and fixed by the model against the prose of
+this Style Guide. Change a rule here and the loop follows it.
+
+| ID | Applies to | Rule | Check | Parameters |
+|---|---|---|---|---|
+| A-PALETTE | art | Only the four palette colours (white on blueprint blue) | auto | |
+| A-NO-FILL | art | Tone by line, not by fill: fills only for faction marks and the paper silhouette | auto | mark_ids=roundel,cross,mark,faction; line_max_px=2 |
+| A-LINE-WEIGHT | sprites | Thin, consistent lines (outline about 1.25 px) | auto | max_px=1.5; categories=player,enemies,targets,obstacles,pickups |
+| A-BG-QUIET | backgrounds | No full-opacity ink in the scenery | auto | max_ink_opacity=0.45 |
+| A-NO-TEXT | art | No lettering inside art; words are UI text | auto | |
+| A-FX-SKETCH | fx | Effects are loose pencil sketches: contours drawn two or three times, hatched, wavy wisps | judge | |
+| A-FACE-RIGHT | aircraft | Aircraft art faces right | judge | |
+| N-VOCAB | text | Period vocabulary (table above) | auto | |
+| N-LENGTH | briefing | 2 or 3 sentences, at most 40 words | auto | min_sentences=2; max_sentences=3; max_words=40 |
+| N-EXCLAIM | briefing | At most one exclamation mark | auto | max=1 |
+| N-TITLE | title | 2 to 4 words, Title Case | auto | min_words=2; max_words=4 |
+| N-TARGET | briefing | The briefing names the mission's target | auto | |
+| N-GROUNDED | briefing | The briefing mentions only enemies that are in the mission | auto | |
+| N-FAITHFUL | briefing | The briefing matches the GDD's mission description: no invented enemies, weapons, places or objectives, and the player's weapon fits the target (guns for aircraft, bombs for ground targets) | judge | |
+| N-VOICE | briefing | A commander's dispatch to the pilot: "you", present tense, threat first, order last, urgent, no gore | judge | |
 
 ## 3. AI Architecture (the crew)
 | Agent | Responsibility |
@@ -207,3 +297,22 @@ result screens, and quiet or absent in flight so engines and guns carry the acti
 | 2026-11-15 | Pitch decisions after QA T942: fighters fire along their nose and only when the player is within 10 degrees of it (nose eases toward the player, up to 40 degrees); the bomber's gunner stays a swivel gun and is the documented exception to nose-aligned bullets | orchestrator |
 | 2026-11-17 | Added the Style Guide section, recording the style used so far: duotone palette with three accents, crisp blueprint wireframes for gameplay objects, engraved pencil backgrounds, and loose animated pencil-sketch effects (T944/B030) | orchestrator |
 | 2026-11-17 | Added the Sound effects subsection to the Style Guide: period WWI sounds heard through the drawing board (paper and pencil foley for UI and effects), loudness follows the palette, and a cue list per game event. No audio is implemented yet | orchestrator |
+| 2026-11-17 | Added Narrative voice (setting, briefings, titles, tone, period vocabulary) and the Enforced rules table to the Style Guide, so the style loop (`tools/style_loop`) can enforce the GDD directly | orchestrator |
+| 2026-11-18 | Difficulty raised at the user's request: fighters take 3 hits (Balance `enemyHealth.fighter` 75 with `bulletDamage` 25), missions get more fighter waves, and the new Enemy pressure rule guarantees at most 2 s without an enemy aircraft on screen (reinforcement fighters, Balance `pressure`) | user |
+| 2026-11-18 | Bombs fall in a realistic parabola (user request): they inherit the plane's full velocity, gravity comes from Balance `bomb.gravity` (about 10 units/s², was 12x Unity gravity, about 118), light air drag slows the forward speed, and the sprite turns along the path | user |
+| 2026-11-18 | The falling player bomb gets real art (user request): `player_bomb`, a small horizontal copy of the HUD bomb icon in ink white (user: game elements are white), nose along its flight path, replacing the white placeholder rectangle | user |
+| 2026-11-18 | AAA can be shot down (user request): five machine-gun hits destroy a gun (Balance `enemyHealth.aaa` 125 with `bulletDamage` 25); one bomb still destroys it outright. Mission 3 becomes easier on bombs, harder on time under fire | user |
+| 2026-11-18 | White only (user decision): the three colour accents (friendly yellow, hostile red, heal green) are removed. Every game element is ink white on paper blue, with pencil for the soft layer; player/enemy/threat/pickup are told apart by shape, motion and line weight (solid player streaks vs dashed enemy tracers, bold health cross, filled vs outline bomb icons, flashing damage warning). Art, FX, HUD and code colours follow | user |
+| 2026-11-18 | QA T957 design calls: (1) escaped fighters circle back in while a destroy-all objective still needs them, otherwise they are removed, so mission 1 stays winnable with 37 three-hit fighters; (2) Balance `damageTaken.fighterBullet` 8 -> 5, because missions 4-5 were unsurvivable on paper with 4-5x more fighters; (3) reinforcements enter on the side the player faces | orchestrator |
+| 2026-11-18 | Minimap (user request): top-centre strip of the whole mission span with markers for the player, the camera window, live and upcoming enemies, and objectives (diamonds, failAtX line, HQ flag), white only (UI_SPEC §3.3.1) | user |
+| 2026-11-20 | Bug fix rule (user): every mission waits for the player's first input (W/A/S/D, fire, bomb) before the background scrolls, the plane moves or enemies spawn | user |
+| 2026-11-20 | Bug fix (user: the fighter counter only moved for some planes): reinforcement fighter kills now count toward destroy-all objectives; the required number is unchanged (the mission's listed fighters) | user |
+| 2026-11-20 | Damaged enemy fighters trail pencil smoke from the first hit (thicker after the second), using the same smoke-puff effect as the damaged player plane (user request) | user |
+| 2026-11-20 | Player plane 50% tougher (user request): Balance `player.resistance` 1.5 divides every non-fatal hit (enemy bullets, bomber gunner, flak, zeppelin turrets, mid-air plane collision); terrain/building/ram crashes stay fatal and health-balloon heals are unchanged. Resulting hits to crash: 3 mid-air plane contacts (was 2: one now costs 33.3%), 30 fighter bullets (was 20), 10 flak (was 7) | user |
+| 2026-11-20 | Player plane 30% faster (user request): Balance `player.speed` 5 -> 6.5 u/s; enemy speeds unchanged (fighter 3, bomber 1.5, zeppelin 1). `player.speed` is the climb/dive and post-turn slide rate; the forward cruise speed is each mission's `scrollSpeed`, so (user choice: both) every mission's scrollSpeed also rises 30% (2 -> 2.6, 2.5 -> 3.25, 3 -> 3.9) | user |
+| 2026-11-20 | V014: scrollSpeed x1.3 in all missions; mission 5 length 540 -> 580 so the zeppelin still reaches the HQ before the map end. Missions now last about 115/138/128/154/223 s (were about 150-270 s); fighter gaps got shorter, not longer. Lengths otherwise unchanged (pacing kept short unless the user asks for longer missions) | orchestrator |
+| 2026-11-20 | Bug fix (user: bombs fell right while facing left): bombs inherit the plane's world velocity with the forward part always along the facing and at least the cruise speed (B057) | user |
+| 2026-11-20 | Title screen (user request): the title reads "Biplanes" (the old path lettering read "SIPIAPAE") and gets a blueprint illustration of the player's biplane and an enemy fighter above it | user |
+| 2026-11-20 | Enemy fighters always face and chase the player (user request; bombers and zeppelins unchanged): pursuit replaces the fixed straight/sine/dive paths (those become small entry flavours), with a standoff distance, separation and an escort leash; Balance `fighterChase` | user |
+| 2026-11-20 | Balance call after B059: at most 3 fighters fire at once (attack slots) and each fighter keeps its own standoff 3.5-6, because in missions 1 and 5 the player (cruise 2.6) can't outrun fighters (3) and a pack of 6 firing together killed the player in about 11 s | orchestrator |
+| 2026-11-20 | Health balloons restore 100% of the player's health (user request; was 30%): Balance `healthBalloonRestore` 100. Each balloon is now a full repair, so the mission heal budgets are far above the expected damage; balance by removing balloons if missions feel too easy | user |

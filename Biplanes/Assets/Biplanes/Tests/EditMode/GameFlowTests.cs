@@ -265,14 +265,25 @@ namespace Biplanes.Tests {
         }
 
         [Test]
-        public void SecondRam_Crashes_ThroughTheSameLossPath() {
+        public void LethalRam_Crashes_ThroughTheSameLossPath() {
             var plane = MakePlane(new Vector2(0f, 1f));
             _gm.SetState(GameManager.GameState.Playing);
 
-            Invoke(plane, "OnTriggerEnter2D", MakeFighter(new Vector2(0.5f, 1f)).GetComponent<Collider2D>());
-            Assert.IsFalse(plane.HasCrashed);
-            Assert.AreEqual(GameManager.GameState.Playing, _gm.CurrentState, "a 50% ram is not a loss");
-            Assert.IsTrue(plane.GetComponent<PlayerInput>().enabled, "the plane keeps flying after a hit");
+            // T964 (B052): one ram is damageTaken.planeCollision / player.resistance (50 / 1.5 =
+            // 33.3%), so the ram count to 100% is read from Balance (was "the second ram").
+            var g = GameBalance.Get();
+            Assume.That(g != null && g.damageTaken != null && g.player != null, "Balance.json not loadable");
+            float perRam = DamageTakenData.PlaneCollisionOrDefault(g.damageTaken) / PlayerData.ResistanceOrDefault(g.player);
+            int toKill = Mathf.CeilToInt(100f / perRam - 1e-3f);
+            Assert.Greater(toKill, 1, "one ram must not kill");
+
+            for (int i = 0; i < toKill - 1; i++) {
+                if (i > 0) Invoke(plane, "TickPlaneCollisionGrace", PlayerPlane.PlaneCollisionGraceSeconds + 0.1f);
+                Invoke(plane, "OnTriggerEnter2D", MakeFighter(new Vector2(0.5f, 1f)).GetComponent<Collider2D>());
+                Assert.IsFalse(plane.HasCrashed, $"ram {i + 1} of {toKill}");
+                Assert.AreEqual(GameManager.GameState.Playing, _gm.CurrentState, "a non-lethal ram is not a loss");
+                Assert.IsTrue(plane.GetComponent<PlayerInput>().enabled, "the plane keeps flying after a hit");
+            }
 
             Invoke(plane, "TickPlaneCollisionGrace", PlayerPlane.PlaneCollisionGraceSeconds + 0.1f);
             Invoke(plane, "OnTriggerEnter2D", MakeFighter(new Vector2(0.5f, 1f)).GetComponent<Collider2D>());
@@ -289,12 +300,22 @@ namespace Biplanes.Tests {
             _gm.SetState(GameManager.GameState.Playing);
             var health = plane.GetComponent<Health>();
 
-            for (int i = 0; i < 6; i++) health.ApplyDamage(1f, DamageSource.Flak);   // 6 x 15 = 90
+            // T963 (B052): one flak hit is damageTaken.flak / player.resistance (15 / 1.5 = 10%),
+            // so the hit count to 100% is read from Balance, not hard-coded (was 7 x 15).
+            var g = GameBalance.Get();
+            Assume.That(g != null && g.damageTaken != null && g.damageTaken.flak > 0f, "Balance.json not loadable");
+            float perHit = g.damageTaken.flak / PlayerData.ResistanceOrDefault(g.player);
+            int toKill = Mathf.CeilToInt(100f / perHit - 1e-3f);
+            Assert.Greater(toKill, 1, "one flak hit must not kill");
+
+            for (int i = 0; i < toKill - 1; i++) health.ApplyDamage(1f, DamageSource.Flak);
             Invoke(plane, "FixedUpdate");
-            Assert.IsFalse(plane.HasCrashed, "90% still flies");
+            Assert.Less(health.CurrentDamagePercent, 100f);
+            Assert.IsFalse(plane.HasCrashed, "one hit short of 100% still flies");
             Assert.AreEqual(GameManager.GameState.Playing, _gm.CurrentState);
 
-            health.ApplyDamage(1f, DamageSource.Flak);                                   // 100 (clamped)
+            health.ApplyDamage(1f, DamageSource.Flak);                                   // 100 (clamped / snapped)
+            Assert.AreEqual(100f, health.CurrentDamagePercent, 1e-4f);
             Invoke(plane, "FixedUpdate");
             Assert.IsTrue(plane.HasCrashed);
             Assert.AreEqual(GameManager.GameState.Lost, _gm.CurrentState);

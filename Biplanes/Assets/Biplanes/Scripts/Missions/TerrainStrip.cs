@@ -204,10 +204,17 @@ namespace Biplanes.Missions {
             var sr = go.GetComponent<SpriteRenderer>();
             if (sr != null && sr.sprite != null) {
                 var tex = sr.sprite.texture;
-                Destroy(sr.sprite);
-                if (tex != null) Destroy(tex);
+                DestroySafe(sr.sprite);
+                if (tex != null) DestroySafe(tex);
             }
-            Destroy(go);
+            DestroySafe(go);
+        }
+
+        /// <summary>Destroy in Play mode, DestroyImmediate outside it (Destroy logs an error
+        /// in edit mode, B047).</summary>
+        private static void DestroySafe(Object obj) {
+            if (Application.isPlaying) Destroy(obj);
+            else DestroyImmediate(obj);
         }
     }
 }

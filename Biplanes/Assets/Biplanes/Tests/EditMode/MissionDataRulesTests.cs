@@ -133,6 +133,106 @@ namespace Biplanes.Tests {
             }
         }
 
+        // ── Health balloons (T957 BUG 9, T958 BUG 4, V007/V008) ──────────
+
+        private static int CountOfType(MissionData data, string type) {
+            int n = 0;
+            foreach (var s in data.spawns) {
+                if (s != null && string.Equals(s.type, type, System.StringComparison.OrdinalIgnoreCase)) n += s.count;
+            }
+            return n;
+        }
+
+        [Test]
+        public void AllMissions_HealthBalloons_NeverStackAtTheSameSpot() {
+            for (int m = 1; m <= 5; m++) {
+                var data = LoadMission(m);
+                var seen = new HashSet<string>();
+                foreach (var s in data.spawns) {
+                    if (s == null || !string.Equals(s.type, "healthBalloon", System.StringComparison.OrdinalIgnoreCase)) continue;
+                    Assert.AreEqual(1, s.count, $"mission {m}: health balloon entry at {s.atX} spawns {s.count}");
+                    Assert.IsTrue(seen.Add($"{s.atX:0.###}/{s.y:0.###}"),
+                        $"mission {m}: two health balloons at x {s.atX}, y {s.y} (stacked double balloon)");
+                }
+                Assert.Greater(seen.Count, 0, $"mission {m} has no health balloon");
+            }
+        }
+
+        /// <summary>Spawn types that occupy a ground (or fixed-sky) x a pickup must not share.</summary>
+        private static readonly string[] BalloonKeepOutTypes =
+            { "aaa", "enemyBase", "playerHQ", "building", "tree", "barrageBalloon" };
+
+        /// <summary>A health balloon sits at least this far in x from any keep-out entity.</summary>
+        private const float BalloonKeepOutX = 3f;
+
+        [Test]
+        public void AllMissions_HealthBalloons_ClearOfGroundTargets_AndInsideTheFlightBand() {
+            // T960 (V009/V010): MissionRunner spawns a balloon at (atX, HeightAt(atX) + y); y is
+            // height above terrain (§5). It must sit where a plane can fly: at least
+            // MinPlaneHeight above the ground and below the screen top minus PlaneTopMargin
+            // (scene camera at y 0, half height 5). It must not sit on an AAA, base, HQ,
+            // obstacle or barrage-balloon x (each entity at atX + spacing * i).
+            float minAbove = RunnerConst("MinPlaneHeight");
+            float topY = CameraHalfHeight - RunnerConst("PlaneTopMargin");
+            for (int m = 1; m <= 5; m++) {
+                var data = LoadMission(m);
+                var terrain = MakeTerrain(data);
+                var keepOut = new List<float>();
+                foreach (var s in data.spawns) {
+                    if (s == null) continue;
+                    foreach (var t in BalloonKeepOutTypes) {
+                        if (!string.Equals(s.type, t, System.StringComparison.OrdinalIgnoreCase)) continue;
+                        for (int i = 0; i < s.count; i++) keepOut.Add(s.atX + s.spacing * i);
+                    }
+                }
+                foreach (var s in data.spawns) {
+                    if (s == null || !string.Equals(s.type, "healthBalloon", System.StringComparison.OrdinalIgnoreCase)) continue;
+                    Assert.GreaterOrEqual(s.y, minAbove,
+                        $"mission {m}: health balloon at x {s.atX} is {s.y} above the terrain (planes fly >= {minAbove})");
+                    float worldY = terrain.HeightAt(s.atX) + s.y;
+                    Assert.LessOrEqual(worldY, topY,
+                        $"mission {m}: health balloon at x {s.atX} sits at world y {worldY:0.##}, above the flight band top {topY}");
+                    Assert.Less(s.atX, data.length, $"mission {m}: health balloon at x {s.atX} is past the map end");
+                    foreach (var x in keepOut) {
+                        Assert.GreaterOrEqual(Mathf.Abs(s.atX - x), BalloonKeepOutX,
+                            $"mission {m}: health balloon at x {s.atX} sits on a ground target / obstacle at x {x}");
+                    }
+                }
+            }
+        }
+
+        [Test]
+        public void AllMissions_HealthBalloonCount_AtLeastTheV009V010Plan() {
+            // User request "add more health balloons" (V009 M1-M3, V010 M4-M5): 4, 5, 6, 7, 8.
+            int[] minimum = { 4, 5, 6, 7, 8 };
+            for (int m = 1; m <= 5; m++) {
+                Assert.GreaterOrEqual(CountOfType(LoadMission(m), "healthBalloon"), minimum[m - 1],
+                    $"mission {m} needs at least {minimum[m - 1]} health balloons");
+            }
+        }
+
+        [Test]
+        public void M4AndM5_HealBudget_EveryBalloonIsAFullRepair() {
+            // B062 (GDD 2026-11-20, user request): a health balloon restores 100% of the player's
+            // health, so one balloon fully repairs the plane and the old T958/T959 "100% + 30% per
+            // balloon vs expected damage (M4 168%, M5 235%)" budget no longer applies. The V008
+            // balloon and AAA counts for M4/M5 stay as mission rules.
+            var balance = GameBalance.Get();
+            Assert.IsNotNull(balance);
+            float restore = balance.healthBalloonRestore;
+            Assert.GreaterOrEqual(restore, 100f, "GDD: a health balloon restores all of the plane's health");
+            Assert.AreEqual(HealthBalloon.FallbackRestore, restore,
+                "the code fallback matches Balance.json, so a missing Balance still heals fully");
+
+            var m4 = LoadMission(4);
+            Assert.GreaterOrEqual(CountOfType(m4, "healthBalloon"), 4, "V008: M4 has at least 4 balloons");
+            Assert.LessOrEqual(CountOfType(m4, "aaa"), 5, "V008: M4 has at most 5 AAA");
+
+            var m5 = LoadMission(5);
+            Assert.GreaterOrEqual(CountOfType(m5, "healthBalloon"), 6, "V008: M5 has at least 6 balloons");
+            Assert.LessOrEqual(CountOfType(m5, "aaa"), 5, "V008 removed the 2 AAA at 385; M5 has at most 5");
+        }
+
         [Test]
         public void M3_HasAtMostFiveAaa_LeavingSpareBombs() {
             var data = LoadMission(3);

@@ -1,25 +1,37 @@
 {
   "id": 1,
   "title": "Destroy Incoming Airplanes",
-  "briefing": "Wave of enemy fighters inbound on the airfield. Take off and shoot them all down before they reach our position!",
-  "scrollSpeed": 2.0,
+  "briefing": "You see a wave of enemy fighters inbound on the airfield. Take off and destroy all enemy fighters before they reach our position!",
+  "scrollSpeed": 2.6,
   "length": 300.0,
-  "playerStart": { "x": -6.0, "y": -4.0, "onRunway": true },
+  "playerStart": {"x": -6.0, "y": -4.0, "onRunway": true},
   "background": "farmland",
   "terrain": [
-    { "atX": 0, "height": 0.0 },
-    { "atX": 120, "height": 1.5 }
+    {"atX": 0, "height": 0.0},
+    {"atX": 120, "height": 1.5}
   ],
   "spawns": [
-    { "atX": 30, "type": "fighter", "y": 2.0, "count": 3, "spacing": 1.5, "pattern": "sine", "id": "", "escortOf": "" },
-    { "atX": 60, "type": "fighter", "y": -1.0, "count": 2, "spacing": 1.0, "pattern": "straight", "id": "", "escortOf": "" },
-    { "atX": 90, "type": "fighter", "y": 3.0, "count": 4, "spacing": 1.5, "pattern": "sine", "id": "", "escortOf": "" },
+    { "atX": 30, "type": "fighter", "y": 2.0, "count": 3, "spacing": 16, "pattern": "straight", "id": "", "escortOf": "" },
+    { "atX": 42, "type": "healthBalloon", "y": 2.5, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" },
+    { "atX": 54, "type": "fighter", "y": 3.5, "count": 3, "spacing": 16, "pattern": "straight", "id": "", "escortOf": "" },
+    { "atX": 78, "type": "fighter", "y": 2.5, "count": 3, "spacing": 16, "pattern": "straight", "id": "", "escortOf": "" },
+    { "atX": 88, "type": "healthBalloon", "y": 2.0, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" },
+    { "atX": 102, "type": "fighter", "y": 4.0, "count": 3, "spacing": 14, "pattern": "sine", "id": "", "escortOf": "" },
+    { "atX": 110, "type": "healthBalloon", "y": 2.5, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" },
+    { "atX": 125, "type": "fighter", "y": 3.0, "count": 3, "spacing": 14, "pattern": "sine", "id": "", "escortOf": "" },
     { "atX": 130, "type": "aaa", "y": 0.0, "count": 1, "spacing": 0, "pattern": "static", "id": "", "escortOf": "" },
+    { "atX": 147, "type": "fighter", "y": 5.0, "count": 3, "spacing": 14, "pattern": "sine", "id": "", "escortOf": "" },
+    { "atX": 170, "type": "fighter", "y": 2.5, "count": 3, "spacing": 12, "pattern": "sine", "id": "", "escortOf": "" },
     { "atX": 170, "type": "healthBalloon", "y": 1.5, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" },
-    { "atX": 210, "type": "fighter", "y": -2.0, "count": 3, "spacing": 1.0, "pattern": "sine", "id": "", "escortOf": "" },
-    { "atX": 250, "type": "aaa", "y": 0.0, "count": 2, "spacing": 3.0, "pattern": "static", "id": "", "escortOf": "" }
+    { "atX": 191, "type": "fighter", "y": 4.5, "count": 3, "spacing": 12, "pattern": "dive", "id": "", "escortOf": "" },
+    { "atX": 212, "type": "fighter", "y": 2.0, "count": 3, "spacing": 10, "pattern": "dive", "id": "", "escortOf": "" },
+    { "atX": 225, "type": "healthBalloon", "y": 2.0, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" },
+    { "atX": 231, "type": "fighter", "y": 3.5, "count": 5, "spacing": 6, "pattern": "dive", "id": "", "escortOf": "" },
+    { "atX": 250, "type": "aaa", "y": 0.0, "count": 2, "spacing": 3.0, "pattern": "static", "id": "", "escortOf": "" },
+    { "atX": 252, "type": "fighter", "y": 2.5, "count": 5, "spacing": 6, "pattern": "sine", "id": "", "escortOf": "" },
+    { "atX": 280, "type": "healthBalloon", "y": 2.5, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" }
   ],
   "objectives": [
-    { "id": "kill_all_fighters", "type": "destroyAllOfType", "targetType": "fighter", "targetId": "", "failAtX": -1 }
+    {"id": "kill_all_fighters", "type": "destroyAllOfType", "targetType": "fighter", "targetId": "", "failAtX": -1}
   ]
 }

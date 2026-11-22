@@ -529,12 +529,17 @@ namespace Biplanes.Tests {
 
         [Test]
         public void Fighter_Climbing_DrawnNoseUp() {
+            // B059 (QA T966): with no player the chase keeps the fighter's heading at cruise speed
+            // and adds no climb, so the 5 u/s climb comes only from _prevY below (EditMode:
+            // MovePosition doesn't move the transform). The pitch then follows the climb.
             var f = MakeFighter(new Vector2(6f, 0f), null);
-            f.Configure("static", "");
+            f.Configure("straight", "");
             for (int i = 0; i < 30; i++) {
                 SetField(f, "_prevY", f.transform.position.y - 0.1f); // 5 u/s climb
                 Invoke(f, "FixedUpdate");
             }
+            Assert.AreEqual(-1, f.FlightDirection, "no player: no turn, keeps flying left");
+            Assert.IsFalse(f.IsTurning);
             Vector2 nose = FighterDrawnNose(f);
             Assert.Greater(f.PitchAngle, 0f);
             Assert.Less(nose.x, 0f);

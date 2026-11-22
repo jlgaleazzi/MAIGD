@@ -14,7 +14,6 @@ from pathlib import Path
 
 INK = "#E8F1FA"
 PEN = "#9DB4CC"
-HOS = "#E4572E"
 HERE = Path(__file__).resolve().parent
 
 
@@ -345,15 +344,16 @@ def flak(frame):
     s = Svg(96)
     c = 48
     if frame == 0:
-        # Flash: hostile jagged star core, ink rays, small sketchy puff ring.
+        # Flash: bold ink jagged star (shape = threat, white only), dense
+        # cross-hatched core, ink rays, small sketchy puff ring.
         s.path(rays_d(c, c, 12, 16, 40, rng), INK, 0.75, 0.9)
-        for op, w, j in ((1.0, 1.25, 0), (0.6, 0.6, 1.2)):
-            s.path(star_d(c, c, 20, 11, 9, random.Random(80), jit=j), HOS, w, op)
         s.clip("flashc", star_d(c, c, 20, 11, 9, random.Random(80)))
         s.open_group("flash_hatch", clip="flashc")
-        s.path(hatch_d(c, c, 14, 14, 45, 2.4, rng, trim=0.1), HOS, 0.6, 0.85)
-        s.path(hatch_d(c, c, 9, 9, -45, 2.4, rng, trim=0.1), HOS, 0.5, 0.75)
+        s.path(hatch_d(c, c, 14, 14, 45, 1.7, rng, trim=0.05), INK, 0.6, 0.9)
+        s.path(hatch_d(c, c, 11, 11, -45, 1.9, rng, trim=0.08), INK, 0.5, 0.8)
         s.close_group()
+        for op, w, j in ((1.0, 1.75, 0), (0.7, 0.75, 1.2), (0.45, 0.5, 1.8)):
+            s.path(star_d(c, c, 20, 11, 9, random.Random(80), jit=j), INK, w, op)
         for op, w, j in ((0.9, 1.0, 0), (0.45, 0.5, 1.2)):
             s.path(cloud_d(lobe_points(c, c, 9, 8, 6, random.Random(81)), c, c, 0.5,
                            random.Random(82), jit=j), INK, w, op)
@@ -369,19 +369,21 @@ def flak(frame):
                     hatch=[(c, c + lift + ry * 0.4, rx, ry * 0.65, 45, 2.8, INK, 0.5, 0.65),
                            (c, c + lift + ry * 0.55, rx * 0.8, ry * 0.4, -45, 3.0, INK, 0.5, 0.55)],
                     swirl=(3 + frame, 4 + frame, INK, 0.75, 0.75))
-        # Hostile hot core: hatched strokes plus a small sketchy outline.
-        hr = (10, 6)[frame - 1]
-        s.clip("hotc", cloud_d(lobe_points(c, c + lift, hr, hr * 0.9, 5, random.Random(83)),
-                               c, c + lift, 0.5, random.Random(84)))
+        # Hot core: a small bold spiky star (flak's shape signature, white only) with
+        # dense ink cross-hatching inside.
+        hr = (12, 8)[frame - 1]
+        core = star_d(c, c + lift, hr, hr * 0.58, 8, random.Random(83), rot=0.2)
+        s.clip("hotc", core)
         s.open_group("hot_hatch", clip="hotc")
-        s.path(hatch_d(c, c + lift, hr + 2, hr + 2, 45, 2.0, rng, trim=0.05), HOS, 0.6, 0.9)
-        if frame == 1:
-            s.path(hatch_d(c, c + lift, hr + 2, hr + 2, -45, 2.4, rng, trim=0.1), HOS, 0.5, 0.75)
+        s.path(hatch_d(c, c + lift, hr, hr, 45, 1.5, rng, trim=0.03), INK, 0.6, 0.95)
+        s.path(hatch_d(c, c + lift, hr, hr, -45, 1.8 if frame == 1 else 2.2, rng,
+                       trim=0.08), INK, 0.5, 0.85)
         s.close_group()
-        s.path(cloud_d(lobe_points(c, c + lift, hr, hr * 0.9, 5, random.Random(83)), c, c + lift,
-                       0.5, random.Random(85), jit=0.8), HOS, 0.75, 0.9)
+        s.path(core, INK, 1.5 if frame == 1 else 1.25, 1.0)
+        s.path(star_d(c, c + lift, hr, hr * 0.58, 8, random.Random(83), jit=1.0, rot=0.2),
+               INK, 0.5, 0.55)
         sh, tr = debris(c, c, 4, rx + 6, rx + 10, 1.5, 5, rng, rot=0.9)
-        s.path(sh, HOS if frame == 1 else INK, 0.75, 0.85)
+        s.path(sh, INK, 0.75 if frame == 2 else 1.0, 0.9)
         s.path(tr, PEN, 0.5, 0.7)
     else:
         # Dissipating flak cloud: broken contour, sparse hatch, wisps, a few embers.
@@ -394,7 +396,7 @@ def flak(frame):
             s.path(wisp_d(x, c + lift - ry * rng.uniform(0.4, 0.7), -90 + (x - c) * 0.7,
                           rng.uniform(16, 22), 2.5, 2, rng), PEN, 0.75, 0.6)
         sh, tr = debris(c, c + lift, 4, 6, 16, 1.0, 3, rng, rot=0.2)
-        s.path(sh, HOS, 0.75, 0.8)
+        s.path(sh, INK, 1.0, 0.85)
     return s.text()
 
 

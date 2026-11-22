@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="14" viewBox="0 0 32 14">
+  <!-- player_bomb: small copy of ui_bomb_icon, lying horizontally, nose to the right (+x).
+       Code rotates the sprite to follow the bomb's velocity. Pivot = visual centre. -->
+  <g id="fins" fill="none" stroke="#E8F1FA" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 10.5 5.3 L 3 2 L 5 7 Z"/>
+    <path d="M 10.5 8.7 L 3 12 L 5 7 Z"/>
+    <line x1="5" y1="7" x2="9.5" y2="7" stroke-width="0.75"/>
+  </g>
+  <g id="body" stroke="#E8F1FA" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 9 5.6 C 13 3.4 18 2.6 23.5 2.7 C 28.6 2.9 28.6 11.1 23.5 11.3 C 18 11.4 13 10.6 9 8.4 Z"
+          fill="#0F2A4A" stroke-width="1.25"/>
+  </g>
+  <g id="detail" fill="none" stroke="#E8F1FA" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="10.5" y1="7" x2="26" y2="7" stroke-width="0.5" opacity="0.6"/>
+    <line x1="20" y1="3.2" x2="20" y2="10.8" stroke-width="0.6" opacity="0.6"/>
+    <path d="M 27.4 7 L 29.4 7 M 29.4 5.9 L 29.4 8.1" stroke-width="1"/>
+  </g>
+</svg>

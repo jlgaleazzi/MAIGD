@@ -41,3 +41,8 @@ Thumbs.db
 # goal agent: saved model prompts and replies (debug output)
 tools/goal_agent/replies/
 tools/goal_agent/__pycache__/
+
+# style loop
+tools/style_loop/__pycache__/
+tools/style_loop/tests/__pycache__/
+tools/style_loop/last_run.md

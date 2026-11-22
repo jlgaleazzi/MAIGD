@@ -1,0 +1,8 @@
+TASK: A-WHITE
+AGENT: art
+STATUS: DONE
+FILES: art-src/fx/gen_pencil_fx.py, art-src/fx/flak_burst_0..3.svg (regenerated), art-src/pickups/health_balloon.svg, tools/rasterize.py, docs/ART_STYLE.md, Sprites/fx/flak_burst_0..3.png + Sprites/pickups/health_balloon.png + docs/art/preview.png (via tools/rasterize.py)
+SUMMARY: All art is white-only now. Flak no longer uses hostile red: frame 0 is a bold 3-pass ink star (1.75 px) with dense cross-hatching, frames 1-2 have a bold cross-hatched ink star core, and frame 3 has ink embers. The explosions are byte-identical. The health cross is ink: a paper knock-out, a 1.25 px outline and a solid inner cross, which gives a double outline (group id="cross"). The rasterizer palette is down to 4 colours. ART_STYLE.md has the palette table, the accent rules and the flak, health and projectile rows updated, plus the "white only, user decision 2026-11-18" note. No art-src/ui SVG used an accent, so none needed changing.
+After looking at the sprites on #0F2A4A at 1x and 3x: round 1 showed flak 0 and the balloon reading clearly. Flak 1-2, though, had a round hatched core and looked like small explosion billows. Round 2 replaced that core with a small bold spiky star, so the star shape now carries through frames 0-2 and keeps flak distinct from the lobed explosion cores.
+VERIFY: grep -riE "F2C14E|E4572E|7BD389" art-src tools/rasterize.py docs/ART_STYLE.md (excluding _retired) finds nothing. python tools/rasterize.py --check gives 41/41 + 4/4 OK. python tools/style_loop audit gives 46 artifacts, 0 violations. To see the result, open Sprites/fx/flak_burst_1.png and Sprites/pickups/health_balloon.png.
+REQUESTS: none

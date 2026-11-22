@@ -135,13 +135,14 @@ namespace Biplanes.Tests {
         [Test]
         public void PlayerHealth_MapsZeppelinTurretTo12_FlakTo15() {
             var g = Balance();
+            float res = PlayerData.ResistanceOrDefault(g.player);   // B052: 12 -> 8, 15 -> 10
             var a = MakePlayerHealth("T936_PlayerA");
             a.ApplyDamage(1f, DamageSource.ZeppelinTurret);
-            Assert.AreEqual(g.damageTaken.zeppelinTurret, a.CurrentDamagePercent, 1e-4f);
+            Assert.AreEqual(g.damageTaken.zeppelinTurret / res, a.CurrentDamagePercent, 1e-4f);
 
             var b = MakePlayerHealth("T936_PlayerB");
             b.ApplyDamage(1f, DamageSource.Flak);
-            Assert.AreEqual(g.damageTaken.flak, b.CurrentDamagePercent, 1e-4f);
+            Assert.AreEqual(g.damageTaken.flak / res, b.CurrentDamagePercent, 1e-4f);
         }
 
         // ── B014: FlakShell overloads ───────────────────────────────────
@@ -177,9 +178,10 @@ namespace Biplanes.Tests {
             AwakeAllShells();
 
             var turretShell = FlakShell.Spawn(Vector3.zero, Vector2.down, DamageSource.ZeppelinTurret);
+            float res = PlayerData.ResistanceOrDefault(g.player);   // B052
             var p1 = MakePlayerHealth("T936_P1");
             InvokeOnHit(turretShell, p1);
-            Assert.AreEqual(g.damageTaken.zeppelinTurret, p1.CurrentDamagePercent, 1e-4f);
+            Assert.AreEqual(g.damageTaken.zeppelinTurret / res, p1.CurrentDamagePercent, 1e-4f);
             Assert.IsFalse(turretShell.gameObject.activeSelf, "recycled after the hit");
 
             // Pop until the recycled turret shell comes back from the AAA overload.
@@ -193,7 +195,7 @@ namespace Biplanes.Tests {
             Assume.That(reused != null, "pool never handed the recycled shell back");
             var p2 = MakePlayerHealth("T936_P2");
             InvokeOnHit(reused, p2);
-            Assert.AreEqual(g.damageTaken.flak, p2.CurrentDamagePercent, 1e-4f, "source reset on reuse");
+            Assert.AreEqual(g.damageTaken.flak / res, p2.CurrentDamagePercent, 1e-4f, "source reset on reuse");
         }
 
         // ── T932: EnemyBase ─────────────────────────────────────────────

@@ -14,6 +14,11 @@ namespace Biplanes.Core {
     /// The camera x is clamped to [minX, maxX] (SetLimits); while it is pinned at
     /// a limit its velocity is 0.
     ///
+    /// Mission start gate (B049): MissionRunner calls Hold() when a mission starts. While
+    /// held the velocity is exactly 0 and the camera (so FarthestX, the parallax and the
+    /// minimap) does not move. PlayerPlane calls Release() on the player's first input; the
+    /// velocity then eases up from 0 like a turn.
+    ///
     /// Created by MissionRunner on mission start via Create().
     /// </summary>
     public class ScrollController : MonoBehaviour {
@@ -49,6 +54,7 @@ namespace Biplanes.Core {
         private float _minX = float.NegativeInfinity;
         private float _maxX = float.PositiveInfinity;
         private float _farthestX;
+        private bool _held;
 
         /// <summary>Scroll direction: +1 = right, -1 = left. Set by PlayerPlane from its Facing.</summary>
         public int Direction => _direction;
@@ -58,6 +64,10 @@ namespace Biplanes.Core {
 
         /// <summary>The largest camera x reached so far this mission (spawn triggers use it).</summary>
         public float FarthestX => _farthestX;
+
+        /// <summary>True while the mission waits for the player's first input (B049): the
+        /// camera stands still with velocity 0.</summary>
+        public bool IsHeld => _held;
 
         // ── Mission distance ───────────────────────────────────────────
 
@@ -108,6 +118,19 @@ namespace Biplanes.Core {
             _direction = dir;
         }
 
+        /// <summary>Holds the scroll (B049): velocity 0 at once, the camera stays put until
+        /// Release.</summary>
+        public void Hold() {
+            _held = true;
+            _velocity = 0f;
+        }
+
+        /// <summary>Ends the hold (the player's first input). The velocity eases up from 0
+        /// toward Direction * scrollSpeed. No effect when not held.</summary>
+        public void Release() {
+            _held = false;
+        }
+
         /// <summary>
         /// Clamps the camera x to [minX, maxX]. While the camera is pinned at a limit
         /// its velocity is 0.
@@ -122,7 +145,8 @@ namespace Biplanes.Core {
         /// Factory helper: creates the ScrollController GameObject (no prefab needed —
         /// ARCHITECTURE §2 rule 4). If one already exists (a mission started without a
         /// scene reload) it is reset and reused, so callers always get the live Instance.
-        /// The scroll starts rightward at full speed.
+        /// The scroll starts rightward at full speed and not held (MissionRunner holds it
+        /// until the player's first input, B049).
         /// </summary>
         public static ScrollController Create(float initialScrollSpeed = 2f, Transform parent = null) {
             ScrollController sc = Instance;
@@ -132,6 +156,9 @@ namespace Biplanes.Core {
                     go.transform.SetParent(parent);
                 }
                 sc = go.AddComponent<ScrollController>();
+                // Awake sets this in Play mode; it doesn't run outside Play mode (EditMode
+                // tests), where a missing Instance made every StartMission add another one (B047).
+                Instance = sc;
             }
 
             // Wire up the camera if we have one.
@@ -147,6 +174,7 @@ namespace Biplanes.Core {
 
             sc.SetScrollSpeed(initialScrollSpeed);
             sc._direction = 1;
+            sc._held = false;
             sc._velocity = sc.scrollSpeed;
             sc._minX = float.NegativeInfinity;
             sc._maxX = float.PositiveInfinity;
@@ -164,6 +192,12 @@ namespace Biplanes.Core {
         /// </summary>
         private void FixedUpdate() {
             if (mainCamera == null) return;
+
+            // Waiting for the player's first input (B049): nothing moves.
+            if (_held) {
+                _velocity = 0f;
+                return;
+            }
 
             float dt = Time.fixedDeltaTime;
 

@@ -33,6 +33,10 @@ namespace Biplanes.Core {
         /// bullets doesn't stack more than one HitPlayer / HitEnemy per window.</summary>
         public const float HitCueMinInterval = 0.05f;
 
+        /// <summary>Player damage within this many percent of 100 counts as 100 (float rounding
+        /// of resistance-divided hits, B052). Far below any real hit (the smallest is ~3.3%).</summary>
+        public const float PlayerDeathSnap = 0.001f;
+
         /// <summary>Time.time of the last hit cue; negative = none yet.</summary>
         private float _lastHitCueTime = -1f;
 
@@ -77,12 +81,18 @@ namespace Biplanes.Core {
                 bool fatal = src == DamageSource.Collision || src == DamageSource.PlaneCollision;
                 actualDamage = fatal ? 100f : percent / maxHitPoints * 100f;
             } else {
-                // Player: percentage scaled by Balance damageTaken for this source.
-                actualDamage = percent * GetDamageMultiplier(src);
+                // Player: percentage scaled by Balance damageTaken for this source, then divided
+                // by player.resistance for non-fatal hits (B052).
+                actualDamage = ApplyPlayerResistance(percent * GetDamageMultiplier(src), src, GetPlayerResistance());
             }
 
             float before = currentDamage;
             currentDamage = Mathf.Clamp(currentDamage + actualDamage, 0f, 100f);
+            // Player hits divided by resistance are fractional (50 / 1.5 = 33.333332f): three of
+            // them sum to 99.999996f. Snap a float-rounding near-miss to 100 so it still kills (B052).
+            if (maxHitPoints <= 0f && actualDamage > 0f && currentDamage >= 100f - PlayerDeathSnap) {
+                currentDamage = 100f;
+            }
             PlayHitCue(currentDamage - before);
 
             // Notify listeners if the entity is a player-side one
@@ -137,6 +147,24 @@ namespace Biplanes.Core {
             if (audio == null) return;
             _lastHitCueTime = now;
             audio.Play(id, transform.position);
+        }
+
+        /// <summary>
+        /// Player toughness (B052): divides a positive, non-fatal hit by `resistance`.
+        /// DamageSource.Collision (terrain, buildings, rams) stays an instant crash, heals
+        /// (DamageSource.Heal or any negative amount) pass through unchanged, and a
+        /// resistance &lt;= 0 behaves as 1. Pure: no Balance access, safe to call from tests.
+        /// </summary>
+        public static float ApplyPlayerResistance(float damage, DamageSource src, float resistance) {
+            if (damage <= 0f) return damage;
+            if (src == DamageSource.Collision || src == DamageSource.Heal) return damage;
+            if (resistance <= 0f) resistance = PlayerData.DefaultResistance;
+            return damage / resistance;
+        }
+
+        private static float GetPlayerResistance() {
+            var balance = GameBalance.Get();
+            return PlayerData.ResistanceOrDefault(balance != null ? balance.player : null);
         }
 
         private float GetDamageMultiplier(DamageSource src) {

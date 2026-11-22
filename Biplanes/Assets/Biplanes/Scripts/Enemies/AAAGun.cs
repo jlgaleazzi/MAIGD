@@ -10,8 +10,9 @@ namespace Biplanes.Enemies {
 
     /// <summary>
     /// Anti-aircraft ground gun that fires bursts of flak shells toward the player's
-    /// predicted position. Ground-bound (terrain height at its spawn x). Destroyable
-    /// only by bombs — bullets and flak bounce off harmlessly (GDD: "destroyed with bombs").
+    /// predicted position. Ground-bound (terrain height at its spawn x). Any bomb hit destroys
+    /// it outright; player bullets wear it down in hit points (Balance enemyHealth.aaa, so
+    /// 125 / bulletDamage 25 = 5 bullets, B037); flak is ignored.
     ///
     /// Self-contained IDamageable implementation (no separate Health component) so that
     /// the interface method resolution on this GameObject always targets AAAGun itself,
@@ -28,6 +29,11 @@ namespace Biplanes.Enemies {
         // ── Damage tracking (self-contained — no separate Health component) ─
 
         private float _currentDamagePercent = 0f;                  // 0 → 100
+
+        /// <summary>Hit points used when Balance has no enemyHealth.aaa (B037).</summary>
+        private const float FallbackHitPoints = 125f;
+
+        private float _lastHitCueTime = -1f;   // Time.time of the last HitEnemy; negative = none
 
         // ── Cache (populated in Awake) ────────────────────────────────────
 
@@ -56,32 +62,44 @@ namespace Biplanes.Enemies {
         /// <summary>Current damage percentage — used by smoke-tint logic in LateUpdate.</summary>
         public float CurrentDamagePercent => _currentDamagePercent;
 
-        /// <summary>Intercept every hit routed through IDamageable. Only Bomb-source
-        /// damage is forwarded to the internal health tracker; Bullet and Flak are dropped.</summary>
+        /// <summary>Intercept every hit routed through IDamageable (B037):
+        /// Bomb (direct or ground burst) destroys the gun outright, Bullet adds damage in hit
+        /// points of Balance enemyHealth.aaa, Collision is fatal, Flak and the rest are ignored.</summary>
         public void ApplyDamage(float percent, Core.DamageSource src) {
             if (IsDead) return;
 
-            // ── Damage-source filter ────────────────────────────────────────
-            // Only Bomb-type damage reaches the gun — bullets / flak bounce off.
             switch (src) {
                 case Core.DamageSource.Bomb: {
-                    float actualDamage = percent * GetMultiplier(src);
-                    _currentDamagePercent = Mathf.Clamp(
-                        _currentDamagePercent + actualDamage, 0f, 100f);
-                    OnDamageTaken(Core.DamageSource.Bomb, actualDamage);
+                    // One bomb always kills, whatever its damage value or the gun's health.
+                    _currentDamagePercent = 100f;
+                    OnDamageTaken(Core.DamageSource.Bomb);
                     break;
                 }
 
                 case Core.DamageSource.Collision: {
-                    float actualDamage = percent * GetMultiplier(src);
+                    float actualDamage = percent * 100f;            // unchanged: always fatal
                     _currentDamagePercent = Mathf.Clamp(
                         _currentDamagePercent + actualDamage, 0f, 100f);
-                    OnDamageTaken(Core.DamageSource.Collision, actualDamage);
+                    OnDamageTaken(Core.DamageSource.Collision);
+                    break;
+                }
+
+                case Core.DamageSource.Bullet: {
+                    // Player gun: `percent` is damage points (player.bulletDamage), like Health
+                    // enemy mode. Enemy bullets never target Team.Enemy.
+                    float actualDamage = percent / MaxHitPoints() * 100f;
+                    if (actualDamage <= 0f) return;
+                    _currentDamagePercent = Mathf.Clamp(
+                        _currentDamagePercent + actualDamage, 0f, 100f);
+                    // Float guard: N exact hits (e.g. 5 x 25 vs 125) must kill.
+                    if (_currentDamagePercent >= 100f - 1e-3f) _currentDamagePercent = 100f;
+                    if (IsDead) OnDamageTaken(Core.DamageSource.Bullet);
+                    else PlayHitCue();
                     break;
                 }
 
                 default:
-                    // Bullet (player gun) and Flak (friendly shells) bounce off harmlessly.
+                    // Flak (friendly shells) and any other source: no effect.
                     break;
             }
         }
@@ -121,7 +139,7 @@ namespace Biplanes.Enemies {
             gun._sr = sr;
             gun._groundY = position.y;
 
-            // Trigger collider so bombs can hit the gun (ARCHITECTURE §3 Physics).
+            // Trigger collider so bombs and bullets can hit the gun (ARCHITECTURE §3 Physics).
             var col = go.AddComponent<BoxCollider2D>();
             col.isTrigger = true;
             col.size = new Vector2(1f, 0.6f);
@@ -256,28 +274,33 @@ namespace Biplanes.Enemies {
                                transform.position.z);
         }
 
-        // ── Damage multiplier (mirrors Health.GetDamageMultiplier) ──────────
+        // ── Hit points / damage helpers ──────────────────────────────────
 
-        /// <summary>Converts damage points to percent of Balance enemyHealth.aaa.
-        /// Collision is always fatal. Hit points work like Health enemy mode.</summary>
-        private float GetMultiplier(Core.DamageSource src) {
-            if (src == Core.DamageSource.Collision) return 100f;
+        /// <summary>Hit points from Balance enemyHealth.aaa; FallbackHitPoints when Balance or
+        /// the value is missing (B037).</summary>
+        private static float MaxHitPoints() {
             var balance = GameBalance.Get();
-            float hp = balance != null && balance.enemyHealth != null ? balance.enemyHealth.aaa : 100f;
-            return hp > 0f ? 100f / hp : 100f;
+            float hp = balance != null && balance.enemyHealth != null ? balance.enemyHealth.aaa : 0f;
+            return hp > 0f ? hp : FallbackHitPoints;
         }
 
-        /// <summary>Called by ApplyDamage for sources that deal real damage (Bomb, Collision).</summary>
-        private void OnDamageTaken(Core.DamageSource src, float amount) {
-            // If this source deals enough to kill us, fire the events.
+        /// <summary>Raises EntityDestroyed once when a hit killed the gun (Bomb, Collision or the
+        /// last Bullet). Score comes from ScoreKeeper; HandleDeath runs from LateUpdate.</summary>
+        private void OnDamageTaken(Core.DamageSource src) {
             if (IsDead) {
                 GameEvents.RaiseEntityDestroyed(gameObject.name, Team);
             }
+        }
 
-            // Bomb-source damage also raises a warning for gameplay feedback.
-            if (src == Core.DamageSource.Bomb && _currentDamagePercent > 0f && _currentDamagePercent < 100f) {
-                Debug.LogFormat("AAA gun hit by bomb — damage: {0:P1}", _currentDamagePercent / 100f);
-            }
+        /// <summary>HitEnemy for a non-fatal bullet hit (a fatal one gets HandleDeath's explosion),
+        /// at most one per Health.HitCueMinInterval, like Health and ZeppelinTurret (B037).</summary>
+        private void PlayHitCue() {
+            float now = Time.time;
+            if (_lastHitCueTime >= 0f && now - _lastHitCueTime < Health.HitCueMinInterval) return;
+            var audio = AudioManager.GetOrNull();
+            if (audio == null) return;
+            _lastHitCueTime = now;
+            audio.Play(SfxId.HitEnemy, transform.position);
         }
 
         // ── Smoke tint helper ─────────────────────────────────────────────

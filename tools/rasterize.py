@@ -20,7 +20,8 @@ SRC = ROOT / "art-src"
 OUT = ROOT / "Biplanes" / "Assets" / "Biplanes" / "Resources" / "Sprites"
 PREVIEW = ROOT / "docs" / "art" / "preview.png"
 
-PALETTE = {"#0f2a4a", "#1c3f66", "#e8f1fa", "#9db4cc", "#f2c14e", "#e4572e", "#7bd389"}
+# White only (user decision 2026-11-18): paper, paper-grid, ink, pencil. No accents.
+PALETTE = {"#0f2a4a", "#1c3f66", "#e8f1fa", "#9db4cc"}
 # SVG aircraft that get the same opaque paper silhouette as the blueprint planes
 # (import_blueprints.add_backing), keyed by path under art-src without extension.
 # Empty since T914: every plane now comes from a blueprint via import_blueprints.py.

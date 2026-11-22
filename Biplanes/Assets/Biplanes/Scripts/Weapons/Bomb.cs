@@ -9,17 +9,36 @@ namespace Biplanes.Weapons {
 
     /// <summary>
     /// Gravity-affected bomb dropped by the player for ground attacks.
-    /// Inherits forward momentum from the throwing plane, falls in an arc,
+    /// Starts with the throwing plane's full velocity (x and y) and falls ballistically
+    /// (BombBallistics.Step, Balance `bomb` block, B036), its nose turned along its path,
     /// and deals high damage (bombDamage from Balance.json) on impact.
+    /// The kinematic body is moved with MovePosition in FixedUpdate, so Rigidbody2D gravity
+    /// never applies and linearVelocity stays zero; the ballistic velocity lives in Velocity.
     /// </summary>
     public class Bomb : Projectile {
 
         /// <summary>Shared pool instance — initialised once by BombBay at mission start.</summary>
         private static ObjectPool<Bomb> _pool;
 
-        // --- serialisable tunables (persisted in editor, overridden by Balance.json) ---
+        // --- ballistic tunables (Balance `bomb` block via BombData.Resolve, read in Start) ---
 
-        [SerializeField] private float gravityMultiplier = 12f;
+        private float _gravity = BombData.DefaultGravity;
+        private float _drag = BombData.DefaultDrag;
+        private bool _alignToVelocity = BombData.DefaultAlignToVelocity;
+
+        /// <summary>Current ballistic velocity (world units/s), integrated in FixedUpdate.</summary>
+        private Vector2 _vel;
+
+        /// <summary>Ballistic position, integrated in FixedUpdate and handed to MovePosition.
+        /// Kept here rather than read back from the body, so a pooled bomb never starts from
+        /// a stale (not yet synced) Rigidbody2D.position.</summary>
+        private Vector2 _pos;
+
+        /// <summary>Current ballistic velocity in world units per second.</summary>
+        public Vector2 Velocity => _vel;
+
+        /// <summary>Cached in Awake; turned along the path (flipY while travelling left).</summary>
+        private SpriteRenderer _sr;
 
         /// <summary>Radius of the ground burst that damages enemies near the impact point (B008).
         /// Fast bombs can step past a thin ground trigger between physics ticks, so the burst
@@ -56,7 +75,8 @@ namespace Biplanes.Weapons {
         /// the parent plane's velocity so it arcs forward naturally.
         /// </summary>
         /// <param name="position">World position to spawn (typically player plane centre).</param>
-        /// <param name="parentVelocity">Rigidbody2D.linearVelocity of the throwing plane.</param>
+        /// <param name="parentVelocity">The throwing plane's velocity (PlayerPlane.Velocity x
+        /// Balance bomb.inheritFactor), x and y.</param>
         public static Bomb Spawn(Vector3 position, Vector2 parentVelocity) {
             if (_pool == null) {
                 Debug.LogError("Bomb pool not initialised — call Bomb.InitPool first.");
@@ -70,33 +90,67 @@ namespace Biplanes.Weapons {
             // Use a custom Init overload that accepts an explicit initial velocity
             // rather than direction * speed, so we can pass the full parent momentum.
             bomb.Init(position, Quaternion.identity, parentVelocity, _pool);
-            // Init sets velocity = direction * speed; a bomb must start with exactly the
-            // parent's velocity (ARCHITECTURE §3), then gravity in Update takes over.
-            if (bomb._rb != null) bomb._rb.linearVelocity = parentVelocity;
+            // Init sets linearVelocity = direction * speed; the bomb is moved by FixedUpdate
+            // (MovePosition) from its own ballistic velocity instead, so the body's velocity is
+            // zeroed to keep physics from moving it twice (ARCHITECTURE §3 "Bomb flight").
+            if (bomb._rb != null) {
+                bomb._rb.linearVelocity = Vector2.zero;
+                bomb._rb.gravityScale = 0f;
+            }
+            bomb._vel = parentVelocity;
+            bomb._pos = position;
+            if (bomb._rb != null) bomb._rb.position = position;
             bomb._prevPos = position;
+            bomb.ApplyRotation(true);
             return bomb;
         }
 
         private void Awake() {
             // Player projectiles belong to Team.Player (to skip own-team hits).
             team = Team.Player;
+            _sr = GetComponent<SpriteRenderer>();
         }
 
         private void Start() {
             // Override any inspector values with balance.json tunables at runtime.
             var g = GameBalance.Get();
-            if (g != null) {
+            if (g != null && g.player != null) {
                 damage = g.player.bombDamage; // default 100 from Balance.json
+            }
+            var b = BombData.Resolve(g);
+            _gravity = b.gravity;
+            _drag = b.drag;
+            _alignToVelocity = b.alignToVelocity;
+            ApplyRotation(true);
+        }
+
+        /// <summary>Ballistic flight (B036): one BombBallistics.Step per physics tick, moved with
+        /// MovePosition, then the nose is turned along the new velocity.</summary>
+        private void FixedUpdate() {
+            if (_rb == null) return;
+            (_pos, _vel) = BombBallistics.Step(_pos, _vel, Time.fixedDeltaTime, _gravity, _drag);
+            _rb.MovePosition(_pos);
+            ApplyRotation(false);
+        }
+
+        /// <summary>Turns the sprite's nose (+x) along the velocity: z = atan2(v.y, v.x). While the
+        /// bomb travels left the sprite is flipped on y so its fins stay upright (mirrored, not
+        /// upside down). `immediate` sets the transform (spawn); otherwise the body's MoveRotation
+        /// is used so the turn lands with the physics move.</summary>
+        private void ApplyRotation(bool immediate) {
+            if (!_alignToVelocity) return;
+            float angle = BombBallistics.AngleDegrees(_vel);
+            if (_sr != null) _sr.flipY = _vel.x < 0f;
+            if (immediate || _rb == null) {
+                transform.rotation = Quaternion.Euler(0f, 0f, angle);
+                if (_rb != null) _rb.rotation = angle;
+            } else {
+                _rb.MoveRotation(angle);
             }
         }
 
         private void Update() {
             if (_rb == null) return;
-
-            // Add gravity to vertical velocity each frame so the bomb drops in an arc.
-            float gravityY = Physics2D.gravity.y * gravityMultiplier * Time.deltaTime;
-            _rb.linearVelocity = new Vector2(_rb.linearVelocity.x,
-                                             _rb.linearVelocity.y + gravityY);
 
             // Terrain has no collider (ARCHITECTURE §3 Physics): burst on reaching the ground.
             var terrain = TerrainStrip.Instance;

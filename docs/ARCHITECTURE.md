@@ -107,7 +107,8 @@ namespace Biplanes.Core {
 ```
 Scripts in Core/: `GameManager` (state machine: Menu, Briefing, Playing, Paused, Won,
 Lost), `ScrollController`, `ScoreKeeper`, `TeamTag`, `Health` (implements IDamageable,
-percent-based, raises events, death VFX hook; ignores hits once dead).
+percent-based, raises events, death VFX hook; ignores hits once dead). B052: in player mode `Health.ApplyPlayerResistance(damage, src, resistance)` divides non-fatal hits by `PlayerData.ResistanceOrDefault` (missing/<=0 -> 1); Collision and heals are not scaled; a positive hit landing within 0.001% of 100 snaps to 100 (`PlayerDeathSnap`) so float rounding can't leave the plane alive at 99.99%.
+B047: `GameManager.GetOrNull()` returns the existing manager, a new one in Play mode, or null outside Play mode; gameplay code uses it instead of `Instance` (UI views keep `Instance`), and `Instance` calls DontDestroyOnLoad only while playing. `ScrollController.Create` sets `Instance` itself (Awake doesn't run in EditMode). Anything torn down in the mission start/teardown path is destroyed with DestroyImmediate outside Play mode (`MissionRunner.DestroyNow`, `TerrainStrip.DestroySafe`).
 `Health.SetMaxHitPoints(float hp)` switches it to enemy mode (`MaxHitPoints` > 0): the
 ApplyDamage value is then damage points (`bulletDamage`, `bombDamage`) turned into percent
 of `hp`, with no `damageTaken` multiplier, and `DamageSource.Collision` is always fatal.
@@ -123,9 +124,10 @@ planes.
   `Keyboard.current.wKey.isPressed` and so on. No `.inputactions` asset.
   W/S climb and dive. A/D set the facing (Defender-style, see `PlayerPlane`). The left mouse button fires
   (hold to autofire at `fireRate`), Space drops a bomb (one per key press). Mouse input is read from `Mouse.current` (Input System); it is ignored while a menu, briefing, pause or result view is open. `PlayerInputGate` (pure, EditMode-testable) maps raw keys and mouse to `InputState`: it blocks while MainMenuView/BriefingView/PauseView/ResultView `IsShowing` or timeScale is 0, and a button held across a UI screen, pressed over UI (`EventSystem.IsPointerOverGameObject` at press time) or held when the input was enabled must be released before it counts. Enter no longer drops bombs (it still starts the briefing).
+- Speeds (B056): `player.speed` (6.5) is the climb/dive rate and the post-turn slide rate relative to the camera; the plane's forward cruise speed is the mission's `scrollSpeed` (it rides with the camera). The post-turn slide to the new screen anchor always runs opposite to the new facing (B057).
 - `PlayerPlane`: movement, takeoff state (mission 1 starts `onRunway: true`. The plane
   sits at the airfield until the player presses D or W, then climbs out), smoke trail at
-  ≥ smokeThreshold (`FxManager.SpawnSmokePuff` 0.75 u behind the tail every `SmokePuffInterval` 0.12 s while flying or falling as a wreck, stopping when the wreck lands, plus the amber damage tint), crash when damage reaches 100%. Mid-air contact with a FighterAI/BomberAI destroys the enemy (`DamageSource.Collision`, fatal for enemies) and costs the player `damageTaken.planeCollision` (50, default 50 if missing) via `DamageSource.PlaneCollision`; the plane crashes only at 100% total. For `PlaneCollisionGraceSeconds` (0.5) after a contact, further contacts still kill enemies but do not damage the player. Terrain, buildings, trees, EnemyBase, PlayerHQ and zeppelin rams stay fatal.
+  ≥ smokeThreshold (`FxManager.SpawnSmokePuff` 0.75 u behind the tail every `SmokePuffInterval` 0.12 s while flying or falling as a wreck, stopping when the wreck lands, plus a damage tint: white below smokeThreshold, halfway to pencil grey #9DB4CC at the threshold, full pencil grey at 100%), crash when damage reaches 100%. Mid-air contact with a FighterAI/BomberAI destroys the enemy (`DamageSource.Collision`, fatal for enemies) and costs the player `damageTaken.planeCollision` (50, default 50 if missing) via `DamageSource.PlaneCollision`; the plane crashes only at 100% total. For `PlaneCollisionGraceSeconds` (0.5) after a contact, further contacts still kill enemies but do not damage the player. Terrain, buildings, trees, EnemyBase, PlayerHQ and zeppelin rams stay fatal.
   - `public int Facing` (+1 right, -1 left; starts at +1). While airborne, D sets +1 and A
     sets -1 (when both are held, the last one pressed wins; when neither is held, Facing is
     kept). `flipX = Facing < 0` (the art faces right). On the runway, A does nothing, and
@@ -147,7 +149,7 @@ planes.
 never despawns; `Spawn(Vector3 position, string id = null)` stores `SpawnId`), `AAAGun` (fires flak bursts up at the exact straight-line intercept of a
 ShellSpeed shell with the player's current `PlayerPlane.Velocity`, falling back to
 distance / ShellSpeed when there is no intercept; only while within 2 units of the screen edge; ground-bound at the
-terrain height of its spawn x; trigger collider; damaged by `DamageSource.Bomb` only),
+terrain height of its spawn x; trigger collider; B037: player bullets damage it in hit points from `enemyHealth.aaa` (125 = 5 bullets of `bulletDamage` 25), any `DamageSource.Bomb` hit or bomb burst destroys it outright, flak is ignored; non-fatal bullet hits play HitEnemy, throttled like Health),
 `ZeppelinAI` (the underside turret hangs below the gondola line so player bullets fired in level flight reach it (a pitched player's bullets follow the nose, so the player levels off to shoot it); every turret needs a clear horizontal line of fire in level flight because a shielded hull box absorbs bullets; `ZeppelinAI.HalfLength` 4.5 = half the hull length; `SetTargetX`/`TargetX`/`HasTargetX`/`ReachedTarget`; removed silently 20 units
 behind the left screen edge only when it has no targetX ahead of it; hull plus N `ZeppelinTurret` children;
 the hull only takes damage after all turrets are destroyed, or `hullVulnerableEarly` in
@@ -172,6 +174,73 @@ match, and uses `sortingOrder` 5. An entity may carry several trigger colliders 
 ignores trigger callbacks once it has been recycled, so one projectile damages a
 multi-collider target only once.
 
+### Fighter chase (Enemies/FighterAI.cs) - B059
+GDD Enemies item 1. Every FighterAI (JSON, reinforcement, re-entered) pursues the live player:
+- Facing: the flight direction (FlightDirection, sprite flip, nose, gun cone, smoke tail) points
+  at the player; when the player is more than `fighterChase.turnDeadzone` behind it, the fighter
+  turns around over `fighterChase.turnSeconds` (eased; no instant flip).
+- Horizontal: world velocity steers toward the player's x with max speed `enemySpeed.fighter`
+  (3) and acceleration `fighterChase.accel`; it brakes to hold `fighterChase.standoff`
+  horizontal distance (no overshoot, no ramming). Where the player cruises faster (M2-M4, scroll
+  3.25-3.9) a fighter behind falls away and the B040 escape rules remove or re-enter it; in M1/M5
+  (2.6) the pack keeps up, and a fighter ahead flies at the player, passes and chases from behind.
+- Vertical: climbs/dives toward the player's y (plus a per-fighter offset so wingmen spread) at
+  up to `fighterChase.climbRate`, inside the flight band; the JSON pattern (straight, sine, dive)
+  only adds a small flavour on top (sine wobble, an initial dive), never a fixed path.
+- Separation: fighters within `fighterChase.separation` of each other push apart vertically.
+- Collision avoidance: inside the standoff box it steers vertically away from the player.
+- Firing as now (EnemyBullet along the nose within aimToleranceDegrees; the nose eases toward
+  the player up to fighterMaxDegrees).
+- Escorts: hold formation on their bomber/zeppelin until the player is within
+  `fighterChase.escortLeash` of the escorted plane, then chase; if the player gets farther than
+  twice the leash they return.
+- Before the mission starts (B049 gate) fighters don't exist yet; while the player is dead or
+  crashing they keep flying their last heading and don't fire.
+- Balance `fighterChase` (`FighterChaseData.Resolve`): turnSeconds 0.6, turnDeadzone 1.0,
+  accel 4, standoff 3.5, climbRate 2.5, separation 1.2, escortLeash 8.
+- Built (B059): the turn is an x-scale squash of the whole body down to 0.15 (collider narrows,
+  no firing while turning); `IsEscorting` stays true while an escort chases on its leash, so
+  EnemyPressure leaves it alone; APIs `IsEscortChasing`, `IsTurning`, `ChaseOffsetY`;
+  `WorldVelocityX` is the chase velocity (measured velocity in formation). Steering-shape
+  constants are consts on FighterAI (ChaseGroundClearance 1.25, ChaseTopMargin 1, MaxChaseOffsetY
+  1, VerticalGain 2, BrakeFactor 0.8, ApproachGain 1.2, avoid box 0.85/1/1.5, dive flavour 2 u over
+  1.5 s, sine 0.5).
+- B061 (after QA T966): no reverse flight - a fighter's velocity along its facing never goes
+  below a small positive minimum, so a fighter ahead of the player flies at it, passes (avoid box
+  sends it above/below) and then turns to chase; the avoid box has hysteresis (once the fighter
+  is pushed to the AvoidClearance height it holds it until |dx| leaves the box, so a pitched
+  hitbox can't clip the player when overtaken); escorts keep a per-fighter formation offset;
+  `fighterChase.standoffMax` 5 (with 6, about 27% of trailing fighters sat off screen and never
+  fired). Built (B061): consts MinForwardSpeed 0.5 (static fighters start at it; outside a turn
+  velocity along the facing never drops below it; a turn holds at heading 0.99 until reached),
+  AvoidLeadSeconds 0.6 (box half-width = 0.85 x standoff + 0.6 s x closing speed), AvoidExitMargin
+  0.25; the box is entered at |dy| < AvoidClearance 1.5, then the fighter holds player y +-1.5 at
+  full climbRate with no separation push and no nose aim until |dx| >= half-width + 0.25.
+  Formation slots: pairs above/below the escorted plane at its hitbox half-height + 0.7
+  (FormationGapY), 1 u behind, +1.8 u per pair; in formation an escort faces its direction of
+  travel. APIs `IsAvoiding`, `EscortSlot`, `AvoidHalfWidth`, `ClosingSpeed`, `AvoidHold`,
+  `FormationOffset`, `HorizontalVelocityStep(..., minForward)`.
+  B063: the slot y is kept inside the flight band (`FighterAI.FormationSlotY`). Tiers on each side
+  of the escorted plane sit at half-height + FormationGapY + (k-1) x FormationTierGapY 1.7, up to
+  FormationMaxTiers 3; an upper slot with no room above takes the next free tier below, a lower
+  slot with no room below flips above, and if no tier fits the slot clamps into the band. Code
+  default `fighterChase.standoffMax` is 5.
+- Attack slots (B060, orchestrator balance call): at most `fighterChase.maxAttackers` (3)
+  fighters may fire at once; the others keep chasing at their standoff and wait for a slot (the
+  nearest fighters with the nose on target get the slots; a slot frees when its holder dies,
+  escapes or loses aim for a moment). Each fighter's standoff is randomised in
+  [`standoff`, `standoffMax`] (3.5..5) so a pack spreads out instead of forming a column.
+  Built (B060): coordinator `Enemies/FighterAttackSlots.Shared` (Report, TryAcquire(key, now,
+  minShotGap, out wait), NotifyShot, Release, ReleaseAll, BindTarget, Reset, Holds). Eligible = on
+  screen, not turning, in cone and range, nose within aimToleranceDegrees (cooldown ignored); an
+  eligible holder is never pushed out; a holder that can't shoot for `slotGraceSeconds` (0.5) is
+  released; a new holder waits until the slot's last shot + enemyFire.fighterIntervalMin, so
+  hand-overs can't raise the fire rate. Reset on a new player plane (Next/Retry), on play start
+  and on the player's death; clock = Time.fixedTime (frozen at 0 in EditMode). FighterAI APIs
+  `Standoff`, `HasAttackSlot`, `PickStandoff(min, max, t01)`. Balance `fighterChase.maxAttackers`
+  3, `standoffMax` 5 (raised to standoff if lower), `slotGraceSeconds` 0.5. Worst case for a
+  pack behind the player: about 5.6% damage per second, at least 16 s from full health to a crash.
+
 ### Pitch (Core/PlanePitch.cs, Player, Enemies)
 All planes pitch around the lateral axis: `PlanePitch.Step` eases `PitchAngle` (nose up positive) toward vy/`pitch.fullPitchSpeed` x `pitch.maxDegrees` at `pitch.easeDegreesPerSecond`. The body turns with `_rb.MoveRotation(BodyAngle = PitchAngle x Facing)` so up stays up when facing left; sprite and hitboxes are on the same body. Balance `pitch` block (`PitchData`, read with `PitchData.Resolve`, defaults are consts on `PlanePitch`): `maxDegrees` 15 (player, bomber), `fighterMaxDegrees` 40, `easeDegreesPerSecond` 60, `fullPitchSpeed` 3. All three planes expose `PitchAngle`, `BodyAngle`, `NoseDirection`. The player's terrain check uses `HitboxLowestPoint()` (the rotated hitbox; up to about 0.19 lower than level at 15 degrees, accepted). Player bullets leave along `PlayerPlane.NoseDirection` (x mirrored by facing, muzzle offset rotated with the nose); `Bullet.Spawn(Vector3, Quaternion, Vector2)` accepts any direction. Fighters fire along their own nose direction (`FighterAI.NoseDirection`) +-`spreadDegrees`, from the nose: the pitch eases toward the player's bearing (limit `pitch.fighterMaxDegrees`) while the player is inside the firing cone and range, otherwise follows climb/dive, and the fighter only fires when the player is within `enemyFire.aimToleranceDegrees` (10) of the nose. The bomber's gunner stays a swivel gun from the centre (not nose-bound). Bombs are unchanged (gravity). `Bullet.Spawn(Vector3, Quaternion, Vector2)` takes the nose direction; player bullets spawn at position + `NoseDirection` x 0.7.
 
@@ -191,18 +260,33 @@ and the player's Health scales it by `damageTaken` (bomb hits use `bomberGunner`
 (`damageTaken.flak`). `FlakShell.Spawn(position, dir, source)` fires along `dir` exactly and
 hits with `source`. The player's Health maps `ZeppelinTurret` to `damageTaken.zeppelinTurret`.
 A `FlakShell` plays `FxManager.TriggerFlakBurst` on a player hit and on lifetime expiry (airburst), not on a plain Recycle.
+Bomb flight (B036, B057): `Bomb.Spawn(position, parentVelocity)` gets
+`BombBallistics.InheritedVelocity(PlayerPlane.Velocity, Facing, ScrollController.ScrollSpeed, bomb.inheritFactor)`:
+the plane's world velocity, with x along Facing and at least the cruise speed, so a bomb never travels
+against the plane's facing (the post-turn slide runs backward; while the camera is pinned at a limit a
+bomb still leaves forward at cruise speed). Each frame the pure `BombBallistics.Step(pos, vel, dt,
+gravity, drag)` integrates v.y -= gravity*dt, v.x *= (1 - drag*dt) (semi-implicit Euler, stable
+at any frame rate), and the sprite's rotation follows atan2(v.y, v.x), mirrored when the bomb
+travels left. Tunables: Balance `bomb` block (`BombData.Resolve`): `gravity` 10, `drag` 0.15,
+`inheritFactor` 1.0, `alignToVelocity` true. The step runs in `Bomb.FixedUpdate` (kinematic body moved with
+MovePosition/MoveRotation, Rigidbody2D velocity zeroed, gravityScale 0, velocity exposed as `Bomb.Velocity`);
+the ground check stays in `Update`. A zero-velocity bomb points nose-down (`BombBallistics.RestAngleDegrees` -90);
+a bomb travelling left is flipped vertically so its fins stay upright. Sprite `Sprites/player/player_bomb`
+(cached; placeholder plus one warning if missing); trigger = 0.3 x 0.12 horizontal capsule.
+`EnemyBomb` keeps its own fall.
 On reaching the terrain, a `Bomb` damages every live Team.Enemy IDamageable within 0.5
 units (OverlapCircle) before it recycles, once per target and never the target it already
 hit directly, so fast bombs can't tunnel past ground targets. The burst and explosion are
 placed on the surface at the x where the bomb crossed it (interpolated between the
 previous and current positions), not at the below-ground position.
 Player `Bullet`s and `Bomb`s ignore Team.Neutral IDamageables (health balloons) and fly on.
+White only (B038a): the player bullet is a solid ink 3x1 px line burst; the enemy bullet is an ink 3x1 dot-gap-dot burst (middle pixel transparent); both 100 ppu, set in code (Bullet overrides PlayerPlane's placeholder), colliders stay circle r=0.08 (B039); the flak shell an ink 4x4 diamond; the enemy bomb a pencil 4x6 rect. No code may use a colour outside ink, pencil and paper.
 
 ### FX (Fx/)
 `FxManager` (singleton; `Instance` creates it; `static GetOrNull()` returns null outside Play
 mode when none exists). `TriggerExplosion(Vector3, bool playSound = true)`: explosion_0..5 at 0.08 s/frame, gentle
 0.85x->1.15x grow, alpha fade over the last 0.12 s, max 20 live. `TriggerFlakBurst(Vector3, bool playSound = true)`:
-flak_burst_0..3 at 0.07 s/frame, max 16. `SpawnSmokePuff(Vector3)`: smoke_puff, world space,
+flak_burst_0..3 at 0.07 s/frame, max 16. `SpawnEnemySmokePuff(Vector3)` (B051, damaged fighters): the same puff as `Kind.EnemySmokePuff` with its own cap of 32, so enemy smoke never recycles the player's trail. FighterAI smoke trail (B051): while alive and hit, a puff at `SmokeTailPoint` (0.75 u opposite `NoseDirection`) every 0.25 s after 1 hit and 0.12 s from 2 hits (`SmokeInterval(HitCount)`), none when healthy, dead or paused; `HitCount` = max(damage increases seen, `HitsFromDamage`); ReEnter keeps the smoke; visual constants, not Balance. `SpawnSmokePuff(Vector3)` (player): smoke_puff, world space,
 rises 0.3 u/s, 1.0x->1.6x, fades over 1.2 s, max 24. `CountActive(FxManager.Kind)`. At a cap
 the oldest effect of that kind restarts. Sprites load once; missing frames warn once and are
 skipped. Frame math lives in the pure `FxFrames` (Duration, FrameIndex, IsDone, Progress,
@@ -283,6 +367,68 @@ Design intent and cue list: GDD Style Guide, "Sound effects".
   `sfx` 1.0, `music` 0.6, `pitchJitter` 0.06, `volumeJitter` 0.15, `offscreenVolume` 0.4,
   `maxVoices` 12. A missing, zero or negative key falls back to its default (mute with a
   tiny value such as 0.001); volumes and jitters clamp to 0..1, maxVoices to 1..32.
+
+### Mission start gate (B049)
+GDD "Mission start": after the briefing every mission is in a waiting state until the first
+player input (W/A/S/D, left mouse fire, Space bomb; the same keys PlayerInput reads, through
+PlayerInputGate so a key held through the briefing doesn't count). While waiting:
+ScrollController velocity is 0 (no scroll, no parallax, FarthestX unchanged, so no spawns
+trigger), PlayerPlane holds position (no auto-forward, no gravity drift), EnemyPressure's
+timer stays reset, and no gun or bomb fires from that first press unless it is the fire/bomb
+key itself (then it fires normally). Mission 1's runway start is the same gate. Retry and Next
+start waiting again. Built (B049): `ScrollController.Hold()/Release()/IsHeld` (Create starts
+unheld, StartMission holds; after Release the scroll eases up from 0 over turnEaseSeconds/2),
+`MissionRunner.HasStarted` (stays true after the mission ends), `PlayerPlane.IsWaitingForStart`,
+`PlayerInputGate.AnyAction(InputState)`; EnemyPressure counts only once HasStarted. On the runway
+(mission 1) only the W/D takeoff starts the mission. W/A/S/D now follow the same release rule as
+fire and bomb: a key held while a screen blocks input (briefing, pause, result) or when the plane
+spawns must be released and pressed again before it counts (also after Resume).
+
+### Enemy pressure (Missions/EnemyPressure.cs) - B035, B040, B041
+GDD "Enemy pressure": never more than `pressure.maxQuietSeconds` (2) of play without an
+enemy aircraft (FighterAI, BomberAI, ZeppelinAI) inside the camera view.
+- One per mission, created by MissionRunner. The quiet timer holds while the game isn't
+  Playing; a missing player, the runway, a crash or all objectives done reset it; any live
+  enemy aircraft in view resets it (`EnemyPressure.IsLiveAircraft`: IDamageable answers for
+  itself, else its Health; never a cast). Scaled time.
+- At the limit it spawns `pressure.fillerCount` reinforcements just past the edge the player
+  faces (`MissionRunner.PlayerFacing`: scroll direction, else the plane's Facing, else right),
+  flying toward the player, at offset 0.75 + 0.25 + 1.25*i + rand(0..0.25) beyond the edge, each
+  in its own slice of the flight band. Worst-case arrival about 2.2 s after the screen emptied.
+  `maxLiveFighters` (6) counts live fighters on screen, plus those off screen within one screen
+  width that are closing on the view in the camera's frame (WorldVelocityX minus camera velocity,
+  epsilon 0.1 u/s; `EnemyPressure.CountsTowardCap`). An off-screen fighter that holds its distance
+  or recedes never blocks a wave (B041).
+- Reinforcements are named "fighterReinforcement" (`ScoreKeeper.ReinforcementFighterKey`): they
+  score as a fighter, and since B050 ObjectiveTracker also counts them as "fighter" kills toward
+  destroyAllOfType (required count stays the JSON spawn total). The rule is `ObjectiveTracker.CountsAsKillOf(targetType, entityType)`; `RemainingKills(index)` gives max(0, required - kills) and is what the HUD shows (B053).
+- Escapes (B040, run even when `pressure.enabled` is false), measured in the camera's frame on
+  either side: a JSON fighter more than 3 u outside the view and not closing on it re-enters just
+  past the leading edge (`ReEnterFighter`, same name and damage) while an open destroyAllOfType
+  objective still counts it (`OpenDestroyAllCounts(type)`), otherwise it is removed silently;
+  reinforcements are removed 20 u out; escorts with a live target are exempt.
+- APIs: MissionRunner `EnemyAircraft`, `Player`, `ObjectivesOpen`, `PlayerFacing`,
+  `OpenDestroyAllCounts(string)`, `ReEnterFighter(FighterAI)`, `SpawnReinforcementFighter(index,
+  count)`; every fighter spawn goes through one `SpawnFighter` helper. FighterAI
+  `FlightDirection`, `SetFlightDirection`, `ReEnter`, `WorldVelocityX`, `Pattern`, `IsEscorting`:
+  JSON fighters fly left by default; reinforcements and re-entering fighters may fly right, and
+  sprite flip, nose, gun cone and pitch follow the flight direction.
+- The timer and decision math are pure helpers on EnemyPressure (EditMode-tested).
+
+### Minimap (UI/MinimapView.cs) - B044
+Built by HudView under the HUD canvas (uGUI from code, like the other views), per UI_SPEC
+§3.3.1. Reads, never writes: MissionRunner (mission `length`, spawn list with a spawned/pending
+flag, live enemy lists: `EnemyAircraft` plus ground enemies, objective targets and `failAtX`,
+HQ position), PlayerPlane (position, Facing), Camera.main (view span), TerrainStrip.HeightAt.
+Markers are pooled Images using small procedural white sprites (no new art), repositioned at
+10 Hz; the pure world-to-minimap mapping (`MinimapView.MapX/MapY`, clamping) is EditMode-tested.
+APIs (B044): MissionRunner `GroundEnemies` (AAA, barrage balloons, enemy bases; registered at
+spawn, cleared at teardown), `MissionLength`, `SpawnEntryCount`, `IsSpawnPending(int)`.
+MinimapView `Create(parent, leftReserve, rightReserve)`, `Bind`, `Refresh`, pure helpers `MapX`,
+`MapY`, `FacingAngle`, `FrameWidth`, `VisibleIn`, `IsEnemySpawnType`, `IsObjectiveTarget`.
+HudView `Minimap`, `LeftReserve`, `RightReserve`. GameManager and the runner are looked up once at
+creation. The HUD canvas uses a constant-pixel CanvasScaler (MissionRunner.CreateHud), so HUD
+widgets look small at 4K (B045).
 
 ### Missions (Missions/)
 - `MissionData` (`[Serializable]` classes matching the JSON in §5, parsed with `JsonUtility`).
@@ -392,7 +538,7 @@ Design intent and cue list: GDD Style Guide, "Sound effects".
 
 ### UI (UI/), built with uGUI from code, specified in docs/UI_SPEC.md
 UI code rules: every Image built from code gets a sprite (or a deliberate tint), every Text gets `LegacyRuntime.ttf`, and rects are placed with `anchoredPosition` and `sizeDelta`, never `offsetMin`/`offsetMax` after `sizeDelta`. `BombBay` raises `BombsChanged` in `Start`; `HudView` builds already showing a full bay (`bombCapacity`), 0% damage and score 0.
-`HudView` (damage bar, smoke-warning tint at 70%, bomb icons ×7, score, objective text),
+`HudView` (damage bar, smoke-warning tint at 70%, bomb icons ×7, score, objective text; white only since B038b: exposes `BombAvailableCol` (ink), `BombSpentCol` (pencil, alpha 0.5), `DamageFlashing` and `static FlashAlpha(elapsed)`; from smokeThreshold the fill is a generated hatch sprite flashing 1.0/0.4 at 3 Hz on unscaled time, with the SMOKE text in sync; FriendlyCol/HostileCol/HealCol removed; code-built buttons get their pressed state from `MainMenuView.AddPressInversion` (ink plate, paper label)),
 `MainMenuView` (mission select limited to `unlocked_mission`), `BriefingView`,
 `PauseView` (Esc), `ResultView` (win/lose, score, retry, next).
 Each GameManager state creates its own view on its own canvas when it starts and destroys it when it ends (Briefing 105, Pause 110, Result 120; an EventSystem is created if the scene has none); views are only built in Play mode. API: `GameManager.MissionCount/LoseMission(reason, delay)/ShowResultView(won, reason, delay)/PauseGame()/NextMission(n)/QuitToMenu()`, `ResultView.Create()/HideAll()/IsShowing`, `PauseView.Show()/Hide()/IsShowing`, `BriefingView.Show(n)/Hide()/IsShowing`. Crash flow: input and the collider turn off at once, `LoseMission("Player crashed", 1s)` sets Lost and raises MissionEnded immediately, the wreck falls and tumbles (`PlayerPlane.CrashFallSeconds`) while enemies keep running, and the result screen opens after 1 s of real time, then time freezes. Retry skips the briefing; Next shows the next mission's briefing; Next after mission 5 returns to the menu.
@@ -400,12 +546,12 @@ Each GameManager state creates its own view on its own canvas when it starts and
 ## 4. Balance.json (defaults; mechanics creates it, mission-design tunes it)
 ```json
 {
-  "player": { "speed": 5.0, "fireRate": 8.0, "bulletSpeed": 14.0, "bulletDamage": 25.0,
+  "player": { "speed": 6.5, "fireRate": 8.0, "bulletSpeed": 14.0, "bulletDamage": 25.0,
               "bombCapacity": 7, "bombDamage": 100.0, "smokeThreshold": 70.0,
-              "turnEaseSeconds": 0.6, "screenAnchor": 0.3 },
-  "damageTaken": { "fighterBullet": 8.0, "flak": 15.0, "bomberGunner": 10.0, "zeppelinTurret": 12.0, "collision": 100.0, "planeCollision": 50.0 },
-  "healthBalloonRestore": 30.0,
-  "enemyHealth": { "fighter": 25.0, "bomber": 200.0, "aaa": 100.0, "barrageBalloon": 50.0, "zeppelinTurret": 75.0, "zeppelinHull": 1000.0, "enemyBase": 100.0 },
+              "turnEaseSeconds": 0.6, "screenAnchor": 0.3, "resistance": 1.5 },
+  "damageTaken": { "fighterBullet": 5.0, "flak": 15.0, "bomberGunner": 10.0, "zeppelinTurret": 12.0, "collision": 100.0, "planeCollision": 50.0 },
+  "healthBalloonRestore": 100.0,
+  "enemyHealth": { "fighter": 75.0, "bomber": 200.0, "aaa": 125.0, "barrageBalloon": 50.0, "zeppelinTurret": 75.0, "zeppelinHull": 1000.0, "enemyBase": 100.0 },
   "score": { "fighter": 100, "barrageBalloon": 75, "aaa": 150, "zeppelinTurret": 200, "bomber": 500, "enemyBase": 1000, "zeppelin": 2500 },
   "hullVulnerableEarly": false,
   "background": { "farFactor": 0.1, "midFactor": 0.3, "nearFactor": 0.6 },
@@ -418,10 +564,12 @@ three float fields, in a `background` field.
 `pitch` (mirrored as `PitchData`, read with `PitchData.Resolve`): `maxDegrees` 15, `fighterMaxDegrees` 40, `easeDegreesPerSecond` 60, `fullPitchSpeed` 3. `easeDegreesPerSecond` must stay below about 72 while the runway clearance is 0.02, or the pitching nose drops the tail into the ground on the takeoff tick (guarded by a test).
 `enemyFire` (mirrored as `EnemyFireData`, read with `EnemyFireData.Resolve(GameBalance.Get())`, defaults used when a key is missing): `fighterIntervalMin/Max` 1.8/2.5, `fighterConeDegrees` 40, `bomberIntervalMin/Max` 2.5/3.0, `firstShotDelayMin/Max` 0.4/1.2, `bulletSpeed` 8, `bulletLifetime` 1.6, `range` 11, `spreadDegrees` 4, `aimToleranceDegrees` 10.
 `audio` (mirrored as `AudioData`, read with `AudioData.Resolve(GameBalance.Get())`, never null): `master` 0.8, `sfx` 1.0, `music` 0.6, `pitchJitter` 0.06, `volumeJitter` 0.15, `offscreenVolume` 0.4, `maxVoices` 12; fallback and clamp rules in §3 Audio.
+`player.resistance` (B052, default 1.5): the player's Health divides every non-fatal damageTaken hit (Bullet/fighterBullet, Bomb/bomberGunner, Flak, ZeppelinTurret, PlaneCollision) by it; DamageSource.Collision (terrain, buildings, rams: 100) stays fatal; heals unchanged. Missing or <= 0 -> 1 (no change).
+`pressure` (mirrored as `PressureData`, `PressureData.Resolve`): `enabled` true, `maxQuietSeconds` 2, `fillerCount` 2, `maxLiveFighters` 6.
 `enemySpeed` is how fast each enemy flyer (fighter, bomber, zeppelin) flies left in world units per second, on top of
 the camera scroll. It is mirrored as `EnemySpeedData` in the `enemySpeed` field.
 Enemy health is in damage points where the player bullet deals `bulletDamage`, so a
-fighter dies in 1 hit, a bomber in 8 bullets or 2 bombs, and the hull in 40. Player damage
+fighter dies in 3 hits (`enemyHealth.fighter` 75, user decision 2026-11-18), a bomber in 8 bullets or 2 bombs, and the hull in 40. Player damage
 is a percentage. See `Health.SetMaxHitPoints` (§3 Core).
 
 ## 5. Mission JSON schema (`Resources/Missions/mission_0N.json`)

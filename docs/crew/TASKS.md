@@ -186,3 +186,59 @@ _(The orchestrator adds a 5-line summary here at the end of each milestone.)_
 | B034 [P2] | M6 | art | Re-cut crash.wav: 1.0 s, crunch at 0.103 s; other 22 clips byte-identical | T953 | DONE (QA T955) |
 | T955 | M6 | qa | Re-verify B032-B034: PASS, all 8 T953 bugs closed, 0 new bugs. AudioFixesQaTests (12) added. M6 PASS pending the EditMode run and the listening checklist in docs/qa/T953-verify.md | B032,B033,B034 | DONE |
 | T954 | M6 | orchestrator | Optional: music (briefing/result screens only, quiet or none in flight); decide source after T953 playtest | T953 | TODO |
+| T956 | all | orchestrator | Style loop (tools/style_loop): Generator -> Evaluator -> Refiner enforcing the GDD Style Guide (palette, accents, fills, line weight, background quiet, narrative voice, vocabulary, grounding). GDD gained Narrative voice + Enforced rules table. Applied: 2 SVG line-weight fixes (PNGs re-rendered), 5 mission briefings rewritten by gpt-oss:120b on the Spark; 35 offline tests | T946 | DONE |
+| B035 | M7 | mechanics | Fighters take 3 hits (enemyHealth.fighter 75); EnemyPressure reinforcement waves after 2 s without enemy aircraft on screen (Balance `pressure`) | none | DONE (QA T957-T959) |
+| V005 | M7 | mission-design | More fighters M1-M3 (37/29/46), waves timed for ~2 s gaps; V001 negative-y fixed | none | DONE (QA T957) |
+| V006 | M7 | mission-design | More fighters M4-M5 (48/62), waves timed for <2 s gaps; V001 fixed | none | DONE (QA T957) |
+| A-BOMB | M7 | art | player_bomb sprite: 32x14 horizontal copy of the HUD bomb icon, ink white | none | DONE |
+| B037 | M7 | mechanics | AAA destroyable by 5 player bullets (enemyHealth.aaa 125); one bomb still kills outright; throttled HitEnemy | none | DONE (QA T957) |
+| B036 | M7 | mechanics | Parabolic bombs (BombBallistics, full plane velocity, gravity 10, drag 0.15, nose along path), player_bomb sprite, white damage tint, Balance `bomb` | B035 | DONE (QA T957) |
+| A-WHITE | M7 | art | White only: accents removed from flak (gen_pencil_fx.py), health balloon, rasterizer palette, ART_STYLE | none | DONE (QA T957) |
+| B038a | M7 | mechanics | White only in world code: bullets, tracers (shape cue), flak, enemy bomb, health cross, tether | none | DONE (QA T957) |
+| B038b | M7 | mechanics | White only in UI: HUD bomb icons, hatched flashing damage bar, ink press inversion on buttons, result title plate | none | DONE (QA T957) |
+| B039 | M7 | mechanics | Bullets as 3x1 px line bursts (player solid, enemy dot-gap-dot), colliders unchanged | none | DONE (QA T957) |
+| T957 | M7 | qa | Verify the M7 round: FAIL (0 P0, 4 P1, 8 P2); fixed 3 broken tests, added WhiteOnlyAndPressureQaTests | all above | DONE |
+| B040 [P1] | M7 | mechanics | T957 BUG 1/2/3/5/6/7: no aircraft cast, reinforcements on the facing side, escaped fighters re-enter while a destroy-all needs them, FighterAI 75 fallback; fighterBullet 8 -> 5 | T957 | DONE (QA T958) |
+| V007 [P2] | M7 | mission-design | T957 BUG 9: duplicate health balloons removed in M2/M3 | T957 | DONE (QA T958) |
+| T958 | M7 | qa | Re-verify: code fixes PASS; P1 BUG 4 (M4/M5 unsurvivable on paper) open; N1/N2 P2 | B040,V007 | DONE |
+| V008 [P1] | M7 | mission-design | M4 +2 balloons (220% vs 168%); M5 +3 balloons and 2 AAA removed (280% vs 235%) | T958 | DONE |
+| B041 [P2] | M7 | mechanics | T958 N1: reinforcement cap counts only fighters on screen or closing; N2 FighterAI comment | T958 | DONE |
+| B042 [P2] | M7 | mechanics | Deferred cleanup T957 BUG 8/10: remove dead 6x2 bullet placeholder in PlayerPlane; Color.white 1x1 fallbacks -> ink in 8 enemy files + PlayerPlane | T957 | TODO |
+| T959 | M7 | qa | Final check B041 + V008: PASS (0 P0, 0 P1, 3 P2 deferred: T957 BUG 8, 10, 12). M4 168% vs 220%, M5 235% vs 280% on paper. 2 mission-data tests added | B041,V008 | DONE |
+| B043 | M7 | orchestrator | HUD warning label "SMOKE" -> "DAMAGE" (user request, direct fix) | none | DONE |
+| V009 | M7 | mission-design | +3 health balloons in M1-M3 (4/5/6) | none | DONE (QA T960) |
+| V010 | M7 | mission-design | +3 balloons M4 (7), +2 M5 (8) | none | DONE (QA T960) |
+| T960 | M7 | qa | Verify extra balloons: PASS (0 P0, 0 P1, 1 P2: M5 balloon at 470 off the zeppelin fight). Heal headroom +105..+163 points on all missions | V009,V010 | DONE |
+| V011 [P2] | M7 | mission-design | Move M5 balloon 470 -> 405 (zeppelin fight); orchestrator checked JSON + validator | T960 | DONE |
+| B044 | M7 | mechanics | HUD minimap (UI_SPEC 3.3.1): whole mission span, player, camera window, live/upcoming enemies, objective diamonds, failAtX line, HQ flag | none | DONE (QA T961) |
+| B045 [P2] | M7 | mechanics | HUD canvas: switch CanvasScaler to ScaleWithScreenSize 1920x1080 so the HUD and minimap scale on 4K (from B044) | B044 | TODO |
+| T961 | M7 | qa | Verify minimap B044: PASS (0 P0, 0 P1, 2 P2: a wrong test value fixed by QA; per-refresh gameObject.name check makes small garbage). MinimapQaTests (5) added | B044 | DONE |
+| B046 [P2] | M7 | mechanics | Minimap: cache a FighterAI.IsReinforcement flag instead of reading gameObject.name each refresh (T961) | T961 | DONE (in B053) |
+| B047 [P1] | M7 | mechanics | First real Unity test run (405/418): EditMode-safe teardown (DestroyImmediate), GameManager.GetOrNull, ScrollController.Create sets Instance, EnemyBullet stats without Awake -> 415/418 | none | DONE |
+| B048 [P2] | M7 | mechanics | EnemyPressure.cs:117 GameManager.Instance -> GetOrNull; :179 Destroy -> Play-mode-guarded destroy (from B047) | B047 | TODO |
+| T962 | M7 | qa | Stale tests made data-driven (M1 37 fighters, M4 balloons), fixtures bind their own ScrollController. Real Unity EditMode run: 418/418 pass | B047 | DONE |
+| B049 [P1] | M7 | mechanics | Every mission waits for the first input (ScrollController.Hold/Release, PlayerPlane.IsWaitingForStart, MissionRunner.HasStarted) | none | DONE (tests pending) |
+| B050 [P1] | M7 | mechanics | ObjectiveTracker counts reinforcement kills (CountsAsKillOf, RemainingKills) | none | DONE |
+| B053 [P1] | M7 | mechanics | HUD objective number from ObjectiveTracker.RemainingKills; minimap diamonds on reinforcements; old HUD start count used spawn entries not counts | B050 | DONE (tests pending) |
+| B051 | M7 | mechanics | Damaged enemy fighters trail smoke (0.25 s after 1 hit, 0.12 s from 2), own FX cap 32 | none | DONE (tests pending) |
+| B052 | M7 | mechanics | Player 50% tougher: Balance player.resistance 1.5 divides non-fatal hits; crashes stay fatal | none | DONE (tests pending) |
+| T963 | M7 | qa | Verify B049-B053: PASS (0 P0, 0 P1, 4 P2); tests updated for counted reinforcements and player resistance; FighterCounterQaTests (8). Real Unity run pending (editor open) | B049-B053 | DONE |
+| B054 [P2] | M7 | mechanics | HudView.OnObjectiveCompleted: only the shown objective shows "Objective Complete!" (M4 base-first cleared the balloon counter); stale "reinforcements never count" comments in EnemyPressure/MissionRunner/ScoreKeeper | T963 | DONE (QA T964) |
+| T964 | M7 | qa | B054 tests (HudObjectiveQaTests 5); real Unity EditMode run 473/473; one ram test updated for B052 | B054 | DONE |
+| B055 [P2] | M7 | mechanics | HUD singular at 1 left ("Destroy 1 more barrage balloon"): HudView.cs:522 ReadableType(type, remaining != 1) + test strings | T964 | TODO |
+| V012 | M7 | mission-design | +2 first-half health balloons M1-M3 (6/7/8) | none | DONE |
+| V013 | M7 | mission-design | +2 first-half health balloons M4-M5 (9/10) | none | DONE |
+| T965 | M7 | orchestrator | Check V012/V013: validate_missions all OK, spawns sorted, real Unity EditMode run 473/473 (incl. MissionDataRulesTests balloon rules) | V012,V013 | DONE |
+| B056 | M7 | mechanics | player.speed 5 -> 6.5 (climb/dive, post-turn slide); fallback 6.5 | none | DONE (tests pending) |
+| V014 | M7 | mission-design | scrollSpeed x1.3 all missions; M5 length 580; gap/bomber/zeppelin timing re-checked | B056 | DONE |
+| B057 [P1] | M7 | mechanics | Bombs always leave along the facing (BombBallistics.InheritedVelocity); cause: post-turn slide runs backward. Real Unity run 482/482 (incl. B056, V014) | none | DONE |
+| A-TITLE | M7 | art | title_logo redrawn to read "Biplanes" (was "SIPIAPAE"); new title_planes composite from the user blueprints (player chasing a Fokker) | none | DONE (orchestrator viewed both) |
+| B058 | M7 | mechanics | Main menu shows title_planes above the logo (logo y 145, 520x130); fallback text "Biplanes"; Unity 482/482 | none | DONE |
+| A-GUN | M7 | art | Realistic gun sounds: player_gun/enemy_gun/hit_enemy rebuilt from noise + falling sine (no metallic ringing): player 9.6/54.7/35.7 -> 66.9/28.8/4.3 low/mid/high %; enemy -6 dBFS; others byte-identical. Agent ran git stash/pop (line endings only); orchestrator re-rendered PNGs (identical), all checks OK | none | DONE |
+| B059 | M7 | mechanics | Fighters always face and chase the player (eased turn, standoff, separation, escort leash, Balance fighterChase); Unity 498/498 | none | DONE (QA T966) |
+| B060 | M7 | mechanics | Attack slots (max 3 shooters) + per-fighter standoff 3.5-6; pack worst case 5.6%/s (>= 16 s to crash); Unity 514/514 | B059 | DONE (QA T966) |
+| B061 [P1] | M7 | mechanics | T966 fixes: no tail-first flight (MinForwardSpeed), avoid-box hysteresis (no overtake clip), escort formation slots, standoffMax 5; Unity 525/530 (5 stale tests) | T966 | DONE (QA T967) |
+| B062 | M7 | mechanics | Health balloons restore 100% (Balance healthBalloonRestore 100, HealthBalloon.FallbackRestore); heal budget test replaced; HealthBalloonFullHealTests (4). Real Unity run pending (editor open) | none | DONE (tests pending) |
+| T966 | M7 | qa | Verify chase + attack slots: FAIL 1 P1 (overtake clip), 5 P2 | B059,B060 | DONE |
+| T967 | M7 | qa | Re-verify after B061: PASS (0 P0, 0 P1, 2 P2); real Unity run 536/536 incl. B062 | B061 | DONE |
+| B063 [P2] | M7 | mechanics | T967: escort formation slots kept inside the flight band; DefaultStandoffMax 5; stale comment; Unity 544/544 | T967 | DONE |

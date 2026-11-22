@@ -28,10 +28,20 @@ namespace Biplanes.UI {
         private const float ReferenceHeight     = 720f;
         private const float MatchWidthOrHeight  = 0.5f;
 
-        private const float TitleY              = 190f;
-        private const float TitleWidth          = 640f;
-        private const float TitleHeight         = 160f;
+        // Logo shrunk and lowered a little (was y 190, 640x160) to leave room for the
+        // title_planes illustration above it (B058, UI_SPEC §3.1). Still clear of the mission row.
+        private const float TitleY              = 145f;
+        private const float TitleWidth          = 520f;
+        private const float TitleHeight         = 130f;
         private const int   TitleFontSize       = 64;
+
+        // title_planes illustration: ~960x300 px at 1080p = 640x200 reference units. Its rect
+        // is 640 wide and stretches from just above the logo to just below the canvas top;
+        // preserveAspect scales the art down to fit that band, so it never overlaps the logo.
+        // Band height: ~138 at 16:9, ~193 at 1024x768 (both under the 200 the art is drawn for).
+        private const float TitleArtMaxWidth    = 640f;
+        private const float TitleArtGap         = 8f;    // space between the art and the logo top
+        private const float TitleArtTopMargin   = 12f;   // space between the art and the canvas top
 
         private const float MissionRowY         = 0f;
         private const float MissionButtonWidth  = 220f;
@@ -52,9 +62,11 @@ namespace Biplanes.UI {
 
         private const float LockedAlpha         = 0.35f;
         private const float ColorFadeDuration   = 0.1f;
+        private const float ActiveFillInset     = 4f;    // keeps the ink plate inside the ui_button outline
 
         private const string FontResource       = "LegacyRuntime.ttf";
         private const string TitleSpritePath    = "Sprites/ui/title_logo";
+        private const string TitleArtSpritePath = "Sprites/ui/title_planes";
         private const string ButtonSpritePath   = "Sprites/ui/ui_button";
         private const string PanelSpritePath    = "Sprites/ui/ui_panel";
 
@@ -65,12 +77,14 @@ namespace Biplanes.UI {
             "SPACE  drop a bomb (7 per mission)\n" +
             "ESC  pause";
 
-        // ── Palette (ART_STYLE / UI_SPEC §2) ───────────────────────────────
+        // ── Palette (UI_SPEC §2, GDD Style Guide: white only) ──────────────
+        // Only ink, pencil and paper (alpha allowed). NoTint is the identity multiplier for
+        // sprites that already carry their own ink lines; it is not a displayed colour.
 
         private static readonly Color Paper   = new Color(0.059f, 0.165f, 0.29f, 1f); // #0F2A4A
         private static readonly Color Ink     = new Color(0.91f, 0.945f, 0.98f, 1f); // #E8F1FA
         private static readonly Color Pencil  = new Color(0.616f, 0.706f, 0.8f, 1f); // #9DB4CC
-        private static readonly Color Hostile = new Color(0.894f, 0.341f, 0.18f, 1f); // #E4572E
+        private static readonly Color NoTint  = Color.white;
 
         // ── State ──────────────────────────────────────────────────────────
 
@@ -155,6 +169,7 @@ namespace Biplanes.UI {
             backdropImg.color = Paper;          // no sprite = solid rect
             backdropImg.raycastTarget = true;   // swallow clicks meant for the world
 
+            BuildTitleArt();
             BuildTitle();
 
             // Mission buttons, one row centred on the canvas.
@@ -187,9 +202,39 @@ namespace Biplanes.UI {
                 img.raycastTarget = false;
             } else {
                 Debug.LogWarning("MainMenuView: Missing sprite '" + TitleSpritePath + "', using text title.");
-                var txt = AddText(rect.gameObject, "BIPLANES", TitleFontSize, Ink);
+                var txt = AddText(rect.gameObject, "Biplanes", TitleFontSize, Ink);
                 txt.raycastTarget = false;
             }
+        }
+
+        /// <summary>
+        /// Title-screen plane illustration above the logo (UI_SPEC §3.1). The rect spans the
+        /// band between the logo top and the canvas top (TitleArtMaxWidth wide), and the
+        /// image keeps its aspect inside it, so it shrinks on short canvases instead of
+        /// overlapping the logo. Missing sprite: one warning, nothing drawn.
+        /// </summary>
+        private void BuildTitleArt() {
+            var art = Resources.Load<Sprite>(TitleArtSpritePath);
+            if (art == null) {
+                Debug.LogWarning("MainMenuView: Missing sprite '" + TitleArtSpritePath + "', skipping title art.");
+                return;
+            }
+
+            float bottom = TitleY + TitleHeight * 0.5f + TitleArtGap;   // from the canvas centre
+            var go = new GameObject("TitleArt", typeof(RectTransform));
+            go.transform.SetParent(transform, false);
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = new Vector2(0.5f, 0.5f);   // bottom edge pinned above the logo
+            rect.anchorMax = new Vector2(0.5f, 1f);     // top edge pinned below the canvas top
+            rect.pivot = new Vector2(0.5f, 0f);
+            rect.offsetMin = new Vector2(-TitleArtMaxWidth * 0.5f, bottom);
+            rect.offsetMax = new Vector2(TitleArtMaxWidth * 0.5f, -TitleArtTopMargin);
+
+            var img = go.AddComponent<Image>();
+            img.sprite = art;
+            img.color = NoTint;             // sprite carries its own ink (white only)
+            img.preserveAspect = true;
+            img.raycastTarget = false;
         }
 
         private void BuildHelpPanel() {
@@ -199,7 +244,7 @@ namespace Biplanes.UI {
             var panelSprite = LoadSprite(PanelSpritePath);
             if (panelSprite != null) {
                 img.sprite = panelSprite;
-                img.color = Color.white;
+                img.color = NoTint;
             } else {
                 img.color = Paper;
             }
@@ -227,10 +272,10 @@ namespace Biplanes.UI {
             var btn = rect.gameObject.AddComponent<Button>();
             btn.targetGraphic = img;
             var colors = btn.colors;
-            colors.normalColor      = Color.white;
+            colors.normalColor      = NoTint;
             colors.highlightedColor = Pencil;   // hover = pencil glow (UI_SPEC §2)
             colors.selectedColor    = Pencil;
-            colors.pressedColor     = Hostile;  // active = hostile tint (UI_SPEC §2)
+            colors.pressedColor     = Ink;      // active = full ink, see AddPressInversion (UI_SPEC §2)
             colors.disabledColor    = new Color(Pencil.r, Pencil.g, Pencil.b, LockedAlpha);
             colors.colorMultiplier  = 1f;
             colors.fadeDuration     = ColorFadeDuration;
@@ -244,7 +289,59 @@ namespace Biplanes.UI {
             var txt = AddText(textRect.gameObject, label, fontSize, Ink);
             txt.raycastTarget = false;
 
+            AddPressInversion(btn, txt, null);
             return btn;
+        }
+
+        /// <summary>
+        /// Active state of a code-built button (UI_SPEC §2): while the pointer is held on it,
+        /// an ink plate fills the button and the label turns paper. Released or dragged off,
+        /// the plate hides and the label gets its previous colour back. Non-interactable
+        /// buttons never invert. Uses the built-in EventTrigger, so onClick, audio and
+        /// keyboard submit are untouched. Shared by Briefing, Pause and Result views.
+        /// </summary>
+        /// <param name="fillSprite">Sprite for the plate (a solid white sprite), or null for a
+        /// plain solid rect.</param>
+        internal static void AddPressInversion(Button btn, Text label, Sprite fillSprite) {
+            if (btn == null || label == null) return;
+
+            var plateGo = new GameObject(btn.name + "ActiveFill", typeof(RectTransform));
+            plateGo.transform.SetParent(btn.transform, false);
+            plateGo.transform.SetAsFirstSibling();   // above the outline sprite, below the label
+            var plateRect = (RectTransform)plateGo.transform;
+            plateRect.anchorMin = Vector2.zero;
+            plateRect.anchorMax = Vector2.one;
+            plateRect.pivot = new Vector2(0.5f, 0.5f);
+            plateRect.anchoredPosition = Vector2.zero;
+            plateRect.sizeDelta = new Vector2(-2f * ActiveFillInset, -2f * ActiveFillInset);
+            var plate = plateGo.AddComponent<Image>();
+            if (fillSprite != null) plate.sprite = fillSprite;
+            plate.color = Ink;
+            plate.raycastTarget = false;
+            plate.enabled = false;
+
+            Color restColor = label.color;
+            var trigger = btn.gameObject.AddComponent<EventTrigger>();
+            AddTriggerEntry(trigger, EventTriggerType.PointerDown, _ => {
+                if (!btn.IsInteractable() || plate.enabled) return;
+                restColor = label.color;
+                plate.enabled = true;
+                label.color = Paper;
+            });
+            UnityEngine.Events.UnityAction<BaseEventData> release = _ => {
+                if (!plate.enabled) return;
+                plate.enabled = false;
+                label.color = restColor;
+            };
+            AddTriggerEntry(trigger, EventTriggerType.PointerUp, release);
+            AddTriggerEntry(trigger, EventTriggerType.PointerExit, release);
+        }
+
+        private static void AddTriggerEntry(EventTrigger trigger, EventTriggerType type,
+                                            UnityEngine.Events.UnityAction<BaseEventData> action) {
+            var entry = new EventTrigger.Entry { eventID = type };
+            entry.callback.AddListener(action);
+            trigger.triggers.Add(entry);
         }
 
         private static RectTransform CreateRect(string name, Transform parent, Vector2 pos, Vector2 size) {

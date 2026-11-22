@@ -12,6 +12,8 @@ namespace Biplanes.Fx {
     ///  • TriggerExplosion(pos): Sprites/fx/explosion_0..5, 0.08 s per frame (~0.5 s).
     ///  • TriggerFlakBurst(pos): Sprites/fx/flak_burst_0..3, 0.07 s per frame.
     ///  • SpawnSmokePuff(pos):   Sprites/fx/smoke_puff, rises, grows and fades over 1.2 s.
+    ///  • SpawnEnemySmokePuff(pos): the same puff for damaged enemy fighters (B051), under its
+    ///    own cap (Kind.EnemySmokePuff, 32) so enemy trails never starve the player's (24).
     /// Sound (T950): TriggerExplosion plays SfxId.Explosion and TriggerFlakBurst plays
     /// SfxId.FlakBurst at the position through AudioManager (optional playSound = false
     /// suppresses it). Smoke puffs are silent (the smoke loop belongs to PlayerPlane).
@@ -26,7 +28,7 @@ namespace Biplanes.Fx {
     public class FxManager : MonoBehaviour {
 
         /// <summary>The effect kinds this manager plays.</summary>
-        public enum Kind { Explosion, FlakBurst, SmokePuff }
+        public enum Kind { Explosion, FlakBurst, SmokePuff, EnemySmokePuff }
 
         // ── Singleton ────────────────────────────────────────────────────
 
@@ -58,6 +60,10 @@ namespace Biplanes.Fx {
         private const int MaxExplosions = 20;
         private const int MaxFlakBursts = 16;
         private const int MaxSmokePuffs = 24;
+        /// <summary>Enemy fighter smoke (B051) has its own cap, separate from the player's 24,
+        /// so a sky of damaged fighters can never recycle the player's trail. At 32 a few
+        /// heavily hit fighters still show trails; past it the oldest enemy puff restarts.</summary>
+        private const int MaxEnemySmokePuffs = 32;
 
         private const string ExplosionPrefix = "Sprites/fx/explosion_";
         private const int ExplosionFrameCount = 6;
@@ -148,6 +154,14 @@ namespace Biplanes.Fx {
             Play(Kind.SmokePuff, position);
         }
 
+        /// <summary>One enemy smoke puff at `position` (B051, damaged FighterAI): looks and
+        /// moves exactly like SpawnSmokePuff, but counts as Kind.EnemySmokePuff with its own
+        /// cap of 32, so it never recycles a player puff. Past the cap the oldest enemy puff
+        /// restarts here.</summary>
+        public void SpawnEnemySmokePuff(Vector3 position) {
+            Play(Kind.EnemySmokePuff, position);
+        }
+
         /// <summary>Number of live effects of `kind` (destroyed ones are pruned first).</summary>
         public int CountActive(Kind kind) {
             Prune();
@@ -196,7 +210,7 @@ namespace Biplanes.Fx {
             e.Go.transform.SetPositionAndRotation(position, Quaternion.identity);
             e.Sr.flipX = Random.value > 0.5f;
             // Smoke keeps its hatched underside at the bottom.
-            e.Sr.flipY = kind != Kind.SmokePuff && Random.value > 0.5f;
+            e.Sr.flipY = !IsSmoke(kind) && Random.value > 0.5f;
             Apply(e);
 
             _active.Add(e);
@@ -223,7 +237,7 @@ namespace Biplanes.Fx {
                     e.ScaleFrom = FlakScaleFrom;
                     e.ScaleTo = FlakScaleTo;
                     break;
-                default: // SmokePuff: one frame held for the whole life
+                default: // SmokePuff / EnemySmokePuff: one frame held for the whole life
                     e.FrameSeconds = SmokeLifetime / frames.Length;
                     e.Duration = SmokeLifetime;
                     e.FadeSeconds = SmokeLifetime;
@@ -292,15 +306,21 @@ namespace Biplanes.Fx {
             switch (kind) {
                 case Kind.Explosion: return MaxExplosions;
                 case Kind.FlakBurst: return MaxFlakBursts;
+                case Kind.EnemySmokePuff: return MaxEnemySmokePuffs;
                 default: return MaxSmokePuffs;
             }
+        }
+
+        /// <summary>The two smoke kinds share the sprite, motion and fade.</summary>
+        private static bool IsSmoke(Kind kind) {
+            return kind == Kind.SmokePuff || kind == Kind.EnemySmokePuff;
         }
 
         private static string NameFor(Kind kind) {
             switch (kind) {
                 case Kind.Explosion: return "Explosion";
                 case Kind.FlakBurst: return "FlakBurst";
-                default: return "SmokePuff";
+                default: return "SmokePuff";   // player and enemy smoke look alike
             }
         }
 

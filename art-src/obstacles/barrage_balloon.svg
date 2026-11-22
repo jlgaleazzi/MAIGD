@@ -69,7 +69,7 @@
 
     <!-- tether cable with marker ticks -->
     <path d="M45,106.5 C46.2,115 43.8,124 45,131" stroke-width="0.75"/>
-    <path d="M45,106.5 C46.2,115 43.8,124 45,131" stroke-width="2" stroke-dasharray="0.4 5" opacity="0.6"/>
+    <path d="M45,106.5 C46.2,115 43.8,124 45,131" stroke-width="1.5" stroke-dasharray="0.4 5" opacity="0.6"/>
 
     <!-- ground winch / anchor block -->
     <path d="M38,131 L52,131 L53,136 L37,136 Z" stroke-width="0.75"/>

@@ -56,12 +56,14 @@ namespace Biplanes.UI {
         private const string PanelSpritePath  = "Sprites/ui/ui_panel";
         private const string ButtonSpritePath = "Sprites/ui/ui_button";
 
-        // ── Palette (ART_STYLE / UI_SPEC §2) ───────────────────────────────
+        // ── Palette (UI_SPEC §2, GDD Style Guide: white only) ──────────────
+        // Only ink, pencil and paper (alpha allowed). NoTint is the identity multiplier for
+        // sprites that already carry their own ink lines; it is not a displayed colour.
 
         private static readonly Color Paper   = new Color(0.059f, 0.165f, 0.29f, 1f); // #0F2A4A
         private static readonly Color Ink     = new Color(0.91f, 0.945f, 0.98f, 1f); // #E8F1FA
         private static readonly Color Pencil  = new Color(0.616f, 0.706f, 0.8f, 1f); // #9DB4CC
-        private static readonly Color Hostile = new Color(0.894f, 0.341f, 0.18f, 1f); // #E4572E
+        private static readonly Color NoTint  = Color.white;
 
         // ── Timing (UI_SPEC §3.2) ──────────────────────────────────────────
 
@@ -223,7 +225,7 @@ namespace Biplanes.UI {
             var panelSprite = Resources.Load<Sprite>(PanelSpritePath);
             if (panelSprite != null) {
                 panelImg.sprite = panelSprite;
-                panelImg.color = Color.white;
+                panelImg.color = NoTint;
             } else {
                 if (!_warnedPanel) {
                     Debug.LogWarning("BriefingView: Missing sprite '" + PanelSpritePath + "', using a solid fallback.");
@@ -266,7 +268,7 @@ namespace Biplanes.UI {
             var sprite = Resources.Load<Sprite>(ButtonSpritePath);
             if (sprite != null) {
                 img.sprite = sprite;
-                img.color = Color.white;
+                img.color = NoTint;
             } else {
                 if (!_warnedButton) {
                     Debug.LogWarning("BriefingView: Missing sprite '" + ButtonSpritePath + "', using a solid fallback.");
@@ -280,10 +282,10 @@ namespace Biplanes.UI {
             var btn = rect.gameObject.AddComponent<Button>();
             btn.targetGraphic = img;
             var colors = btn.colors;
-            colors.normalColor      = Color.white;
+            colors.normalColor      = NoTint;
             colors.highlightedColor = Pencil;   // hover = pencil glow (UI_SPEC §2)
             colors.selectedColor    = Pencil;
-            colors.pressedColor     = Hostile;  // active = hostile tint (UI_SPEC §2)
+            colors.pressedColor     = Ink;      // active = full ink, see AddPressInversion (UI_SPEC §2)
             colors.colorMultiplier  = 1f;
             colors.fadeDuration     = ColorFadeDuration;
             btn.colors = colors;
@@ -297,6 +299,7 @@ namespace Biplanes.UI {
             var txt = AddText(textRect.gameObject, label, ButtonSize, Ink, TextAnchor.MiddleCenter);
             txt.fontStyle = FontStyle.Bold;
 
+            MainMenuView.AddPressInversion(btn, txt, WhiteSprite());
             return btn;
         }
 

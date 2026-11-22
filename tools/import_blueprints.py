@@ -94,6 +94,116 @@ SPRITES = {
                ("cross", 245.0, 42.5, 8.6, 1.1, 5.1)]),   # tail (rudder)
 }
 
+# Composite pictures made of several blueprint planes plus vector overlays (A-TITLE).
+#   size: canvas; planes: (sprite settings as in SPRITES, (x, y) top-left on the canvas);
+#   overlay: function(draw, S) drawing dashed flight paths and callouts at S x supersampling.
+# Planes are scaled at most ~1.5x their source (no blurry upscaling) and keep their
+# paper backing, so the overlay lines (drawn underneath) never mix with the lines.
+TITLE_PLAYER = dict(src=PLAYER_SRC, size=(380, 152), mirror=False, grow=0.0, gain=1.0,
+                    erase=[], marks=[PLAYER_ROUNDEL])
+TITLE_ENEMY = dict(src="fokker_blueprint_transparent_256px.png", size=(330, 145),
+                   mirror=True, grow=0.0, gain=2.0,
+                   # The serial "L-03" and the small cockpit mark would read mirrored: erase them.
+                   erase=[(108, 54, 128, 64), (51, 42, 60, 49)],
+                   marks=[("cross", 143.0, 51.3, 11.2, 1.4, 6.6),
+                          ("cross", 232.5, 35.0, 10.6, 1.3, 6.2)])
+
+
+def _dashed(d, pts, S, dash, gap, width, alpha):
+    """Dashed polyline through pts (final px), dash/gap lengths in final px."""
+    on, left, cur = True, dash, [pts[0]]
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        seg = math.hypot(x1 - x0, y1 - y0)
+        t = 0.0
+        while seg - t > 1e-6:
+            step = min(left, seg - t)
+            t += step
+            p = (x0 + (x1 - x0) * t / seg, y0 + (y1 - y0) * t / seg)
+            if on:
+                cur.append(p)
+            left -= step
+            if left <= 1e-6:
+                if on and len(cur) > 1:
+                    d.line([(x * S, y * S) for x, y in cur], fill=INK + (alpha,),
+                           width=max(1, round(width * S)), joint="curve")
+                on = not on
+                left = dash if on else gap
+                cur = [p]
+    if on and len(cur) > 1:
+        d.line([(x * S, y * S) for x, y in cur], fill=INK + (alpha,),
+               width=max(1, round(width * S)), joint="curve")
+
+
+def _quad(p0, c, p1, n=40):
+    return [((1 - t) ** 2 * p0[0] + 2 * (1 - t) * t * c[0] + t * t * p1[0],
+             (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * c[1] + t * t * p1[1])
+            for t in (i / n for i in range(n + 1))]
+
+
+def _title_overlay(d, S):
+    """Flight paths, tracers and blueprint callouts for ui/title_planes (960x300)."""
+    def line(pts, width=1.0, alpha=255):
+        d.line([(x * S, y * S) for x, y in pts], fill=INK + (alpha,),
+               width=max(1, round(width * S)), joint="curve")
+
+    def dimension(x0, x1, y, ext0, ext1):
+        line([(x0, ext0), (x0, ext1)], 0.75, 150)
+        line([(x1, ext0), (x1, ext1)], 0.75, 150)
+        line([(x0, y), (x1, y)], 0.75, 170)
+        for x in (x0, x1):          # architectural ticks
+            line([(x - 4, y + 4), (x + 4, y - 4)], 1.0, 200)
+        for x in range(x0 + 20, x1 - 10, 20):  # scale ticks
+            line([(x, y - 2), (x, y + 2)], 0.5, 120)
+
+    def bubble(cx, cy, n, leader):
+        r = 10
+        steps = 48
+        line([(cx + r * math.cos(2 * math.pi * i / steps),
+               cy + r * math.sin(2 * math.pi * i / steps)) for i in range(steps + 1)], 1.0, 210)
+        for k in range(n):          # roman numeral I / II
+            x = cx + (k - (n - 1) / 2) * 5
+            line([(x, cy - 5), (x, cy + 5)], 1.25, 230)
+        lx, ly = leader
+        a = math.atan2(ly - cy, lx - cx)
+        line([(cx + r * math.cos(a), cy + r * math.sin(a)), (lx, ly)], 0.75, 170)
+        line([(lx - 1.5, ly), (lx + 1.5, ly)], 2.5, 220)  # leader dot
+
+    # Enemy's flight path: it came diving in from the upper left.
+    _dashed(d, _quad((330, 18), (500, 30), (612, 84)), S, 8, 6, 1.0, 150)
+    # Player's pursuit arc: from its nose, curving up under the enemy's tail.
+    _dashed(d, _quad((404, 214), (515, 210), (592, 122)), S, 8, 6, 1.0, 150)
+    # Tracer streaks from the player's guns toward the enemy.
+    gx, gy, tx, ty = 404, 186, 604, 112
+    for f0, f1 in ((0.06, 0.16), (0.30, 0.40), (0.54, 0.64), (0.78, 0.86)):
+        line([(gx + (tx - gx) * f0, gy + (ty - gy) * f0),
+              (gx + (tx - gx) * f1, gy + (ty - gy) * f1)], 1.25, 235)
+    # Dimension callouts (overall length of each plane).
+    dimension(30, 390, 292, 284, 297)
+    dimension(610, 922, 180, 168, 186)
+    # Numbered part callouts.
+    bubble(470, 262, 1, (372, 244))
+    bubble(560, 230, 2, (700, 97))
+
+
+COMPOSITES = {
+    "ui/title_planes": dict(size=(960, 300),
+                            planes=[(TITLE_PLAYER, (24, 130)), (TITLE_ENEMY, (600, 18))],
+                            overlay=_title_overlay),
+}
+
+
+def build_composite(comp):
+    from PIL import Image, ImageDraw
+
+    S = SUPERSAMPLE
+    w, h = comp["size"]
+    over = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
+    comp["overlay"](ImageDraw.Draw(over), S)
+    canvas = over.convert("RGBa").resize((w, h), Image.BOX).convert("RGBA")
+    for spec, pos in comp["planes"]:
+        canvas.alpha_composite(build(spec), pos)
+    return canvas
+
 
 def _lines(spec):
     """Processed ink alpha at work scale, and the crop box of the full drawing."""
@@ -319,7 +429,36 @@ def main(argv: list) -> int:
                 mw, ma = metrics(spec)
                 extra = f"  [stroke width {mw:.3f} px, line alpha {ma:.3f}]"
             print(f"OK   {name} <- blueprints/{spec['src']}{extra}")
-    print(f"{len(SPRITES) - failed}/{len(SPRITES)} OK")
+    for name, comp in COMPOSITES.items():
+        dest = OUT / (name + ".png")
+        problems = []
+        for spec, _ in comp["planes"]:
+            if not (SRC / spec["src"]).exists():
+                problems.append(f"blueprint missing: blueprints/{spec['src']}")
+        svg = ROOT / "art-src" / (name + ".svg")
+        if svg.exists():
+            problems.append(f"{svg.relative_to(ROOT)} also exists; rasterize.py would overwrite it")
+        if not problems and not check_only:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            build_composite(comp).save(dest)
+        if not problems:
+            from PIL import Image
+            if not dest.exists():
+                problems.append("PNG missing (run without --check)")
+            elif Image.open(dest).size != comp["size"]:
+                problems.append(f"size {Image.open(dest).size}, expected {comp['size']}")
+        if problems:
+            failed += 1
+            print(f"FAIL {name}: " + "; ".join(problems))
+        else:
+            extra = ""
+            if show_metrics:
+                extra = "  " + ", ".join(
+                    "[%s: stroke width %.3f px, line alpha %.3f]" % ((spec["src"],) + metrics(spec))
+                    for spec, _ in comp["planes"])
+            print(f"OK   {name} <- composite of {len(comp['planes'])} blueprints{extra}")
+    total = len(SPRITES) + len(COMPOSITES)
+    print(f"{total - failed}/{total} OK")
     return 1 if failed else 0
 
 

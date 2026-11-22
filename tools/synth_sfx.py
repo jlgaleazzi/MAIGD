@@ -283,24 +283,51 @@ def c_engine_loop(rng):
     return circ(lp, out, 7000)
 
 
+def gun_shot(rng, sec, crack_hp, bark_f, thump_f, thump_tau, body_lp, clack_f, clack_at,
+             tail_lp, tail_tau, gains, drive=1.0):
+    """One machine-gun round, built from noise and a pitched-down sine, no ringing modes
+    (pure decaying sines above 2 kHz read as tin). Layers: 2 ms broadband muzzle crack,
+    muzzle bark (wide band-passed noise), powder thump (sine glide + low-passed noise,
+    soft-saturated for weight), dull bolt/belt clack (band-passed noise), low-passed air
+    tail. gains = (crack, bark, thump, clack, tail)."""
+    gc, gb, gt, gk, ga = gains
+    out = zeros(sec)
+    # Muzzle crack: very short broadband noise, lightly high-passed so it stays a click.
+    add(out, hp(burst(rng, 0.006, 0.0015), crack_hp), 0, gc)
+    # Muzzle bark: the blast's mid-band body, wide (q 0.7) so it has no pitch.
+    add(out, bp(burst(rng, 0.03, 0.006, 0.0005), bark_f, 0.7), 0, gb)
+    # Powder thump: falling sine plus a low noise puff, both under body_lp, then tanh drive.
+    f0, f1 = thump_f
+    n = ns(0.09)
+    body = [0.0] * n
+    add(body, thump(0.09, f0, f1, thump_tau, 0.03), 0, 1.0)
+    add(body, lp(lp(burst(rng, 0.09, thump_tau * 0.8, 0.001), body_lp), body_lp), 0, 1.4)
+    pk = max(abs(v) for v in body) or 1.0
+    body = [math.tanh(drive * v / pk) / math.tanh(drive) for v in body]
+    add(out, body, 0.0005, gt)
+    # Action clack: bolt slam then belt pull, dull band-passed noise grains (no tone).
+    for at, g in ((clack_at, 1.0), (clack_at + 0.022, 0.45)):
+        k = lp(bp(burst(rng, 0.012, 0.0022), clack_f, 1.1), 2500)
+        add(out, k, at, gk * g)
+    # Air tail: dry low-passed noise, quick swell then decay.
+    tail = lp(lp(burst(rng, sec, tail_tau, 0.004), tail_lp), tail_lp)
+    add(out, tail, 0.002, ga)
+    return out
+
+
 def c_player_gun(rng):
-    # Dry, bright, short: crack + receiver ring + small chamber thump + bolt tick.
-    out = zeros(0.13)
-    add(out, hp(burst(rng, 0.03, 0.0025), 2200), 0, 1.2)
-    add(out, modes(ns(0.08), [(2250, 0.3, 0.012), (3420, 0.35, 0.009), (5150, 0.3, 0.006)], rng))
-    add(out, thump(0.04, 210, 120, 0.010), 0, 0.2)
-    add(out, hp(burst(rng, 0.01, 0.0012), 3000), 0.045, 0.35)
-    return lp(out, 9000)
+    # Vickers-style round: crack + weighty 150 -> 75 Hz powder thump + bolt/belt clack + air.
+    return lp(gun_shot(rng, 0.15, 500, 1100, (150, 75), 0.016, 260, 650, 0.034, 2500, 0.022,
+                       (0.6, 0.9, 0.22, 0.7, 0.4)), 8000)
 
 
 def c_enemy_gun(rng):
-    # Same family, lower and duller, further away (lowpassed + early reflections).
-    dry = zeros(0.12)
-    add(dry, hp(burst(rng, 0.035, 0.0035), 700), 0, 1.0)
-    add(dry, modes(ns(0.09), [(1350, 0.35, 0.016), (2050, 0.25, 0.012), (2900, 0.12, 0.008)], rng))
-    add(dry, thump(0.06, 150, 85, 0.016), 0, 0.35)
-    dry = lp(dry, 2600)
-    out = echoes(dry, [(0.021, 0.35), (0.037, 0.25), (0.058, 0.15)], 1800)
+    # Same family, lower and duller, further away: softer crack, 115 -> 55 Hz thump,
+    # darker clack, longer air tail, low-passed 2.2 kHz + early reflections (distance).
+    dry = gun_shot(rng, 0.2, 300, 700, (115, 55), 0.02, 200, 480, 0.038, 1500, 0.035,
+                   (0.8, 0.6, 0.16, 0.6, 0.35))
+    dry = lp(dry, 2200)
+    out = echoes(dry, [(0.019, 0.35), (0.034, 0.25), (0.053, 0.15)], 1400)
     return out[:ns(0.2)] + [0.0] * max(0, ns(0.2) - len(out))
 
 
@@ -330,15 +357,17 @@ def c_bomb_impact(rng):
 
 
 def c_hit_enemy(rng):
-    # Small metallic tick + a quick canvas rip. Bright, light.
+    # Round through taut doped canvas: dry noise tick (no ringing modes, which read as tin),
+    # a small 320 -> 200 Hz "thup" of the fabric, then a quick grainy canvas rip. Light.
     out = zeros(0.1)
-    add(out, modes(ns(0.05), [(3250, 0.45, 0.007), (4750, 0.3, 0.005), (2100, 0.15, 0.006)], rng))
-    add(out, hp(burst(rng, 0.004, 0.0007), 2500), 0, 0.6)
+    add(out, bp(burst(rng, 0.008, 0.0012), 2600, 0.8), 0, 1.0)
+    add(out, hp(burst(rng, 0.004, 0.0007), 2500), 0, 0.4)
+    add(out, thump(0.04, 320, 200, 0.006), 0.001, 0.15)
     n = ns(0.045)
-    rip = mul(hp(noise(rng, n), 2200), mul(grain_am(rng, n, 900, 0.0),
-                                          [(1 - i / n) for i in range(n)]))
+    rip = mul(bp(noise(rng, n), 1700, 0.7), mul(grain_am(rng, n, 900, 0.0),
+                                               [(1 - i / n) for i in range(n)]))
     add(out, rip, 0.008, 0.45)
-    return out
+    return lp(out, 7000)
 
 
 def c_hit_player(rng):
@@ -590,7 +619,7 @@ CLIPS = [
     ("bomb_impact",    c_bomb_impact,    "shot", -3.0, (0.2, 0.5)),
     ("hit_enemy",      c_hit_enemy,      "shot", -3.0, (0.03, 0.5)),
     ("hit_player",     c_hit_player,     "shot", -3.0, (0.1, 0.5)),
-    ("enemy_gun",      c_enemy_gun,      "shot", -3.0, (0.05, 0.5)),
+    ("enemy_gun",      c_enemy_gun,      "shot", -6.0, (0.05, 0.5)),
     ("flak_fire",      c_flak_fire,      "shot", -3.0, (0.1, 0.5)),
     ("flak_burst",     c_flak_burst,     "shot", -3.0, (0.1, 0.5)),
     ("explosion",      c_explosion,      "shot", -3.0, (0.8, 1.2)),
@@ -668,11 +697,31 @@ def analyse(a, kind):
     el = sum(v * v for v in lo) / tot
     eh = sum(v * v for v in hi) / tot
     em = max(0.0, 1.0 - el - eh)
+    # Ringing: energy above 2 kHz left after the first 15 ms (a struck-metal 'tin' tail).
+    h2 = hp(hp(x, 2000), 2000)
+    ring = sum(v * v for v in h2[ns(0.015):]) / tot
     diffs = sorted(abs(x[i + 1] - x[i]) for i in range(n - 1))
     p99 = diffs[int(0.99 * (len(diffs) - 1))]
     seam = abs(x[0] - x[-1]) if kind == "loop" else None
     return dict(dur=n / SR, peak=db(pk), rms=db(rms), dc=dc, first=a[0], last=a[-1],
-                seam=seam, p99=p99, low=el, mid=em, high=eh)
+                seam=seam, p99=p99, low=el, mid=em, high=eh, ring=ring)
+
+
+# Autofire rate (shots/s) for the burst-mix check; player.fireRate in Balance.json is 8.
+AUTOFIRE = {"player_gun": 8.0, "enemy_gun": 8.0}
+
+
+def burst_peak(a, rate, sec=1.0):
+    """Peak dBFS of `sec` s of the clip retriggered at `rate`/s, summed (no limiter)."""
+    n = ns(sec) + len(a)
+    mix = [0] * n
+    k = 0
+    while k / rate < sec - 1e-9:
+        o = ns(k / rate)
+        for i, v in enumerate(a):
+            mix[o + i] += v
+        k += 1
+    return db(max(abs(v) for v in mix) / 32768.0)
 
 
 def validate(name, kind, peak_db, rng_dur, r):
@@ -703,8 +752,10 @@ def main():
     errors = 0
     total = 0
     print(f"{'clip':15} {'kind':4} {'dur s':>6} {'peak':>6} {'rms':>6} {'dc':>8} "
-          f"{'first':>6} {'last':>6} {'seam':>7} {'low%':>5} {'mid%':>5} {'high%':>5}  status")
+          f"{'first':>6} {'last':>6} {'seam':>7} {'low%':>5} {'mid%':>5} {'high%':>5} "
+          f"{'ring%':>5}  status")
     names = {c[0] for c in CLIPS}
+    bursts = []
     for name, fn, kind, peak_db, dur in CLIPS:
         if args.only and name not in args.only:
             continue
@@ -727,7 +778,15 @@ def main():
         errors += len(errs)
         print(f"{name:15} {kind:4} {r['dur']:6.3f} {r['peak']:6.1f} {r['rms']:6.1f} "
               f"{r['dc']:8.5f} {r['first']:6d} {r['last']:6d} {seam:>7} "
-              f"{100 * r['low']:5.1f} {100 * r['mid']:5.1f} {100 * r['high']:5.1f}  {status}")
+              f"{100 * r['low']:5.1f} {100 * r['mid']:5.1f} {100 * r['high']:5.1f} "
+              f"{100 * r['ring']:5.1f}  {status}")
+        if name in AUTOFIRE:
+            bursts.append((name, burst_peak(a, AUTOFIRE[name])))
+    for name, pk in bursts:
+        flag = "OK" if pk <= -0.5 else "ERROR: autofire burst clips"
+        if pk > -0.5:
+            errors += 1
+        print(f"autofire {name}: 1 s at {AUTOFIRE[name]:g} shots/s, mixed peak {pk:.1f} dBFS  {flag}")
     if OUT.exists() and not args.only:
         for p in sorted(OUT.glob("*.wav")):
             if p.stem not in names:

@@ -68,6 +68,39 @@ namespace Biplanes.Tests {
         /// <summary>T938: the spawn id M5's destroyById objective targets (V003: "zep").</summary>
         private static string M5ZeppelinId => LoadMission(5).objectives[0].targetId;
 
+        /// <summary>T962: how many entities of `type` the mission JSON spawns (sum of `count`,
+        /// case-insensitive), the same total ObjectiveTracker requires for destroyAllOfType.
+        /// Tests use it instead of hard-coded totals so mission data changes (V005-V011 grew
+        /// M1 from 12 to 37 fighters) don't break them.</summary>
+        private static int SpawnTotal(MissionData data, string type) {
+            int n = 0;
+            if (data.spawns == null) return 0;
+            foreach (var s in data.spawns) {
+                if (s != null && string.Equals(s.type, type, StringComparison.OrdinalIgnoreCase)) n += Mathf.Max(0, s.count);
+            }
+            return n;
+        }
+
+        private static int SpawnTotal(int missionIndex, string type) => SpawnTotal(LoadMission(missionIndex), type);
+
+        /// <summary>T962: the EntityDestroyed key an EnemyPressure reinforcement fighter raises
+        /// (its GameObject name). Since B050 it counts toward destroyAllOfType "fighter" like a
+        /// JSON fighter; the required number stays the JSON spawn total (GDD "Enemy pressure").</summary>
+        private const string ReinforcementKey = ScoreKeeper.ReinforcementFighterKey;
+
+        /// <summary>T962: points ScrollController.Instance at the controller that drives `cam`.
+        /// In EditMode ScrollController.Awake never runs, so Instance stays null and a plain
+        /// FindFirstObjectByType can return a controller leaked by another fixture whose camera
+        /// is destroyed (MissionDistanceX 0), which made the map-end check never fire.</summary>
+        private static void BindScroll(Camera cam) {
+            ScrollController pick = null;
+            foreach (var sc in Object.FindObjectsByType<ScrollController>(FindObjectsInactive.Include, FindObjectsSortMode.None)) {
+                if (sc != null && sc.Camera == cam) { pick = sc; break; }
+            }
+            Assert.IsNotNull(pick, "StartMission creates a ScrollController bound to the test camera");
+            ScrollController.Instance = pick;
+        }
+
         private ObjectiveTracker MakeTracker() {
             var go = new GameObject("T936_Tracker");
             _created.Add(go);
@@ -95,30 +128,57 @@ namespace Biplanes.Tests {
 
         [Test]
         public void DestroyAllOfType_RequiredCount_IsTheSpawnTotal_PerMission() {
-            Assert.AreEqual(12, IntArray(TrackerFor(1), "_required")[0], "M1: 3+2+4+3 fighters");
-            Assert.AreEqual(5, IntArray(TrackerFor(3), "_required")[0], "M3: 1+2+1+1 AAA (V002: 5 bomb-only targets for 7 bombs)");
-            Assert.AreEqual(6, IntArray(TrackerFor(4), "_required")[0], "M4: 2+2+2 barrage balloons");
+            // T962: every destroyAllOfType objective in every mission requires exactly the JSON
+            // spawn total of its type, and that total is positive (else it can't complete).
+            int checkedObjectives = 0;
+            for (int m = 1; m <= 5; m++) {
+                var data = LoadMission(m);
+                var required = IntArray(TrackerFor(m), "_required");
+                for (int i = 0; i < data.objectives.Length; i++) {
+                    var o = data.objectives[i];
+                    if (o.type != "destroyAllOfType") continue;
+                    int total = SpawnTotal(data, o.targetType);
+                    Assert.Greater(total, 0, $"M{m} '{o.id}': the mission spawns no '{o.targetType}'");
+                    Assert.AreEqual(total, required[i], $"M{m} '{o.id}': required = sum of '{o.targetType}' spawn counts");
+                    checkedObjectives++;
+                }
+            }
+            Assert.GreaterOrEqual(checkedObjectives, 3, "M1 fighters, M3 AAA and M4 balloons are destroyAllOfType");
         }
 
         [Test]
-        public void DestroyAllOfType_M1_CompletesOnThe12thFighterOnly_Once() {
+        public void DestroyAllOfType_M1_JsonAndReinforcementKillsCount_CompletesOnce() {
+            // B050 (GDD "Enemy pressure", change log 2026-11-20): reinforcement kills count
+            // toward "fighter" like JSON fighters; the required number is the JSON total.
+            int total = SpawnTotal(1, "fighter");
+            Assert.Greater(total, 3, "M1 spawns fighters");
             var t = TrackerFor(1);
-            for (int i = 0; i < 11; i++) t.OnEntityDestroyed("fighter", Team.Enemy);
+            Assert.AreEqual(total, IntArray(t, "_required")[0], "required = JSON total, reinforcements add nothing");
+            for (int i = 0; i < total - 3; i++) t.OnEntityDestroyed("fighter", Team.Enemy);
 
             // Kills that must not count: other types, other teams.
             t.OnEntityDestroyed("aaa", Team.Enemy);
             t.OnEntityDestroyed("bomber", Team.Enemy);
             t.OnEntityDestroyed("fighter", Team.Player);
+            t.OnEntityDestroyed(ReinforcementKey, Team.Player);
             t.OnEntityDestroyed("HealthBalloon", Team.Neutral);
-            Assert.AreEqual(11, IntArray(t, "_kills")[0]);
-            Assert.IsFalse(t.AllComplete, "11 of 12 fighters is not a win");
+            Assert.AreEqual(total - 3, IntArray(t, "_kills")[0]);
+
+            // Two reinforcement kills count like two fighters.
+            t.OnEntityDestroyed(ReinforcementKey, Team.Enemy);
+            t.OnEntityDestroyed(ReinforcementKey, Team.Enemy);
+            Assert.AreEqual(total - 1, IntArray(t, "_kills")[0]);
+            Assert.AreEqual(1, t.RemainingKills(0));
+            Assert.IsFalse(t.AllComplete, $"{total - 1} of {total} fighters is not a win");
             Assert.AreEqual(0, _completed.Count);
 
-            t.OnEntityDestroyed("fighter", Team.Enemy);
-            Assert.IsTrue(t.AllComplete, "the 12th fighter completes M1");
+            // The last kill may be a reinforcement.
+            t.OnEntityDestroyed(ReinforcementKey, Team.Enemy);
+            Assert.IsTrue(t.AllComplete, $"kill {total} of {total} (a reinforcement) completes M1");
             CollectionAssert.AreEqual(new[] { "kill_all_fighters" }, _completed);
 
             t.OnEntityDestroyed("fighter", Team.Enemy);
+            t.OnEntityDestroyed(ReinforcementKey, Team.Enemy);
             Assert.AreEqual(1, _completed.Count, "a completed objective is never raised again");
         }
 
@@ -187,10 +247,12 @@ namespace Biplanes.Tests {
 
         [Test]
         public void M4_NeedsBothBalloonsAndBaseBomb_InEitherOrder() {
+            int balloons = SpawnTotal(4, "barrageBalloon");
+            Assert.Greater(balloons, 0);
             var t = TrackerFor(4);
             Assert.IsTrue(t.OnBombTargetDestroyed("enemy_base_01", "enemyBase"));
             Assert.IsFalse(t.AllComplete, "the base alone is not a win");
-            for (int i = 0; i < 5; i++) t.OnEntityDestroyed("barrageBalloon", Team.Enemy);
+            for (int i = 0; i < balloons - 1; i++) t.OnEntityDestroyed("barrageBalloon", Team.Enemy);
             t.OnEntityDestroyed("enemyBase", Team.Enemy);   // the base's own EntityDestroyed: no effect
             Assert.IsFalse(t.AllComplete);
             t.OnEntityDestroyed("barrageBalloon", Team.Enemy);
@@ -340,6 +402,9 @@ namespace Biplanes.Tests {
                 _onEnded = (won, reason) => Ended.Add(won);
                 GameEvents.MissionEnded += _onEnded;
 
+                // T962: controllers leaked by another fixture (EditMode never runs their Awake,
+                // so Instance stays null) would otherwise be picked up instead of this one.
+                DestroyAll<ScrollController>();
                 ScrollController.Instance = null;
                 RunnerGo = new GameObject("T936_MissionRunner");
                 Runner = RunnerGo.AddComponent<MissionRunner>();
@@ -372,6 +437,7 @@ namespace Biplanes.Tests {
                 DestroyAll<EnemyBase>();
                 DestroyAll<PlayerHQ>();
                 if (ScrollController.Instance != null) Object.DestroyImmediate(ScrollController.Instance.gameObject);
+                DestroyAll<ScrollController>();
                 ScrollController.Instance = null;
                 Object.DestroyImmediate(RunnerGo);
 
@@ -427,8 +493,11 @@ namespace Biplanes.Tests {
                 Assert.AreEqual(1, StaticSubscriptions(typeof(GameEvents), "MissionEnded", fx.Runner));
                 Assert.AreEqual(1, StaticSubscriptions(typeof(EnemyBase), "Destroyed", fx.Runner));
 
-                for (int i = 0; i < 11; i++) GameEvents.RaiseEntityDestroyed("fighter", Team.Enemy);
-                Assert.AreEqual(11, IntArray(fx.Tracker, "_kills")[0], "each kill counted exactly once");
+                int total = SpawnTotal(1, "fighter");
+                // B050: reinforcement kills count too, each exactly once.
+                for (int i = 0; i < total - 4; i++) GameEvents.RaiseEntityDestroyed("fighter", Team.Enemy);
+                for (int i = 0; i < 3; i++) GameEvents.RaiseEntityDestroyed(ReinforcementKey, Team.Enemy);
+                Assert.AreEqual(total - 1, IntArray(fx.Tracker, "_kills")[0], "each fighter and reinforcement kill counted exactly once");
                 Assert.IsFalse(fx.MissionEnded);
 
                 GameEvents.RaiseEntityDestroyed("fighter", Team.Enemy);
@@ -522,7 +591,7 @@ namespace Biplanes.Tests {
                 var data = LoadMission(2);
                 float failAtX = data.objectives[0].failAtX;
                 fx.Runner.StartMission(2);
-                if (ScrollController.Instance == null) ScrollController.Instance = Object.FindFirstObjectByType<ScrollController>();
+                BindScroll(fx.Cam);
 
                 fx.SetCamX(failAtX);
                 fx.InvokeUpdate();
@@ -651,7 +720,7 @@ namespace Biplanes.Tests {
             using (var fx = new RunnerFixture()) {
                 var data = LoadMission(5);
                 fx.Runner.StartMission(5);
-                if (ScrollController.Instance == null) ScrollController.Instance = Object.FindFirstObjectByType<ScrollController>();
+                BindScroll(fx.Cam);
                 fx.Tracker.Init(new[] { Obj("destroy_zeppelin", "destroyById", "zeppelin", "zeppelin_01", 40f) }, 0f);
                 fx.Runner.SpawnEntities(new SpawnEntry { type = "zeppelin", atX = 60, y = 5f, count = 1, id = "zeppelin_01", pattern = "straight" });
                 var zep = Object.FindFirstObjectByType<ZeppelinAI>();
@@ -698,7 +767,9 @@ namespace Biplanes.Tests {
         }
 
         [Test]
-        public void Runner_M4_BaseBombedFirst_ThenSixthBalloonWins() {
+        public void Runner_M4_BaseBombedFirst_ThenLastBalloonWins() {
+            int balloons = SpawnTotal(4, "barrageBalloon");
+            Assert.Greater(balloons, 0);
             using (var fx = new RunnerFixture()) {
                 fx.Runner.StartMission(4);
                 fx.Runner.SpawnEntities(new SpawnEntry { type = "enemyBase", atX = 460, count = 1, id = "enemy_base_01", pattern = "static" });
@@ -714,7 +785,7 @@ namespace Biplanes.Tests {
                 Assert.IsTrue(b.IsDead && b.KilledByBomb);
                 Assert.IsFalse(fx.MissionEnded, "balloons still up");
 
-                for (int i = 0; i < 5; i++) GameEvents.RaiseEntityDestroyed("barrageBalloon", Team.Enemy);
+                for (int i = 0; i < balloons - 1; i++) GameEvents.RaiseEntityDestroyed("barrageBalloon", Team.Enemy);
                 Assert.IsFalse(fx.MissionEnded);
                 GameEvents.RaiseEntityDestroyed("barrageBalloon", Team.Enemy);
                 Assert.IsTrue(fx.MissionEnded);

@@ -1,0 +1,11 @@
+TASK: V014
+AGENT: mission-design
+STATUS: DONE
+FILES: Biplanes/Assets/Biplanes/Resources/Missions/mission_01.json .. mission_05.json (scrollSpeed; mission_05 also length 540 -> 580), docs/missions/mission_01.md .. mission_05.md (each has a new "Speed +30% re-check (V014)" section), docs/crew/handoffs/V014-mission-design.md
+SUMMARY: scrollSpeed x1.3: M1 2->2.6, M2 2.5->3.25, M3 3->3.9, M4 3->3.9, M5 2->2.6. Re-derived with a 3000-run Monte Carlo of the spawn model (it reproduces the old sheet numbers). Faster camera makes waves overlap more, so no gaps opened: worst max gap M1 1.24 s, M2 1.13 s (dense x93-170), M3 1.88 s (was 3.0), M4 0.89 s, M5 0.74 s; no fighter counts or spacings changed. Max alive 2 to 4 (cap 6).
+NUMBERS (visible time of a fighter / camera travel in 2 s): M1 and M5 3.45 s / 5.2 u; M2 3.09 s / 6.5 u; M3 and M4 2.80 s / 7.8 u.
+M2 BOMBER: spawns about x 90-96, needs 53-57 s to reach failAtX 10 (unchanged); camera meets it in 2.2-3.5 s, leaving about 50 s; post-turn catch-up 1.75 u/s (was 1.0). Map end is 114 s after the trigger, so failAtX comes first. No change.
+M5 ZEPPELIN: with length 540 the map end came FIRST (camera reaches 540 in 49.5 s at 4:3 / 50.3 s at 16:9 after the zeppelin trigger vs 60 s for the zeppelin to reach HQ 360). Fixed by length 540 -> 580 (64.9 s at 4:3, 65.7 s at 16:9; margin 4.9-5.7 s, as before). atX 420, escorts, balloons, objective unchanged. Terrain clamps at 540, flat to 580; nothing spawns there.
+DURATIONS (now below the pacing aims, validator warns for M3 and M4 only, no errors): M1 115 s (aim 150), M2 138 (180), M3 128 (210), M4 154 (240), M5 223 (270). Not changed: lengths were not in scope. Side effects: fighters arrive about 23% faster per minute, AAA/balloons/base scroll past 30% faster (AAA on screen 4.6 s in M3), and the level-bomb throw is 3.3 u at scroll 3.9 (was 2.5).
+VERIFY: python tools/validate_missions.py (all 5 OK; M3 and M4 duration warnings expected). Playtest M5 to the HQ and M2 chase.
+REQUESTS: orchestrator: decide whether to restore the 3-5 minute pacing by scaling length and all atX by 1.3 (a separate task, would need the gap check redone); also ARCHITECTURE/GDD mission durations (M1 150 s ... M5 270 s) are now 115/138/128/154/223 s. mechanics: none.

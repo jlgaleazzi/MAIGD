@@ -254,14 +254,15 @@ namespace Biplanes.Tests {
 
             var player = MakeHealth("T927_Player", Team.Player);
             InvokeOnHit(shell, player);
-            Assert.AreEqual(g.damageTaken.flak, player.CurrentDamagePercent, 1e-4f, "one shell = damageTaken.flak percent");
+            Assert.AreEqual(g.damageTaken.flak / PlayerData.ResistanceOrDefault(g.player), player.CurrentDamagePercent, 1e-4f,
+                "one shell = damageTaken.flak / player.resistance percent (B052)");
             Assert.IsFalse(shell.gameObject.activeSelf, "the shell is recycled after the hit");
         }
 
         // ── AAAGun (B004) ───────────────────────────────────────────────
 
         [Test]
-        public void AAAGun_TriggerCollider_TakesBombDamageOnly() {
+        public void AAAGun_TriggerCollider_BulletsChip_FlakIgnored_BombKills() {
             var gun = AAAGun.Spawn(new Vector3(10f, -3.2f, 0f));
             _created.Add(gun.gameObject);
 
@@ -272,12 +273,16 @@ namespace Biplanes.Tests {
             Assert.AreEqual(-3.2f, (float)typeof(AAAGun).GetField("_groundY", Private).GetValue(gun), 1e-5f,
                 "ground-bound at the spawn (terrain) height");
 
+            // B037: bullets now chip the gun (damage / enemyHealth.aaa); flak is still ignored.
+            var g = GameBalance.Get();
+            float aaaHp = g != null && g.enemyHealth != null && g.enemyHealth.aaa > 0f ? g.enemyHealth.aaa : 125f;
             gun.ApplyDamage(25f, DamageSource.Bullet);
+            Assert.AreEqual(25f / aaaHp * 100f, gun.CurrentDamagePercent, 1e-3f,
+                "one bullet = 25 / enemyHealth.aaa (20% at 125)");
             gun.ApplyDamage(1f, DamageSource.Flak);
-            Assert.AreEqual(0f, gun.CurrentDamagePercent, "bullets and flak must not damage AAA");
+            Assert.AreEqual(25f / aaaHp * 100f, gun.CurrentDamagePercent, 1e-3f, "flak must not damage AAA");
             Assert.IsFalse(gun.IsDead);
 
-            var g = GameBalance.Get();
             float bombDamage = g != null && g.player != null ? g.player.bombDamage : 100f;
             gun.ApplyDamage(bombDamage, DamageSource.Bomb);
             Assert.IsTrue(gun.IsDead, "one player bomb (bombDamage vs enemyHealth.aaa) destroys the AAA");
@@ -588,13 +593,15 @@ namespace Biplanes.Tests {
             var g = GameBalance.Get();
             Assume.That(g != null && g.damageTaken != null, "Balance.json not loadable");
 
+            // B052: non-fatal player hits are divided by player.resistance; Collision is not.
+            float res = PlayerData.ResistanceOrDefault(g.player);
             var bombed = MakeHealth("T928_PlayerBomb", Team.Player);
             bombed.ApplyDamage(1f, DamageSource.Bomb);
-            Assert.AreEqual(g.damageTaken.bomberGunner, bombed.CurrentDamagePercent, 1e-4f, "B007: bomb = bomberGunner");
+            Assert.AreEqual(g.damageTaken.bomberGunner / res, bombed.CurrentDamagePercent, 1e-4f, "B007: bomb = bomberGunner (/ resistance)");
 
             var shot = MakeHealth("T928_PlayerBullet", Team.Player);
             shot.ApplyDamage(1f, DamageSource.Bullet);
-            Assert.AreEqual(g.damageTaken.fighterBullet, shot.CurrentDamagePercent, 1e-4f);
+            Assert.AreEqual(g.damageTaken.fighterBullet / res, shot.CurrentDamagePercent, 1e-4f);
 
             var crashed = MakeHealth("T928_PlayerCrash", Team.Player);
             crashed.ApplyDamage(1f, DamageSource.Collision);

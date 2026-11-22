@@ -29,7 +29,7 @@
     <!-- gambrel roof: bargeboard outer and inner line, shingle butts along the roof band -->
     <path d="M17,57 L31,31 L66,11 L101,31 L115,57" stroke-width="1.25"/>
     <path d="M24,54 L35,34 L66,16 L97,34 L108,54" stroke-width="0.75"/>
-    <path d="M20.5,55.5 L33,32.5 L66,13.5 L99,32.5 L111.5,55.5" stroke-width="2" stroke-dasharray="0.4 1.8" opacity="0.7"/>
+    <path d="M20.5,55.5 L33,32.5 L66,13.5 L99,32.5 L111.5,55.5" stroke-width="1.5" stroke-dasharray="0.4 1.8" opacity="0.7"/>
     <path d="M31,31 L35,34 M101,31 L97,34 M66,11 L66,16" stroke-width="0.5"/>
     <!-- hay hood and hoist beam at the ridge -->
     <path d="M60,19.5 L66,15 L72,19.5 M66,15 L66,9 M62,9 L70,9" stroke-width="0.75"/>
@@ -68,7 +68,7 @@
     <!-- lean-to: roof, posts, small door -->
     <path d="M106,63.5 L131,77.5" stroke-width="1.25"/>
     <path d="M108,66 L128,77" stroke-width="0.75"/>
-    <path d="M107,64.8 L129.5,77.3" stroke-width="2" stroke-dasharray="0.4 1.8" opacity="0.7"/>
+    <path d="M107,64.8 L129.5,77.3" stroke-width="1.5" stroke-dasharray="0.4 1.8" opacity="0.7"/>
     <path d="M128,77 L128,104" stroke-width="1.25"/>
     <path d="M113,104 L113,82 L122,82 L122,104 M113,93 L122,93" stroke-width="0.75"/>
 

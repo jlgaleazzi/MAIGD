@@ -59,13 +59,14 @@ namespace Biplanes.UI {
         private const string PanelSpritePath  = "Sprites/ui/ui_panel";
         private const string ButtonSpritePath = "Sprites/ui/ui_button";
 
-        // ── Palette (ART_STYLE / UI_SPEC §2) ───────────────────────────────
+        // ── Palette (UI_SPEC §2, GDD Style Guide: white only) ──────────────
+        // Only ink, pencil and paper (alpha allowed). NoTint is the identity multiplier for
+        // sprites that already carry their own ink lines; it is not a displayed colour.
 
         private static readonly Color Paper    = new Color(0.059f, 0.165f, 0.29f, 1f);  // #0F2A4A
         private static readonly Color Ink      = new Color(0.91f, 0.945f, 0.98f, 1f);   // #E8F1FA
         private static readonly Color Pencil   = new Color(0.616f, 0.706f, 0.8f, 1f);   // #9DB4CC
-        private static readonly Color Hostile  = new Color(0.894f, 0.341f, 0.18f, 1f);  // #E4572E
-        private static readonly Color Friendly = new Color(0.949f, 0.757f, 0.306f, 1f); // #F2C14E
+        private static readonly Color NoTint   = Color.white;
 
         // ── State ──────────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ namespace Biplanes.UI {
 
         private Font _font;
         private Text _titleText;
+        private GameObject _titlePlate;   // ink plate behind a won title (paper-on-ink stamp)
         private Text _reasonText;
         private Text _bestScoreText;
         private Text _scoreText;
@@ -163,7 +165,7 @@ namespace Biplanes.UI {
             var panelSprite = Resources.Load<Sprite>(PanelSpritePath);
             if (panelSprite != null) {
                 panelImg.sprite = panelSprite;
-                panelImg.color = Color.white;
+                panelImg.color = NoTint;
             } else {
                 if (!_warnedPanel) {
                     Debug.LogWarning("ResultView: Missing sprite '" + PanelSpritePath + "', using a solid fallback.");
@@ -173,6 +175,17 @@ namespace Biplanes.UI {
                 panelImg.color = Paper;
             }
             panelImg.raycastTarget = false;
+
+            // Won vs lost reads by shape, not colour (white-only UI): a win is stamped paper
+            // on an ink plate, a loss is plain ink lettering on the paper panel.
+            var plate = NewRect("ResultTitlePlate", transform);
+            Place(plate, new Vector2(0f, TitleY), new Vector2(TextWidth, TitleHeight));
+            var plateImg = plate.gameObject.AddComponent<Image>();
+            plateImg.sprite = WhiteSprite();
+            plateImg.color = Ink;
+            plateImg.raycastTarget = false;
+            _titlePlate = plate.gameObject;
+            _titlePlate.SetActive(false);
 
             _titleText = AddLabel("ResultTitle", TitleY, TitleHeight, TitleSize, FontStyle.Bold, Ink);
             _reasonText = AddLabel("ResultReason", ReasonY, ReasonHeight, ReasonSize, FontStyle.Italic, Pencil);
@@ -203,7 +216,7 @@ namespace Biplanes.UI {
             var sprite = Resources.Load<Sprite>(ButtonSpritePath);
             if (sprite != null) {
                 img.sprite = sprite;
-                img.color = Color.white;
+                img.color = NoTint;
             } else {
                 if (!_warnedButton) {
                     Debug.LogWarning("ResultView: Missing sprite '" + ButtonSpritePath + "', using a solid fallback.");
@@ -217,10 +230,10 @@ namespace Biplanes.UI {
             var btn = rect.gameObject.AddComponent<Button>();
             btn.targetGraphic = img;
             var colors = btn.colors;
-            colors.normalColor      = Color.white;
+            colors.normalColor      = NoTint;
             colors.highlightedColor = Pencil;   // hover = pencil glow (UI_SPEC §2)
             colors.selectedColor    = Pencil;
-            colors.pressedColor     = Hostile;  // active = hostile tint (UI_SPEC §2)
+            colors.pressedColor     = Ink;      // active = full ink, see AddPressInversion (UI_SPEC §2)
             colors.colorMultiplier  = 1f;
             colors.fadeDuration     = ColorFadeDuration;
             btn.colors = colors;
@@ -234,6 +247,7 @@ namespace Biplanes.UI {
             var txt = AddText(textRect.gameObject, label, ButtonSize, Ink);
             txt.fontStyle = FontStyle.Bold;
 
+            MainMenuView.AddPressInversion(btn, txt, WhiteSprite());
             return btn;
         }
 
@@ -269,7 +283,8 @@ namespace Biplanes.UI {
             _clicked = false;
 
             _titleText.text  = won ? "MISSION COMPLETE!" : "MISSION FAILED";
-            _titleText.color = won ? Friendly : Hostile;
+            _titleText.color = won ? Paper : Ink;
+            _titlePlate.SetActive(won);
 
             _reasonText.text = reason ?? "";
             _reasonText.gameObject.SetActive(!string.IsNullOrEmpty(reason));

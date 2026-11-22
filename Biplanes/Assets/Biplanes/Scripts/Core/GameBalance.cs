@@ -55,6 +55,18 @@ namespace Biplanes.Core {
         public float turnEaseSeconds;
         /// <summary>Viewport x the plane eases toward when facing right (1 - this when facing left).</summary>
         public float screenAnchor;
+        /// <summary>Player toughness (B052): every non-fatal damageTaken hit on the player is divided
+        /// by it. Read it through ResistanceOrDefault: a missing or non-positive value means 1.</summary>
+        public float resistance;
+
+        /// <summary>Used when Balance.json has no (or a non-positive) player.resistance: no change.</summary>
+        public const float DefaultResistance = 1f;
+
+        /// <summary>player.resistance, or DefaultResistance when it is missing or &lt;= 0.
+        /// `data` may be null (Balance.json not loaded).</summary>
+        public static float ResistanceOrDefault(PlayerData data) {
+            return data != null && data.resistance > 0f ? data.resistance : DefaultResistance;
+        }
     }
 
     /// <summary>
@@ -274,6 +286,146 @@ namespace Biplanes.Core {
     }
 
     /// <summary>
+    /// Serializable data class matching the "pressure" section of Balance.json (B035, GDD
+    /// "Enemy pressure"): when no enemy aircraft has been on screen for maxQuietSeconds,
+    /// EnemyPressure sends fillerCount reinforcement fighters, never letting the live fighters
+    /// near the camera exceed maxLiveFighters. Read it through Resolve: a missing block, or a
+    /// number that is missing or not positive, falls back to the Default* value. `enabled`
+    /// defaults to true; false turns the safety net off.
+    /// </summary>
+    [System.Serializable]
+    public class PressureData {
+        public const bool DefaultEnabled = true;
+        public const float DefaultMaxQuietSeconds = 2f;
+        public const int DefaultFillerCount = 2;
+        public const int DefaultMaxLiveFighters = 6;
+
+        /// <summary>False turns the reinforcement waves off. Defaults to true when the key is missing.</summary>
+        public bool enabled = DefaultEnabled;
+        /// <summary>Longest stretch of play (seconds) without an enemy aircraft on screen.</summary>
+        public float maxQuietSeconds;
+        /// <summary>Fighters per reinforcement wave.</summary>
+        public int fillerCount;
+        /// <summary>Cap on live fighters near the camera; at the cap a wave waits.</summary>
+        public int maxLiveFighters;
+
+        /// <summary>A sanitised copy of balance.pressure (defaults for missing or non-positive
+        /// numbers; a missing block is enabled with every default). Never null.</summary>
+        public static PressureData Resolve(GameBalance balance) {
+            var src = balance != null ? balance.pressure : null;
+            var r = new PressureData();
+            r.enabled = src != null ? src.enabled : DefaultEnabled;
+            r.maxQuietSeconds = src != null && src.maxQuietSeconds > 0f ? src.maxQuietSeconds : DefaultMaxQuietSeconds;
+            r.fillerCount = src != null && src.fillerCount > 0 ? src.fillerCount : DefaultFillerCount;
+            r.maxLiveFighters = src != null && src.maxLiveFighters > 0 ? src.maxLiveFighters : DefaultMaxLiveFighters;
+            return r;
+        }
+    }
+
+    /// <summary>
+    /// Serializable data class matching the "bomb" section of Balance.json (B036, ARCHITECTURE
+    /// §3 "Bomb flight"): the player's bomb starts with inheritFactor x the plane's velocity and
+    /// falls under `gravity` (units/s^2) with horizontal `drag` (fraction of x speed lost per
+    /// second), its sprite turned along its path when alignToVelocity is true. Read it through
+    /// Resolve: a missing block or an invalid number falls back to the Default* value.
+    /// </summary>
+    [System.Serializable]
+    public class BombData {
+        public const float DefaultGravity = 10f;
+        public const float DefaultDrag = 0.15f;
+        public const float DefaultInheritFactor = 1f;
+        public const bool DefaultAlignToVelocity = true;
+
+        /// <summary>Downward acceleration in world units per second squared (must be &gt; 0).</summary>
+        public float gravity = DefaultGravity;
+        /// <summary>Fraction of horizontal speed lost per second (0 = none; negative is invalid).</summary>
+        public float drag = DefaultDrag;
+        /// <summary>Share of the plane's velocity the bomb starts with (0 = drop dead, 1 = full).</summary>
+        public float inheritFactor = DefaultInheritFactor;
+        /// <summary>True turns the bomb sprite's nose along its velocity every physics step.</summary>
+        public bool alignToVelocity = DefaultAlignToVelocity;
+
+        /// <summary>A sanitised copy of balance.bomb (defaults for a missing block, a gravity
+        /// that is not positive, or a negative drag / inheritFactor). Never null.</summary>
+        public static BombData Resolve(GameBalance balance) {
+            var src = balance != null ? balance.bomb : null;
+            var r = new BombData();
+            if (src == null) return r;
+            r.gravity = src.gravity > 0f ? src.gravity : DefaultGravity;
+            r.drag = src.drag >= 0f ? src.drag : DefaultDrag;
+            r.inheritFactor = src.inheritFactor >= 0f ? src.inheritFactor : DefaultInheritFactor;
+            r.alignToVelocity = src.alignToVelocity;
+            return r;
+        }
+    }
+
+    /// <summary>
+    /// Serializable data class matching the "fighterChase" section of Balance.json (B059,
+    /// ARCHITECTURE §3 "Fighter chase"): how every FighterAI faces and pursues the player.
+    /// Read it through Resolve: a missing block or a non-positive number falls back to the
+    /// Default* value.
+    /// </summary>
+    [System.Serializable]
+    public class FighterChaseData {
+        public const float DefaultTurnSeconds = 0.6f;
+        public const float DefaultTurnDeadzone = 1f;
+        public const float DefaultAccel = 4f;
+        public const float DefaultStandoff = 3.5f;
+        public const float DefaultClimbRate = 2.5f;
+        public const float DefaultSeparation = 1.2f;
+        public const float DefaultEscortLeash = 8f;
+        public const int DefaultMaxAttackers = 3;
+        public const float DefaultStandoffMax = 5f; // B063: matches Balance (B061)
+        public const float DefaultSlotGraceSeconds = 0.5f;
+
+        /// <summary>Seconds for a full eased turn-around (facing -1 to +1).</summary>
+        public float turnSeconds;
+        /// <summary>The player must be more than this far (x) behind the nose before it turns.</summary>
+        public float turnDeadzone;
+        /// <summary>Horizontal acceleration (units/s^2) toward the desired chase velocity.</summary>
+        public float accel;
+        /// <summary>Horizontal distance to the player the fighter brakes to hold.</summary>
+        public float standoff;
+        /// <summary>Max climb/dive speed (units/s) while pursuing the player's height.</summary>
+        public float climbRate;
+        /// <summary>Fighters closer than this to each other push apart vertically.</summary>
+        public float separation;
+        /// <summary>An escort chases once the player is within this of its escorted plane, and
+        /// returns to formation beyond twice this.</summary>
+        public float escortLeash;
+        /// <summary>Attack slots (B060): at most this many fighters may fire at once.</summary>
+        public int maxAttackers;
+        /// <summary>Each fighter picks its own standoff once, uniformly in [standoff,
+        /// standoffMax] (B060), so a pack spreads out. Below standoff it is raised to standoff.</summary>
+        public float standoffMax;
+        /// <summary>Attack slots (B060): a holder that can't shoot (no aim, off screen, turning)
+        /// for longer than this gives its slot up.</summary>
+        public float slotGraceSeconds;
+
+        /// <summary>A sanitised copy of balance.fighterChase (defaults for a missing block or
+        /// a missing / non-positive number). Never null.</summary>
+        public static FighterChaseData Resolve(GameBalance balance) {
+            var src = balance != null ? balance.fighterChase : null;
+            var r = new FighterChaseData();
+            r.turnSeconds = Pick(src != null ? src.turnSeconds : 0f, DefaultTurnSeconds);
+            r.turnDeadzone = Pick(src != null ? src.turnDeadzone : 0f, DefaultTurnDeadzone);
+            r.accel = Pick(src != null ? src.accel : 0f, DefaultAccel);
+            r.standoff = Pick(src != null ? src.standoff : 0f, DefaultStandoff);
+            r.climbRate = Pick(src != null ? src.climbRate : 0f, DefaultClimbRate);
+            r.separation = Pick(src != null ? src.separation : 0f, DefaultSeparation);
+            r.escortLeash = Pick(src != null ? src.escortLeash : 0f, DefaultEscortLeash);
+            r.maxAttackers = src != null && src.maxAttackers > 0 ? src.maxAttackers : DefaultMaxAttackers;
+            r.standoffMax = Mathf.Max(r.standoff, Pick(src != null ? src.standoffMax : 0f, DefaultStandoffMax));
+            r.slotGraceSeconds = Pick(src != null ? src.slotGraceSeconds : 0f, DefaultSlotGraceSeconds);
+            return r;
+        }
+
+        private static float Pick(float value, float fallback) {
+            return value > 0f ? value : fallback;
+        }
+    }
+
+    /// <summary>
     /// Root serialisable class matching Balance.json. Loaded once from Resources at
     /// runtime and cached in the static _instance field for fast access by all systems.
     ///
@@ -323,6 +475,18 @@ namespace Biplanes.Core {
         /// <summary>Mirrors the "audio" key in Balance.json (T949). Read it through
         /// AudioData.Resolve(GameBalance.Get()), which fills in defaults.</summary>
         public AudioData audio;
+
+        /// <summary>Mirrors the "pressure" key in Balance.json (B035). Read it through
+        /// PressureData.Resolve(GameBalance.Get()), which fills in defaults.</summary>
+        public PressureData pressure;
+
+        /// <summary>Mirrors the "bomb" key in Balance.json (B036). Read it through
+        /// BombData.Resolve(GameBalance.Get()), which fills in defaults.</summary>
+        public BombData bomb;
+
+        /// <summary>Mirrors the "fighterChase" key in Balance.json (B059). Read it through
+        /// FighterChaseData.Resolve(GameBalance.Get()), which fills in defaults.</summary>
+        public FighterChaseData fighterChase;
 
         // --- cached instance for Get() singleton pattern ---
 

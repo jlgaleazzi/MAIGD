@@ -153,6 +153,11 @@ namespace Biplanes.Tests {
         private static float PlaneCollisionPercent =>
             DamageTakenData.PlaneCollisionOrDefault(GameBalance.Get() != null ? GameBalance.Get().damageTaken : null);
 
+        /// <summary>B052: what one mid-air contact really costs the player, planeCollision
+        /// divided by Balance player.resistance (50 / 1.5 = 33.3%).</summary>
+        private static float ContactPercent =>
+            PlaneCollisionPercent / PlayerData.ResistanceOrDefault(GameBalance.Get() != null ? GameBalance.Get().player : null);
+
         // ── Balance ─────────────────────────────────────────────────────
 
         [Test]
@@ -179,21 +184,23 @@ namespace Biplanes.Tests {
         // ── Mid-air contact ─────────────────────────────────────────────
 
         [Test]
-        public void FighterContact_At0_Takes50_NotCrashed_FighterDestroyed() {
+        public void FighterContact_At0_TakesOneContact_NotCrashed_FighterDestroyed() {
             MakePlane(new Vector2(0f, 1f));
             var fighter = MakeFighter(new Vector2(0.5f, 1f));
 
             Touch(fighter.GetComponent<Collider2D>());
 
-            Assert.AreEqual(PlaneCollisionPercent, PlayerHealth.CurrentDamagePercent, 1e-4f, "player takes planeCollision");
-            Assert.AreEqual(50f, PlayerHealth.CurrentDamagePercent, 1e-4f);
-            Assert.IsFalse(_plane.HasCrashed, "50% is survivable");
+            Assert.AreEqual(ContactPercent, PlayerHealth.CurrentDamagePercent, 1e-4f, "player takes planeCollision / resistance");
+            Assert.AreEqual(100f / 3f, PlayerHealth.CurrentDamagePercent, 1e-3f, "B052: 50 / 1.5 = 33.3%");
+            Assert.IsFalse(_plane.HasCrashed, "33.3% is survivable");
             Assert.IsTrue(fighter.IsDead, "the fighter is destroyed");
             CollectionAssert.AreEqual(new[] { "fighter" }, _enemyDestroyed, "EntityDestroyed once, with the score key");
         }
 
         [Test]
-        public void SecondContact_AfterGrace_Reaches100_AndCrashes() {
+        public void ThirdContact_AfterGrace_Reaches100_AndCrashes() {
+            // B052 (GDD change log 2026-11-20): one contact costs 33.3%, so two leave the
+            // player alive at 66.7% and the third crashes (the float sum snaps to 100).
             MakePlane(new Vector2(0f, 1f));
             Touch(MakeFighter(new Vector2(0.5f, 1f)).GetComponent<Collider2D>());
             Assert.IsFalse(_plane.HasCrashed);
@@ -201,11 +208,19 @@ namespace Biplanes.Tests {
             PassGrace();
             var second = MakeFighter(new Vector2(0.5f, 1f));
             Touch(second.GetComponent<Collider2D>());
+            Assert.AreEqual(2f * ContactPercent, PlayerHealth.CurrentDamagePercent, 1e-3f);
+            Assert.IsFalse(_plane.HasCrashed, "two contacts (66.7%) are survivable");
+            Assert.IsTrue(second.IsDead);
+
+            PassGrace();
+            var third = MakeFighter(new Vector2(0.5f, 1f));
+            Touch(third.GetComponent<Collider2D>());
 
             Assert.AreEqual(100f, PlayerHealth.CurrentDamagePercent, 1e-4f);
+            Assert.IsTrue(PlayerHealth.IsDead);
             Assert.IsTrue(_plane.HasCrashed, "100% total damage crashes the plane");
-            Assert.IsTrue(second.IsDead);
-            Assert.AreEqual(2, _enemyDestroyed.Count);
+            Assert.IsTrue(third.IsDead);
+            Assert.AreEqual(3, _enemyDestroyed.Count);
         }
 
         [Test]
@@ -217,7 +232,7 @@ namespace Biplanes.Tests {
             PassGrace();
             Touch(col);
 
-            Assert.AreEqual(50f, PlayerHealth.CurrentDamagePercent, 1e-4f, "a dead enemy can't hit again");
+            Assert.AreEqual(ContactPercent, PlayerHealth.CurrentDamagePercent, 1e-4f, "a dead enemy can't hit again");
             Assert.IsFalse(_plane.HasCrashed);
             Assert.AreEqual(1, _enemyDestroyed.Count);
         }
@@ -229,13 +244,13 @@ namespace Biplanes.Tests {
             var second = MakeFighter(new Vector2(0.6f, 1f));
             Touch(second.GetComponent<Collider2D>());
 
-            Assert.AreEqual(50f, PlayerHealth.CurrentDamagePercent, 1e-4f, "one contact costs 50% once");
+            Assert.AreEqual(ContactPercent, PlayerHealth.CurrentDamagePercent, 1e-4f, "one contact costs 33.3% once");
             Assert.IsFalse(_plane.HasCrashed);
             Assert.IsTrue(second.IsDead, "enemies touched during the grace window still die");
         }
 
         [Test]
-        public void BomberContact_AllHitboxes_Takes50Once_BomberDestroyed() {
+        public void BomberContact_AllHitboxes_TakesOneContactOnce_BomberDestroyed() {
             MakePlane(new Vector2(0f, 1f));
             var bomber = MakeBomber(new Vector2(0.5f, 1f));
             var hitboxes = bomber.GetComponents<Collider2D>();
@@ -243,7 +258,7 @@ namespace Biplanes.Tests {
 
             foreach (var col in hitboxes) Touch(col);
 
-            Assert.AreEqual(50f, PlayerHealth.CurrentDamagePercent, 1e-4f);
+            Assert.AreEqual(ContactPercent, PlayerHealth.CurrentDamagePercent, 1e-4f);
             Assert.IsFalse(_plane.HasCrashed);
             Assert.IsTrue(bomber.GetComponent<Health>().IsDead, "a collision destroys the bomber, as before");
             CollectionAssert.AreEqual(new[] { "bomber" }, _enemyDestroyed);

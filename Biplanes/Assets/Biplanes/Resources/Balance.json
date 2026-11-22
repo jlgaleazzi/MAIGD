@@ -1,6 +1,6 @@
 {
   "player": {
-    "speed": 5.0,
+    "speed": 6.5,
     "fireRate": 8.0,
     "bulletSpeed": 14.0,
     "bulletDamage": 25.0,
@@ -8,21 +8,22 @@
     "bombDamage": 100.0,
     "smokeThreshold": 70.0,
     "turnEaseSeconds": 0.6,
-    "screenAnchor": 0.3
+    "screenAnchor": 0.3,
+    "resistance": 1.5
   },
   "damageTaken": {
-    "fighterBullet": 8.0,
+    "fighterBullet": 5.0,
     "flak": 15.0,
     "bomberGunner": 10.0,
     "zeppelinTurret": 12.0,
     "collision": 100.0,
     "planeCollision": 50.0
   },
-  "healthBalloonRestore": 30.0,
+  "healthBalloonRestore": 100.0,
   "enemyHealth": {
-    "fighter": 25.0,
+    "fighter": 75.0,
     "bomber": 200.0,
-    "aaa": 100.0,
+    "aaa": 125.0,
     "barrageBalloon": 50.0,
     "zeppelinTurret": 75.0,
     "zeppelinHull": 1000.0,
@@ -76,5 +77,29 @@
     "volumeJitter": 0.15,
     "offscreenVolume": 0.4,
     "maxVoices": 12
+  },
+  "pressure": {
+    "enabled": true,
+    "maxQuietSeconds": 2.0,
+    "fillerCount": 2,
+    "maxLiveFighters": 6
+  },
+  "bomb": {
+    "gravity": 10.0,
+    "drag": 0.15,
+    "inheritFactor": 1.0,
+    "alignToVelocity": true
+  },
+  "fighterChase": {
+    "turnSeconds": 0.6,
+    "turnDeadzone": 1.0,
+    "accel": 4.0,
+    "standoff": 3.5,
+    "climbRate": 2.5,
+    "separation": 1.2,
+    "escortLeash": 8.0,
+    "maxAttackers": 3,
+    "standoffMax": 5.0,
+    "slotGraceSeconds": 0.5
   }
 }

@@ -12,6 +12,18 @@ namespace Biplanes.Weapons {
         /// Pool singleton shared by all bullets in the scene. Set once at init time.
         private static ObjectPool<Bullet> _pool;
 
+        /// <summary>Ink white (#E8F1FA): player shots are a solid ink streak (GDD Style Guide, 2026-11-18).</summary>
+        private static readonly Color Ink = new Color(0xE8 / 255f, 0xF1 / 255f, 0xFA / 255f, 1f);
+
+        /// <summary>Sprite size in pixels: 3 long (along +x, the flight direction) by 1 thick (B039).</summary>
+        private const int SpriteWidth = 3;
+        private const int SpriteHeight = 1;
+        /// <summary>Art scale: 100 px = 1 world unit.</summary>
+        private const float PixelsPerUnit = 100f;
+
+        /// <summary>Shared 3x1 solid ink line burst. Built once, reused by every pooled bullet.</summary>
+        private static Sprite _sprite;
+
         /// <summary>
         /// Initialise the shared bullet pool with `count` entries created via `factory`.
         /// Call this once during level setup so Bullet.Spawn can pop immediately.
@@ -61,6 +73,15 @@ namespace Biplanes.Weapons {
             // Default team for player projectiles.
             team = Team.Player;
 
+            // Replace whatever placeholder PlayerPlane passes with the 3x1 ink line burst (B039).
+            // The pixels are already ink, so the renderer colour stays white (no double tint).
+            // The trigger collider is set by PlayerPlane (circle, radius 0.08) and is not touched.
+            var sr = GetComponent<SpriteRenderer>();
+            if (sr != null) {
+                sr.sprite = GetSprite();
+                sr.color = Color.white;
+            }
+
             // Balance tunables are loaded here, not in Start: Projectile.Init sets the
             // velocity on the first Pop, before Start would run (B002c).
             var g = GameBalance.Get();
@@ -68,6 +89,21 @@ namespace Biplanes.Weapons {
                 speed = g.player.bulletSpeed;
                 damage = g.player.bulletDamage;
             }
+        }
+
+        /// <summary>The cached 3x1 solid ink line (pivot centre, long axis along +x), built on first use.</summary>
+        private static Sprite GetSprite() {
+            if (_sprite != null) return _sprite;
+            var tex = new Texture2D(SpriteWidth, SpriteHeight, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Point;
+            tex.wrapMode = TextureWrapMode.Clamp;
+            var pixels = new Color[SpriteWidth * SpriteHeight];
+            for (int i = 0; i < pixels.Length; i++) pixels[i] = Ink;
+            tex.SetPixels(pixels);
+            tex.Apply();
+            _sprite = Sprite.Create(tex, new Rect(0, 0, SpriteWidth, SpriteHeight),
+                                    new Vector2(0.5f, 0.5f), PixelsPerUnit);
+            return _sprite;
         }
 
         /// <summary>On collision with an IDamageable: apply damage then recycle.</summary>

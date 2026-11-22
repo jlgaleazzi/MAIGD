@@ -10,7 +10,7 @@ namespace Biplanes.Tests {
 
     /// <summary>
     /// B022: the HUD bomb row showed one white bar until the first bomb drop. These tests
-    /// check that a freshly built HUD shows one separate, sprited, friendly icon per bomb
+    /// check that a freshly built HUD shows one separate, sprited, ink icon per bomb
     /// (36 px, 8 px gap, 16 px from the bottom-left), that BombsChanged greys out spent
     /// bombs, that BombBay raises its starting count, and that no HUD Image is a default
     /// white rect and no HUD Text lacks a font.
@@ -67,7 +67,7 @@ namespace Biplanes.Tests {
             for (int i = 0; i < cap; i++) {
                 var img = Icon(i);
                 Assert.IsNotNull(img.sprite, "icon " + i + " has no sprite (draws a white rect)");
-                Assert.AreEqual(HudView.FriendlyCol, img.color, "icon " + i + " not friendly at start");
+                Assert.AreEqual(HudView.BombAvailableCol, img.color, "icon " + i + " not filled ink at start");
             }
         }
 
@@ -89,7 +89,7 @@ namespace Biplanes.Tests {
             GameEvents.RaiseBombsChanged(4);
             Assert.AreEqual(4, _hud.DisplayedBombs);
             for (int i = 0; i < _hud.BombSlots; i++) {
-                Assert.AreEqual(i < 4 ? HudView.FriendlyCol : HudView.PencilCol, Icon(i).color, "icon " + i);
+                Assert.AreEqual(i < 4 ? HudView.BombAvailableCol : HudView.BombSpentCol, Icon(i).color, "icon " + i);
             }
             GameEvents.RaiseBombsChanged(_hud.BombSlots);
             Assert.AreEqual(_hud.BombSlots, _hud.DisplayedBombs);
@@ -116,6 +116,66 @@ namespace Biplanes.Tests {
             }
             foreach (var txt in _canvasGo.GetComponentsInChildren<Text>(true)) {
                 Assert.IsNotNull(txt.font, txt.name + " has no font (draws nothing)");
+            }
+        }
+
+        // ── T957: white-only HUD (B038b) ──────────────────────────────────
+
+        private Image Fill() {
+            return _canvasGo.transform.Find("DamageFrame/DamageFill").GetComponent<Image>();
+        }
+
+        private static bool IsPalette(Color c) {
+            Color[] palette = { HudView.InkCol, HudView.PencilCol, HudView.PaperCol, Color.white };
+            foreach (var p in palette) {
+                if (Mathf.Abs(c.r - p.r) < 0.002f && Mathf.Abs(c.g - p.g) < 0.002f
+                    && Mathf.Abs(c.b - p.b) < 0.002f) return true;
+            }
+            return false;
+        }
+
+        [Test]
+        public void BombColours_AreInkAndHalfPencil() {
+            Assert.AreEqual(HudView.InkCol, HudView.BombAvailableCol);
+            Assert.AreEqual(HudView.PencilCol.r, HudView.BombSpentCol.r, 0.0001f);
+            Assert.AreEqual(HudView.PencilCol.g, HudView.BombSpentCol.g, 0.0001f);
+            Assert.AreEqual(HudView.PencilCol.b, HudView.BombSpentCol.b, 0.0001f);
+            Assert.AreEqual(0.5f, HudView.BombSpentCol.a, 0.0001f);
+        }
+
+        [Test]
+        public void DamageBelowSmoke_SolidInk_NoFlash_AtSmoke_HatchedAndFlashing() {
+            var solid = Fill().sprite;
+            GameEvents.RaisePlayerDamageChanged(69f);
+            Assert.IsFalse(_hud.DamageFlashing, "69% must not flash");
+            Assert.AreSame(solid, Fill().sprite, "69% keeps the solid fill sprite");
+            Assert.AreEqual(1f, Fill().color.a, 0.0001f);
+            Assert.IsFalse(_canvasGo.transform.Find("SmokeWarning").gameObject.activeSelf);
+
+            GameEvents.RaisePlayerDamageChanged(70f);
+            Assert.IsTrue(_hud.DamageFlashing, "GDD: 70% starts the smoke warning");
+            Assert.AreNotSame(solid, Fill().sprite, "70% swaps to the hatched sprite");
+            Assert.IsTrue(_canvasGo.transform.Find("SmokeWarning").gameObject.activeSelf);
+
+            GameEvents.RaisePlayerDamageChanged(50f);
+            Assert.IsFalse(_hud.DamageFlashing);
+            Assert.AreSame(solid, Fill().sprite);
+            Assert.AreEqual(1f, Fill().color.a, 0.0001f, "back below smoke: full alpha");
+        }
+
+        [Test]
+        public void FlashAlpha_StartsAtOne_DipsToPoint4_At3Hz() {
+            Assert.AreEqual(1f, HudView.FlashAlpha(0f), 0.0001f);
+            Assert.AreEqual(0.4f, HudView.FlashAlpha(1f / 6f), 0.001f);
+            Assert.AreEqual(1f, HudView.FlashAlpha(1f / 3f), 0.001f);
+        }
+
+        [Test]
+        public void EveryHudGraphic_IsInkPencilPaperOrNoTint() {
+            GameEvents.RaisePlayerDamageChanged(80f);
+            GameEvents.RaiseBombsChanged(2);
+            foreach (var g in _canvasGo.GetComponentsInChildren<Graphic>(true)) {
+                Assert.IsTrue(IsPalette(g.color), g.name + " colour " + g.color + " is outside ink/pencil/paper");
             }
         }
 

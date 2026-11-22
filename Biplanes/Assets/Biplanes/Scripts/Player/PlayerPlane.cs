@@ -13,6 +13,8 @@ namespace Biplanes.Player {
     ///
     /// Handles:
     ///  - Takeoff state (mission 1 starts on the runway).
+    ///  - Mission start gate (B049): while the ScrollController is held the plane holds its
+    ///    position; its first input (move, fire, bomb, or the takeoff) releases the scroll.
     ///  - Movement via Rigidbody2D.Kinematic + MovePosition in FixedUpdate.
     ///  - Riding along with the scrolling camera, clamped inside the camera rectangle
     ///    minus a 0.5 margin (ARCHITECTURE §3).
@@ -182,6 +184,8 @@ namespace Biplanes.Player {
         private float _screenAnchor;
         /// <summary>Resolved Balance pitch block (never null after Create/Awake).</summary>
         private PitchData _pitch;
+        /// <summary>Resolved Balance bomb block (B036; never null after Create/Awake).</summary>
+        private BombData _bomb;
 
         /// <summary>Used when Balance.json has no (or a zero) player.screenAnchor.</summary>
         private const float FallbackScreenAnchor = 0.3f;
@@ -241,7 +245,7 @@ namespace Biplanes.Player {
             // Initialise balance values (may be null before GameBalance is loaded)
             var g = GameBalance.Get();
             pp._onRunway   = onRunway;
-            pp._speed      = g != null ? g.player.speed : 5f;
+            pp._speed      = g != null ? g.player.speed : 6.5f;   // fallback = Balance player.speed (B056)
             float rawSmoke = pp._smokeThresholdOverride >= 0f
                 ? pp._smokeThresholdOverride
                 : (g != null ? g.player.smokeThreshold : 70f);
@@ -251,6 +255,7 @@ namespace Biplanes.Player {
             pp._facing = 1;
             pp._ignoreHeldLeft = false;
             pp._pitch = PitchData.Resolve(g);
+            pp._bomb = BombData.Resolve(g);
             pp._pitchAngle = 0f;
             sr.flipX = false;
 
@@ -278,6 +283,14 @@ namespace Biplanes.Player {
         /// <summary>Projectile and fallback sprites, built once and shared by every mission (B006a).</summary>
         private static Sprite _bulletSprite;
         private static Sprite _bombSprite;
+
+        /// <summary>Resources path of the player bomb sprite (A-BOMB: 32x14 px at 100 px/unit,
+        /// nose along +x, pivot centre, drawn untinted).</summary>
+        private const string BombSpritePath = "Sprites/player/player_bomb";
+
+        /// <summary>Bomb trigger size in world units, matching the drawn body of player_bomb
+        /// (0.32 x 0.14 units minus the transparent edge).</summary>
+        private static readonly Vector2 BombColliderSize = new Vector2(0.3f, 0.12f);
         private static Sprite _fallbackPlaneSprite;
 
         /// <summary>
@@ -287,12 +300,42 @@ namespace Biplanes.Player {
         /// </summary>
         private static void InitWeaponPools() {
             if (_bulletSprite == null) _bulletSprite = CreateSolidSprite(Color.white, 6, 2, 32f);
-            if (_bombSprite == null)   _bombSprite   = CreateSolidSprite(Color.white, 4, 6, 32f);
+            if (_bombSprite == null)   _bombSprite   = LoadBombSprite();
             var bulletSprite = _bulletSprite;
             var bombSprite   = _bombSprite;
 
             Bullet.InitPool(() => MakeProjectile<Bullet>("Bullet", bulletSprite, 0.08f), 40);
-            Bomb.InitPool(() => MakeProjectile<Bomb>("Bomb", bombSprite, 0.12f), 10);
+            Bomb.InitPool(() => MakeBombProjectile(bombSprite), 10);
+        }
+
+        /// <summary>The player_bomb sprite, or (with one warning) the old solid placeholder
+        /// when it is missing. Called once; the result is cached in _bombSprite.</summary>
+        private static Sprite LoadBombSprite() {
+            var sprite = Resources.Load<Sprite>(BombSpritePath);
+            if (sprite != null) return sprite;
+            Debug.LogWarning($"PlayerPlane: sprite Resources/{BombSpritePath} not found; bombs use a solid placeholder.");
+            return CreateSolidSprite(Color.white, 4, 6, 32f);
+        }
+
+        /// <summary>One pooled player bomb: the shared projectile body with a horizontal capsule
+        /// trigger sized to the bomb sprite instead of a circle. The capsule turns with the
+        /// body, so it follows the nose along the path (B036).</summary>
+        private static Bomb MakeBombProjectile(Sprite sprite) {
+            var go = new GameObject("Bomb");
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            sr.sortingOrder = 15;
+
+            var rb = go.AddComponent<Rigidbody2D>();
+            rb.bodyType = RigidbodyType2D.Kinematic;
+            rb.gravityScale = 0f;
+
+            var col = go.AddComponent<CapsuleCollider2D>();
+            col.isTrigger = true;
+            col.direction = CapsuleDirection2D.Horizontal;
+            col.size = BombColliderSize;
+
+            return go.AddComponent<Bomb>();
         }
 
         /// <summary>Builds one pooled projectile: sprite, kinematic body, trigger collider.</summary>
@@ -321,6 +364,7 @@ namespace Biplanes.Player {
             if (_bombBay == null) _bombBay = GetComponent<BombBay>();
             if (_collider == null) _collider = GetComponent<Collider2D>();
             if (_pitch == null) _pitch = PitchData.Resolve(GameBalance.Get());
+            if (_bomb == null) _bomb = BombData.Resolve(GameBalance.Get());
 
             // Compute screen bounds from the main camera (may be set up later).
             ComputeScreenBounds();
@@ -491,12 +535,28 @@ namespace Biplanes.Player {
             Vector2 start = _rb.position;
             Vector2 target = start;
 
+            // ── Mission start gate (B049): until the first input nothing moves ──
+            // PlayerInputGate only lets real presses through (a key held through the briefing
+            // is spent), so any action here is the player's first input. On the runway the
+            // takeoff below is that input (same gate); airborne any action starts the mission
+            // and is handled normally this tick.
+            if (!_onRunway && IsWaitingForStart) {
+                if (!PlayerInputGate.AnyAction(state)) {
+                    _velocity = Vector2.zero;
+                    _prevLeft  = state.left;
+                    _prevRight = state.right;
+                    return;
+                }
+                BeginMission();
+            }
+
             // ── Takeoff logic (mission 1: start on runway) ──────────────────
             bool tookOffThisTick = false;
             if (_onRunway) {
                 // Pressing W (climb) or D (forward-then-climb) triggers takeoff, facing right.
                 // A does nothing on the runway.
                 if (state.up || state.right) {
+                    BeginMission();
                     _onRunway = false;
                     tookOffThisTick = true;
                     // A held through takeoff stays ignored until it is released (B003).
@@ -564,6 +624,7 @@ namespace Biplanes.Player {
         /// <summary>Machine gun: one bullet per PlayerInput.OnFire (autofire is paced there).</summary>
         private void OnFire() {
             if (_hasCrashed || _onRunway || !gameObject.activeInHierarchy) return;
+            BeginMission(); // the fire button can be the first input (B049)
 
             // The gun sits GunOffset.x ahead of the centre along the drawn nose (mirrored by
             // the facing), and the round flies along the nose (GDD Flight attitude).
@@ -608,6 +669,26 @@ namespace Biplanes.Player {
             return new Vector2(center.x, y);
         }
 
+        // ── Mission start gate (B049) ─────────────────────────────────────
+
+        /// <summary>True while the mission waits for the player's first input: the
+        /// ScrollController is held, and the plane holds its position (airborne) or stays on
+        /// the runway. MissionRunner holds the scroll in StartMission.</summary>
+        public static bool IsWaitingForStart {
+            get {
+                var sc = ScrollController.Instance;
+                return sc != null && sc.IsHeld;
+            }
+        }
+
+        /// <summary>The player's first input: release the scroll (no-op once started).</summary>
+        private static void BeginMission() {
+            var sc = ScrollController.Instance;
+            if (sc == null || !sc.IsHeld) return;
+            sc.Release();
+            Debug.Log("[PlayerPlane] First input — mission start.");
+        }
+
         // ── Facing ────────────────────────────────────────────────────────
 
         /// <summary>
@@ -634,10 +715,19 @@ namespace Biplanes.Player {
             if (sc != null) sc.SetDirection(_facing);
         }
 
-        /// <summary>Drop one bomb per Space press; bombs inherit the plane's x-velocity.</summary>
+        /// <summary>Drop one bomb per Space press. The bomb starts with the plane's world
+        /// velocity (x and y) times Balance bomb.inheritFactor, then falls ballistically (B036).
+        /// Its forward x is at least the cruise speed (scrollSpeed) along Facing, so a bomb
+        /// dropped during a turn's camera ease or anchor slide still leaves the way the plane
+        /// faces (B057, BombBallistics.InheritedVelocity).</summary>
         private void OnDropBomb() {
             if (_hasCrashed || _onRunway || _bombBay == null || !gameObject.activeInHierarchy) return;
-            _bombBay.TryDropBomb(transform.position + BombOffset, new Vector2(_velocity.x, 0f));
+            BeginMission(); // the bomb key can be the first input (B049)
+            float inherit = _bomb != null ? _bomb.inheritFactor : BombData.DefaultInheritFactor;
+            var sc = ScrollController.Instance;
+            float cruise = sc != null ? sc.ScrollSpeed : 0f;
+            _bombBay.TryDropBomb(transform.position + BombOffset,
+                BombBallistics.InheritedVelocity(_velocity, _facing, cruise, inherit));
         }
 
         // ── Smoke trail (≥ 70% damage per GDD) ───────────────────────────
@@ -672,26 +762,27 @@ namespace Biplanes.Player {
             fx.SpawnSmokePuff(transform.position - nose * SmokeTailOffset);
         }
 
-        /// <summary>Damage tint of the plane sprite (amber at ≥ smokeThreshold). The smoke
-        /// puffs themselves are emitted by EmitSmoke from Update.</summary>
+        /// <summary>Damage tint of the plane sprite, white only (no colour, per the style guide):
+        /// untinted ink white below smokeThreshold; at the threshold the sprite drops halfway
+        /// toward pencil grey, reaching full PencilGreyTint at 100% damage. The smoke puffs
+        /// themselves are emitted by EmitSmoke from Update.</summary>
         private void UpdateSmokeTrail() {
-            if (_health == null) return;
+            if (_health == null || _sr == null) return;
+            var col = DamageTint(_health.CurrentDamagePercent, _smokeThreshold);
+            col.a = _sr.color.a;
+            _sr.color = col;
+        }
 
-            float dmg = _health.CurrentDamagePercent;
-            bool needsSmoke = dmg >= _smokeThreshold;
+        /// <summary>Pencil grey #9DB4CC, the plane sprite's tint at 100% damage.</summary>
+        private static readonly Color PencilGreyTint = new Color(0.616f, 0.706f, 0.8f, 1f);
 
-            // Tint the plane sprite amber when in danger zone so the player sees they're damaged.
-            if (_sr != null) {
-                var col = _sr.color;
-                if (needsSmoke) {
-                    col = new Color(0.9f, 0.55f, 0.2f, col.a); // deep amber
-                } else if (dmg >= _smokeThreshold * 0.7f) {
-                    col = new Color(1f, 0.85f, 0.3f, col.a);   // light warning tint
-                } else {
-                    col = new Color(1f, 1f, 1f, col.a);          // normal white
-                }
-                _sr.color = col;
-            }
+        /// <summary>Sprite tint for `damagePercent`: white below `smokeThreshold`, then from
+        /// halfway to pencil grey at the threshold up to full pencil grey at 100%.</summary>
+        private static Color DamageTint(float damagePercent, float smokeThreshold) {
+            if (damagePercent < smokeThreshold) return Color.white;
+            float span = 100f - smokeThreshold;
+            float t = span > 0f ? Mathf.Clamp01((damagePercent - smokeThreshold) / span) : 1f;
+            return Color.Lerp(Color.white, PencilGreyTint, 0.5f + 0.5f * t);
         }
 
         // ── Crash handling ────────────────────────────────────────────────
@@ -729,7 +820,8 @@ namespace Biplanes.Player {
             // Without a body there is no fall to time the crunch against.
             if (_rb == null) PlayCrashSound();
 
-            var gm = GameManager.Instance;
+            // GetOrNull: no GameManager (and no DontDestroyOnLoad) outside Play mode (B047).
+            var gm = GameManager.GetOrNull();
             if (gm != null) {
                 gm.LoseMission(GameManager.DefaultLossReason, CrashFallSeconds);
             } else {
