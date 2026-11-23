@@ -289,8 +289,10 @@ namespace Biplanes.UI {
             _reasonText.text = reason ?? "";
             _reasonText.gameObject.SetActive(!string.IsNullOrEmpty(reason));
 
-            // Previous best, read before this run is saved (UI_SPEC §3.5).
-            int bestScore = SaveSystem.GetBestScore(missionIndex);
+            // Previous best (UI_SPEC §3.5): the value captured at mission start (B070), because
+            // a kill win already saved this run's score when the delayed screen opens (B069).
+            var keeper = ScoreKeeper.Instance;
+            int bestScore = keeper != null ? keeper.PreviousBestFor(missionIndex) : SaveSystem.GetBestScore(missionIndex);
             _bestScoreText.text = "Best: " + bestScore;
             _bestScoreText.gameObject.SetActive(bestScore > 0);
 

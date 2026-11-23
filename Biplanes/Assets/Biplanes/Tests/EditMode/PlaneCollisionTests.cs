@@ -11,8 +11,9 @@ using Biplanes.Weapons;
 namespace Biplanes.Tests {
 
     /// <summary>
-    /// B025: mid-air contact with an enemy fighter or bomber destroys the enemy and costs the
-    /// player damageTaken.planeCollision (50%) instead of an instant crash. Terrain and static
+    /// B025: mid-air contact with an enemy fighter destroys it (a bomber, since B069, only
+    /// loses ramDamage.bomber hit points: see BomberRamTests) and costs the player
+    /// damageTaken.planeCollision (50%) instead of an instant crash. Terrain and static
     /// obstacles stay fatal.
     ///
     /// EditMode doesn't run Awake/Start/FixedUpdate or physics callbacks, so the tests invoke
@@ -250,7 +251,7 @@ namespace Biplanes.Tests {
         }
 
         [Test]
-        public void BomberContact_AllHitboxes_TakesOneContactOnce_BomberDestroyed() {
+        public void BomberContact_AllHitboxes_TakesOneContactOnce_BomberSurvivesOneRam() {
             MakePlane(new Vector2(0f, 1f));
             var bomber = MakeBomber(new Vector2(0.5f, 1f));
             var hitboxes = bomber.GetComponents<Collider2D>();
@@ -260,8 +261,12 @@ namespace Biplanes.Tests {
 
             Assert.AreEqual(ContactPercent, PlayerHealth.CurrentDamagePercent, 1e-4f);
             Assert.IsFalse(_plane.HasCrashed);
-            Assert.IsTrue(bomber.GetComponent<Health>().IsDead, "a collision destroys the bomber, as before");
-            CollectionAssert.AreEqual(new[] { "bomber" }, _enemyDestroyed);
+            // B069: a ram is no longer fatal for the 1000 HP bomber: one ramDamage.bomber per pass.
+            var h = bomber.GetComponent<Health>();
+            Assert.IsFalse(h.IsDead, "one ram does not destroy the bomber (B069)");
+            float expected = PlayerPlane.RamDamageFor(GameBalance.Get()) / h.MaxHitPoints * 100f;
+            Assert.AreEqual(expected, h.CurrentDamagePercent, 1e-3f, "one ram's worth, not one per hitbox");
+            CollectionAssert.IsEmpty(_enemyDestroyed);
         }
 
         // ── Still fatal ─────────────────────────────────────────────────
@@ -305,7 +310,9 @@ namespace Biplanes.Tests {
         }
 
         [Test]
-        public void ForceCrash_ZeppelinRam_StillCrashesAtOnce() {
+        public void ForceCrash_StillCrashesAtOnce() {
+            // B079: a zeppelin ram no longer calls ForceCrash (see ZeppelinRamTests); the
+            // explicit crash API itself still crashes at once.
             MakePlane(new Vector2(0f, 1f));
             _plane.ForceCrash();
             Assert.IsTrue(_plane.HasCrashed);

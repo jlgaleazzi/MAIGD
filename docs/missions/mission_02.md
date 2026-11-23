@@ -27,7 +27,7 @@ Geometry: the bomber is triggered when the camera reaches x 80 and appears 10.4 
 | 195, 250, 320 | Health balloons (V009), in the lulls after the sine/dive groups at 150-170, 210 and before 280 | Recover |
 | 210, 280 | 3 sine, then 3 dive (thin stream, harassment if the bomber is alive) | Tracking while chasing |
 
-The objective climax is the bomber kill itself (200 hp, gunner fire); the mission ends on the kill.
+The objective climax is the bomber kill itself (1000 hp = 40 bullets or 10 bombs, gunner fire; it smokes as it is damaged, then explodes and falls); the mission ends on the kill.
 AAA stays out: it is introduced in mission 3.
 
 Difficulty knobs:
@@ -50,3 +50,5 @@ Player forward speed = scrollSpeed, raised 30%. Fighters still fly left at 3 u/s
 - No spacing change needed. Sparse tail (210 and 280) is a 12 s and 21 s lull by design, as before (it only covers the bomber hunt; EnemyPressure covers the rest).
 
 Bomber catchability (bomber_1, targetX = failAtX 10): the bomber triggers when the camera reaches x 80 (24.6 s into the mission) and appears 10.4 to 16.4 right of the camera at 16:9, so it spawns at about x 90 to 96. It flies left at 1.5 u/s and needs (90 to 96 - 10) / 1.5 = **53 to 57 s** to reach failAtX (unchanged). The camera closes on it at 3.25 + 1.5 = 4.75 u/s, so it is level with the plane in about 2.2 to 3.5 s (was 2.6 to 4.1 s), leaving **about 50 s** to turn back and kill it. After the turn-around the plane gains 3.25 - 1.5 = 1.75 u/s on the bomber (was 1.0), so catching up is easier. Map end: the camera needs (450 - 80) / 3.25 = 114 s after the trigger, far later than the 53 to 57 s fail time, so failAtX always comes first. No change to length, atX or failAtX.
+
+- **Bomb recharge (V064):** one static `bombBalloon` at x 225 (y 3.5), mid-map, clear of ground units and other balloons. It refills 4 bombs (cap 7); it is not an enemy and counts toward no objective or health-balloon rule.

@@ -29,6 +29,7 @@
     { "atX": 170, "type": "fighter", "y": 4.5, "count": 3, "spacing": 8, "pattern": "dive", "id": "", "escortOf": "" },
     { "atX": 195, "type": "healthBalloon", "y": 2.5, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" },
     { "atX": 210, "type": "fighter", "y": 2.0, "count": 3, "spacing": 10, "pattern": "sine", "id": "", "escortOf": "" },
+    { "atX": 225, "type": "bombBalloon", "y": 3.5, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" },
     { "atX": 250, "type": "healthBalloon", "y": 3.0, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" },
     { "atX": 280, "type": "fighter", "y": 3.5, "count": 3, "spacing": 10, "pattern": "dive", "id": "", "escortOf": "" },
     { "atX": 320, "type": "healthBalloon", "y": 2.5, "count": 1, "spacing": 0, "pattern": "drift", "id": "", "escortOf": "" }

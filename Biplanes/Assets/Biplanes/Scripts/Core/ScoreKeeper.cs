@@ -73,6 +73,35 @@ namespace Biplanes.Core {
             GameEvents.RaiseScoreChanged(CurrentScore);
         }
 
+        /// <summary>Mission whose previous best was captured by CapturePreviousBest (0 = none).</summary>
+        public int CapturedMission { get; private set; }
+
+        /// <summary>The best score of CapturedMission as it was at mission start (B070).</summary>
+        public int CapturedPreviousBest { get; private set; }
+
+        /// <summary>
+        /// Remembers the saved best score of `missionIndex` before this run can change it
+        /// (B070). MissionRunner calls it at mission start, so the result screen's "Best:"
+        /// stays the previous best even though OnMissionEnded saves the new best at the
+        /// win moment, up to killWinDelaySeconds before the screen opens (B069).
+        /// </summary>
+        public void CapturePreviousBest(int missionIndex) {
+            CapturedMission = missionIndex;
+            CapturedPreviousBest = SaveSystem.GetBestScore(missionIndex);
+        }
+
+        /// <summary>The previous best to show for `missionIndex`: the captured value when it
+        /// was captured for that mission, otherwise the saved best (read now).</summary>
+        public int PreviousBestFor(int missionIndex) {
+            return BestToShow(missionIndex, CapturedMission, CapturedPreviousBest, SaveSystem.GetBestScore(missionIndex));
+        }
+
+        /// <summary>Pure: `capturedBest` when `capturedMission` is `missionIndex` (and set),
+        /// else `savedBest`.</summary>
+        public static int BestToShow(int missionIndex, int capturedMission, int capturedBest, int savedBest) {
+            return capturedMission > 0 && capturedMission == missionIndex ? capturedBest : savedBest;
+        }
+
         #endregion
 
         #region EntityDestroyed handler
@@ -85,6 +114,8 @@ namespace Biplanes.Core {
         public void OnEntityDestroyed(string entityType, Team team) {
             // Ignore player deaths: no points awarded to oneself.
             if (team == Team.Player) return;
+            // Neutral pickups (health / bomb balloons) score nothing, silently (B065).
+            if (team == Team.Neutral && IsScorelessPickup(entityType)) return;
 
             int points = GetScoreFor(entityType);
             if (points > 0) {
@@ -117,6 +148,13 @@ namespace Biplanes.Core {
         #endregion
 
         #region Internal helpers
+
+        /// <summary>True for the type keys of Neutral pickups ("HealthBalloon", "BombBalloon",
+        /// case-insensitive): they raise EntityDestroyed when collected but never score (B065).</summary>
+        public static bool IsScorelessPickup(string entityType) {
+            return string.Equals(entityType, "HealthBalloon", System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(entityType, "BombBalloon", System.StringComparison.OrdinalIgnoreCase);
+        }
 
         /// <summary>Look up the kill score for *entityType* in the balance table.</summary>
         private int GetScoreFor(string entityType) {

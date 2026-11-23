@@ -40,7 +40,8 @@ namespace Biplanes.Missions {
         public int atX;
 
         /// <summary>Entity type: fighter, bomber, aaa, zeppelin, barrageBalloon,
-        /// healthBalloon, building, tree, enemyBase, airfield, playerHQ.</summary>
+        /// healthBalloon, bombBalloon (B064 recharge pickup), building, tree, enemyBase,
+        /// airfield, playerHQ.</summary>
         public string type;
 
         /// <summary>Base height above local terrain (world y = terrainHeight + y).</summary>

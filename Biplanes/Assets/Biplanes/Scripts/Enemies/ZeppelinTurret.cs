@@ -122,17 +122,9 @@ namespace Biplanes.Enemies {
             Fire();
         }
 
-        /// <summary>Ramming a turret crashes the player like any enemy plane (destroys both).
-        /// The hull also receives this callback (compound body) and guards on HasCrashed.</summary>
-        private void OnTriggerEnter2D(Collider2D other) {
-            if (_destroyed) return;
-            var player = other.GetComponentInParent<PlayerPlane>();
-            if (player == null || player.HasCrashed) return;
-
-            other.GetComponentInParent<IDamageable>()?.ApplyDamage(1f, DamageSource.Collision);
-            player.ForceCrash();
-            ApplyDamage(1f, DamageSource.Collision);
-        }
+        // Ramming (B079): no trigger handler here any more. PlayerPlane.HitZeppelin finds the
+        // hull through this child collider and charges the player one plane contact; the
+        // turret takes no damage from a ram.
 
         // ── Setup (called by ZeppelinAI.Spawn) ────────────────────────────
 

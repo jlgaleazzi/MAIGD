@@ -110,6 +110,13 @@ namespace Biplanes.Tests {
 
         private bool FlipX => _plane.GetComponent<SpriteRenderer>().flipX;
 
+        /// <summary>B066: the sprite turns round over TurnSeconds (eased squash, flipX at the
+        /// midpoint) while Facing switches at once. Ticks with no keys until the look is done.</summary>
+        private void FinishTurn() {
+            for (int i = 0; i < 500 && _plane.IsTurning; i++) Move();
+            Assert.IsFalse(_plane.IsTurning, "the turn-around must finish");
+        }
+
         // ── Facing rules ────────────────────────────────────────────────
 
         [Test]
@@ -124,8 +131,12 @@ namespace Biplanes.Tests {
             MakePlane(Vector2.zero, false);
             Move(left: true);
             Assert.AreEqual(-1, _plane.Facing);
+            Assert.AreEqual(-1, _sc.Direction, "the scroll turns on the key press");
+            Assert.IsTrue(_plane.IsTurning, "B066: the sprite eases round, no instant flip");
+            Assert.IsFalse(FlipX, "B066: still drawn facing right on the first tick of the turn");
+            FinishTurn();
             Assert.IsTrue(FlipX);
-            Assert.AreEqual(-1, _sc.Direction);
+            Assert.AreEqual(1f, _plane.transform.localScale.x, 1e-5f, "full width after the turn");
         }
 
         [Test]
@@ -136,6 +147,8 @@ namespace Biplanes.Tests {
             Assert.AreEqual(1, _plane.Facing);
             Assert.IsFalse(FlipX);
             Assert.AreEqual(1, _sc.Direction);
+            FinishTurn();
+            Assert.IsFalse(FlipX);
         }
 
         [Test]
@@ -225,6 +238,7 @@ namespace Biplanes.Tests {
             Assert.AreEqual(1, _plane.Facing);
             Move(left: true);                       // fresh A press
             Assert.AreEqual(-1, _plane.Facing, "a fresh A after the release turns left");
+            FinishTurn();
             Assert.IsTrue(FlipX);
             Assert.AreEqual(-1, _sc.Direction);
         }

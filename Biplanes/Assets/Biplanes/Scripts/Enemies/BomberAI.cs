@@ -27,6 +27,17 @@ namespace Biplanes.Enemies {
     ///   Hits report DamageSource.Bomb, which the player's Health maps to
     ///   damageTaken.bomberGunner. Cadence from Balance enemyFire.bomberInterval*. The gunner
     ///   never changes the flight path or the bomb run.
+    /// • Toughness (B068): enemyHealth.bomber 1000 (40 player bullets at 25, or 10 bombs at
+    ///   100); FallbackHitPoints is the same when Balance is missing.
+    /// • Smoke trail (B068): a live bomber trails pencil smoke (FxManager.SpawnEnemySmokePuff,
+    ///   same puff as fighters) from its engine (EngineSmokePoint, along the nose). SmokeLevelFor
+    ///   maps the remaining health fraction to a level: none above 70%, light at 70% or less,
+    ///   thick at 40% or less, heavy at 15% or less; SmokeInterval gives the puff interval.
+    /// • Death (B068): the kill counts at the hit that empties Health (EntityDestroyed: score,
+    ///   objectives, destroyById). On the next physics tick BeginCrash plays the mid-air
+    ///   explosion, hands the sprite, pitch and velocity to a visual-only BomberWreck (falls,
+    ///   dives, smokes, bursts on the ground) and removes this bomber at once, so a dead
+    ///   bomber can't shoot, be hit, ram the player, lead escorts or count as a live aircraft.
     ///
     /// Spawned by MissionRunner from mission JSON via static factory Spawn(position).
     /// </summary>
@@ -78,6 +89,35 @@ namespace Biplanes.Enemies {
 
         /// <summary>The gunner swivels: any direction (half-angle 180) toward the player.</summary>
         private const float GunnerConeDegrees = 180f;
+
+        // ── Toughness and smoke trail (B068) ──────────────────────────────
+
+        /// <summary>Hit points when Balance enemyHealth.bomber is missing or not positive;
+        /// matches Balance.json (1000).</summary>
+        public const float FallbackHitPoints = 1000f;
+
+        /// <summary>Smoke levels from SmokeLevelFor.</summary>
+        public const int SmokeLevelNone = 0;
+        public const int SmokeLevelLight = 1;
+        public const int SmokeLevelThick = 2;
+        public const int SmokeLevelHeavy = 3;
+
+        /// <summary>Remaining-health fractions at or below which each level starts.</summary>
+        public const float SmokeLightAt = 0.70f;
+        public const float SmokeThickAt = 0.40f;
+        public const float SmokeHeavyAt = 0.15f;
+
+        /// <summary>Seconds between puffs per level (visual only). The heavy rate (about 15
+        /// live puffs at FxManager's 1.2 s life) stays well under the 32 enemy-puff cap.</summary>
+        public const float SmokeIntervalLight = 0.35f;
+        public const float SmokeIntervalThick = 0.16f;
+        public const float SmokeIntervalHeavy = 0.08f;
+
+        /// <summary>Engine cowling distance from the centre along the drawn nose (sprite
+        /// geometry, px 285 of the 320-px enemy_bomber art: (285 - 160) / 100).</summary>
+        public const float EngineSmokeOffset = 1.25f;
+
+        private float _smokeTimer;                      // seconds until the next smoke puff
 
         private EnemyFireData _fire;
         private float _gunnerCooldown;                  // seconds on screen until the next shot
@@ -150,7 +190,7 @@ namespace Biplanes.Enemies {
             }
             var balance = GameBalance.Get();
             _health.SetMaxHitPoints(balance != null && balance.enemyHealth != null
-                ? balance.enemyHealth.bomber : 200f);
+                && balance.enemyHealth.bomber > 0f ? balance.enemyHealth.bomber : FallbackHitPoints);
 
             _teamTag = GetComponent<TeamTag>();
 
@@ -201,14 +241,18 @@ namespace Biplanes.Enemies {
             if (_player == null) PlayerRef = FindFirstObjectByType<PlayerPlane>();
         }
 
+        void Update() {
+            EmitSmoke(Time.deltaTime);
+        }
+
         void FixedUpdate() {
-            if (_rb == null) return;
             if (_health != null && _health.IsDead) {
-                // Health already raised EntityDestroyed (score + objectives). Burst and remove.
-                FxManager.Instance.TriggerExplosion(transform.position);
-                Destroy(gameObject);
+                // Health already raised EntityDestroyed (score + objectives). Burst, leave a
+                // falling wreck and remove the bomber (B068).
+                BeginCrash();
                 return;
             }
+            if (_rb == null) return;
 
             // ── Movement: fly left at a slower speed than fighters ────────
             float moveX = -_speed * Time.fixedDeltaTime;
@@ -267,6 +311,102 @@ namespace Biplanes.Enemies {
 
             _gunnerCooldown = Random.Range(_fire.bomberIntervalMin, _fire.bomberIntervalMax);
             return true;
+        }
+
+        // ── Smoke trail (B068) ────────────────────────────────────────────
+
+        /// <summary>Remaining health 0..1 (1 = undamaged); 1 without a Health.</summary>
+        public float HealthFraction => _health != null ? HealthFractionFrom(_health.CurrentDamagePercent) : 1f;
+
+        /// <summary>Current smoke level of this bomber (SmokeLevelNone when dead: the wreck
+        /// smokes instead).</summary>
+        public int SmokeLevel => _health != null && _health.IsDead ? SmokeLevelNone : SmokeLevelFor(HealthFraction);
+
+        /// <summary>Remaining health 0..1 for a damage percent 0..100.</summary>
+        public static float HealthFractionFrom(float damagePercent) {
+            return Mathf.Clamp01(1f - damagePercent / 100f);
+        }
+
+        /// <summary>
+        /// Smoke level for a remaining-health fraction (1 = full, 0 = dead): None above
+        /// SmokeLightAt (0.70), Light at or below it, Thick at or below SmokeThickAt (0.40),
+        /// Heavy at or below SmokeHeavyAt (0.15). Pure.
+        /// </summary>
+        public static int SmokeLevelFor(float healthFraction) {
+            if (healthFraction <= SmokeHeavyAt) return SmokeLevelHeavy;
+            if (healthFraction <= SmokeThickAt) return SmokeLevelThick;
+            if (healthFraction <= SmokeLightAt) return SmokeLevelLight;
+            return SmokeLevelNone;
+        }
+
+        /// <summary>Seconds between smoke puffs at `level`; 0 = no smoke. Pure.</summary>
+        public static float SmokeInterval(int level) {
+            switch (level) {
+                case SmokeLevelLight: return SmokeIntervalLight;
+                case SmokeLevelThick: return SmokeIntervalThick;
+                case SmokeLevelHeavy: return SmokeIntervalHeavy;
+                default: return 0f;
+            }
+        }
+
+        /// <summary>World point of the engine: EngineSmokeOffset from `center` along the drawn
+        /// nose (PlanePitch.NoseDirection for `pitchDegrees` and `facing`). Pure.</summary>
+        public static Vector3 EngineSmokePoint(Vector3 center, float pitchDegrees, int facing) {
+            Vector2 nose = PlanePitch.NoseDirection(pitchDegrees, facing);
+            return center + (Vector3)(nose * EngineSmokeOffset);
+        }
+
+        /// <summary>
+        /// Smoke trail: while alive and at a smoke level above None, spawns one FxManager enemy
+        /// smoke puff at the engine every SmokeInterval(level). The first puff comes at once
+        /// when the bomber starts smoking, and a heavier level shortens a pending wait. A
+        /// paused game (dt 0) and EditMode without a seeded FxManager emit nothing. Returns
+        /// true when a puff was spawned.
+        /// </summary>
+        internal bool EmitSmoke(float dt) {
+            if (dt <= 0f) return false;
+            float interval = SmokeInterval(SmokeLevel);
+            if (interval <= 0f) {
+                _smokeTimer = 0f;
+                return false;
+            }
+            if (_smokeTimer > interval) _smokeTimer = interval;
+            _smokeTimer -= dt;
+            if (_smokeTimer > 0f) return false;
+            _smokeTimer = interval;
+
+            var fx = FxManager.GetOrNull();
+            if (fx == null) return false;
+            fx.SpawnEnemySmokePuff(EngineSmokePoint(transform.position, _pitchAngle, Facing));
+            return true;
+        }
+
+        // ── Death (B068) ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// The dead bomber's exit: the mid-air explosion, then a visual-only BomberWreck with
+        /// this bomber's sprite, mirror, pitch and velocity, then this bomber is removed at
+        /// once (DestroyImmediate outside Play mode). Its Health already raised EntityDestroyed
+        /// at the killing hit, so score, objectives and destroyById are untouched here.
+        /// Returns the wreck (null if the bomber is not dead).
+        /// </summary>
+        internal BomberWreck BeginCrash() {
+            if (_health == null || !_health.IsDead) return null;
+
+            var fx = FxManager.GetOrNull();
+            if (fx != null) fx.TriggerExplosion(transform.position);
+
+            Sprite sprite = _sr != null ? _sr.sprite : null;
+            bool flipX = _sr != null ? _sr.flipX : FlipsToFlyLeft;
+            int order = _sr != null ? _sr.sortingOrder : 5;
+            var wreck = BomberWreck.Create(transform.position, sprite, flipX, order,
+                _pitchAngle, Facing, _velocity);
+
+            // Off at once (no more hits, rams or shots this frame), then removed.
+            gameObject.SetActive(false);
+            if (Application.isPlaying) Destroy(gameObject);
+            else DestroyImmediate(gameObject);
+            return wreck;
         }
 
         // ── Trigger handling ──────────────────────────────────────────────
@@ -352,10 +492,15 @@ namespace Biplanes.Enemies {
             teamTag.team = Team.Enemy;
 
             // Health component (provides IDamageable for projectile collision logic).
-            go.AddComponent<Health>();
+            var health = go.AddComponent<Health>();
 
             BomberAI bomber = go.AddComponent<BomberAI>();
             bomber.SpawnId = id ?? "";
+
+            // Damage bar above the bomber (B076): visual-only child, hidden at the killing hit
+            // and removed with the bomber when BeginCrash hands over to the (bar-less) wreck.
+            EnemyHealthBar.Attach(go.transform, health, EnemyHealthBar.BomberWidth,
+                EnemyHealthBar.BomberHeight, EnemyHealthBar.BomberOffsetY);
             return bomber;
         }
 

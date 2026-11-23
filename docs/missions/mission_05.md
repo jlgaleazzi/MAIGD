@@ -1,8 +1,8 @@
 # Mission 5: Enemy Zeppelin
 
 GDD goal: destroy the zeppelin before it reaches the player's HQ.
-Win: `destroyById airship_01`. Lose: plane destroyed, the zeppelin reaches `failAtX` 360 (the HQ x), or the camera reaches the map end with the zeppelin alive.
-Duration: 580 / 2.6 = 223 s (V014: scrollSpeed 2.0 -> 2.6, +30%, and length 540 -> 580 to keep the zeppelin fight before the map end; was 270 s).
+Win: `destroyById airship_01`. Lose: plane destroyed, the zeppelin reaches `failAtX` 252 (the HQ x), or the camera reaches the map end with the zeppelin alive.
+Duration: 406 / 2.6 = 156 s (V065: length 580 -> 406, all x scaled by 0.7, 30% shorter; V014: scrollSpeed 2.0 -> 2.6, +30%, and length 540 -> 580 to keep the zeppelin fight before the map end; was 270 s).
 
 Id: the zeppelin id is `airship_01`, not `zep`, because FighterAI matches `escortOf` as a substring of entity names and the turrets are named `zeppelinTurret`. "airship_01" matches only the hull.
 
@@ -56,3 +56,18 @@ Player forward speed = scrollSpeed, raised 30%. Fighters still fly left at 3 u/s
 - No spacing change needed (all 62 pair fighters and 5 escorts kept).
 
 Zeppelin vs the map end (V014, length 540 -> 580): the zeppelin (`airship_01`, atX 420, y 4.9, 1.0 u/s) spawns at x 420 when the camera is at 420 - (5 x aspect + 2) = 409.1 (16:9) or 411.3 (4:3), and needs (420 - 360) / 1.0 = 60 s to reach the HQ (failAtX 360). A player who never turns reaches the map end after (length - trigger) / 2.6. With length 540 that was (540 - 411.3) / 2.6 = 49.5 s at 4:3 (50.3 s at 16:9), so **the map end came first by about 10 s**. Length 580 gives (580 - 411.3) / 2.6 = **64.9 s at 4:3 (65.7 s at 16:9)**, so the HQ loss comes first with a 4.9 to 5.7 s margin (it was 5.5 to 6.7 s). Alternative not taken: moving atX to 413 or less would also move the escorts (424/429), the 385 and 405 balloons and the HQ approach. Terrain clamps at the last keyframe (540), so x 540-580 is flat ground at 0.5; nothing spawns there. The zeppelin reaches the camera about 4 s after it appears; the fight window to the HQ is still about 60 s. Duration is now 580 / 2.6 = 223 s.
+
+- **Bomb recharge (V064):** one static `bombBalloon` at x 272 (y 3.5), mid-map, clear of ground units and other balloons. It refills 4 bombs (cap 7); it is not an enemy and counts toward no objective or health-balloon rule.
+
+## Length 580 -> 406 (V065)
+Everything x was scaled by 0.7 and rounded; the rest of this sheet quotes the old x values (old x * 0.7 = new x).
+- Terrain keyframes 0/120/280/400/540 -> 0/84/196/280/378 (heights unchanged; clamps flat from 378 to 406).
+- HQ and `failAtX` 360 -> 252. Zeppelin `airship_01` atX 420 -> 294. Escorts 424/429 -> 298/302 (kept 4 and 8 above the hull so the hull exists before escorts look it up, aspect spread 2.2).
+- AAA: 2 at 120 -> 84 (spacing 6); 3 at 235 -> 165 (spacing 4). Group spacing kept. No ground unit sits within 80 x of another.
+- Health balloons (10) 60/80/98/150/200/255/290/320/385/405 -> 42/56/69/105/140/179/203/224/270/284. First half (x < 203): 6, unchanged. Bomb balloon 272 -> 190 (middle third [135, 271]).
+- Fighters: all 31 pairs and 5 escorts kept; pair step 11 -> about 7.7 x (still 3.0 s of camera travel per pair at 2.6 u/s: 7.7 / 2.6 = 3.0 s vs 11 / 2.6 = 4.2 s before). Pairs come about 30% faster per second, so the sky is denser, not emptier. Same counts, in a shorter run.
+- Zeppelin vs map end: it triggers at camera 285.3 (4:3) / 283.1 (16:9), needs 294 - 252 = 42 s to reach the HQ. A player who never turns reaches the map end after (406 - 285.3) / 2.6 = 46.4 s (47.3 s at 16:9). HQ loss comes first with a 4.4 to 5.3 s margin (was 4.9 to 5.7 s).
+- Honest tightness: the fight window to the HQ is 42 s (was 60 s), about 30% less, by construction. Each pass (closing 3.6 u/s, screen 17.8) offers about 5 s of fire; 40 hull hits at fireRate 8 is 5 s of clean fire plus 9 turret hits, so killing it takes about 2-3 passes of a player who turns, plus bombs (100 each, 10 to kill). Winnable on paper, but tighter than before; with the 5 escorts and the 4 turrets/fighters pressure it needs real skill. Fallback if QA finds it too tight: lower enemySpeed.zeppelin (mechanics request) or move the HQ/failAtX down.
+- Balance exposure: fighters and AAA counts are the same over 30% less time, and healing balloons are the same 10, so the sky is more intense per second but the balloon count per second is higher too.
+
+Difficulty knobs (updated): zeppelin atX minus failAtX is now 42 s of flight; the map end must stay later than the HQ loss: (406 - trigger) / 2.6 > 42 s.

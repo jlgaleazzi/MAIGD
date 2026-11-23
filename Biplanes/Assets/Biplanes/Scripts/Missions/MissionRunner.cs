@@ -116,6 +116,13 @@ namespace Biplanes.Missions {
         /// <summary>Enemy-pressure safety net (B035), one per mission.</summary>
         private EnemyPressure _pressure;
 
+        /// <summary>Mission-5 HQ cheat listener (B078), one per mission.</summary>
+        private CheatCodes _cheats;
+
+        /// <summary>The HQ cheat was used this run (B078): its score is never saved as a best
+        /// score (SaveSystem.BestScoreLocked). Cleared by StartMission.</summary>
+        public bool CheatUsed { get; private set; }
+
         /// <summary>Movement pattern of EnemyPressure reinforcement fighters.</summary>
         private const string ReinforcementPattern = "straight";
 
@@ -129,6 +136,21 @@ namespace Biplanes.Missions {
 
         /// <summary>Ground enemies spawned this mission (may hold destroyed entries: null-check).</summary>
         public IReadOnlyList<MonoBehaviour> GroundEnemies => _groundEnemies;
+
+        // ── Recharge bomb balloons (B064) ───────────────────────────────
+
+        /// <summary>Bomb balloons spawned this mission (JSON-placed and auto). Pickups only: never
+        /// in _enemyAircraft / _groundEnemies, so no objective, counter or EnemyPressure sees them.</summary>
+        private readonly List<BombBalloon> _bombBalloons = new List<BombBalloon>();
+
+        /// <summary>Bomb balloons spawned this mission (may hold destroyed entries: null-check).</summary>
+        public IReadOnlyList<BombBalloon> BombBalloons => _bombBalloons;
+
+        private BombBalloonData _bombBalloonData = BombBalloonData.Resolve(null);
+        private BombBalloon.RechargeTimer _bombTimer = new BombBalloon.RechargeTimer(BombBalloonData.DefaultDelay);
+
+        /// <summary>Lowest auto bomb balloon height above the terrain (same as enemy planes).</summary>
+        private const float BombBalloonMinHeight = MinPlaneHeight;
 
         /// <summary>Mission length in world units (0 outside a mission).</summary>
         public float MissionLength => _missionData != null ? _missionData.length : 0f;
@@ -192,10 +214,27 @@ namespace Biplanes.Missions {
             ResetCameraToMissionStart();
             _missionEnded = false;
 
+            // Recharge bomb balloon (B064): fresh timer; the new BombBay's Start raises its full
+            // count, which keeps the timer idle until the bay runs empty.
+            _bombBalloonData = BombBalloonData.Resolve(GameBalance.Get());
+            _bombTimer = new BombBalloon.RechargeTimer(_bombBalloonData.delay);
+            _lastBombs = -1;
+            GameEvents.BombsChanged -= OnBombsChanged;
+            GameEvents.BombsChanged += OnBombsChanged;
+
+            // B078: every run starts clean; the mission-5 HQ cheat flags it again if used.
+            CheatUsed = false;
+            SaveSystem.BestScoreLocked = false;
+
             // Each mission scores on its own: without a scene reload ("Next") the previous
             // mission's points would otherwise be saved as this mission's best (B006b).
             var scoreKeeper = ScoreKeeper.Instance;
-            if (scoreKeeper != null) scoreKeeper.ResetScore();
+            if (scoreKeeper != null) {
+                scoreKeeper.ResetScore();
+                // The result's "Best:" is the best before this run (B070): a kill win saves the
+                // new best up to killWinDelaySeconds before the result screen reads it.
+                scoreKeeper.CapturePreviousBest(_missionData.id);
+            }
 
             // --- Create ScrollController and set speed from JSON ---
             ScrollController sc = ScrollController.Create(_missionData.scrollSpeed);
@@ -256,6 +295,9 @@ namespace Biplanes.Missions {
             // bombTarget: EnemyBase reports its id and whether a bomb killed it.
             EnemyBase.Destroyed -= OnEnemyBaseDestroyed;
             EnemyBase.Destroyed += OnEnemyBaseDestroyed;
+            // B080: a zeppelin that loses its last turret calls in its defense wave.
+            ZeppelinAI.ShieldDropped -= OnZeppelinShieldDropped;
+            ZeppelinAI.ShieldDropped += OnZeppelinShieldDropped;
             // A loss (player crash) also ends the mission: no win may follow it.
             GameEvents.MissionEnded -= OnMissionEnded;
             GameEvents.MissionEnded += OnMissionEnded;
@@ -267,6 +309,11 @@ namespace Biplanes.Missions {
             _pressure = GetComponent<EnemyPressure>();
             if (_pressure == null) _pressure = gameObject.AddComponent<EnemyPressure>();
             _pressure.Init(this, PressureData.Resolve(GameBalance.Get()));
+
+            // --- Mission-5 HQ cheat listener (B078); idle in every other mission ---
+            _cheats = GetComponent<CheatCodes>();
+            if (_cheats == null) _cheats = gameObject.AddComponent<CheatCodes>();
+            _cheats.Init(this);
 
             // NOTE: Do NOT call GameManager.StartMission() here. GameManager owns the
             // state machine and calls this method; calling back caused infinite recursion
@@ -291,13 +338,14 @@ namespace Biplanes.Missions {
             float spawnYBase = GetTerrainHeightAt(spawnBaseX) + entry.y; // terrain height + y offset above ground
             string typeLower = entry.type.ToLowerInvariant();
 
-            // Enemy planes enter from off the right edge, staggered in x (so they arrive at
+            // Enemy planes enter from off the RIGHT edge (B074: always, whatever the player's
+            // facing or scroll direction), staggered further right in x (so they arrive at
             // random times) and at random heights in the open sky.
             bool isPlane = typeLower == "fighter" || typeLower == "bomber";
             var cam = ScrollController.Instance != null && ScrollController.Instance.Camera != null
                 ? ScrollController.Instance.Camera : Camera.main;
             float planeX = cam != null
-                ? cam.transform.position.x + cam.orthographicSize * cam.aspect + PlaneEntryMarginX
+                ? EnemyPressure.EntryX(cam.transform.position.x, cam.orthographicSize * cam.aspect, PlaneEntryMargin(typeLower))
                 : spawnBaseX;
 
             for (int i = 0; i < entry.count; i++) {
@@ -313,7 +361,10 @@ namespace Biplanes.Missions {
 
                 switch (typeLower) {
                     case "fighter": {
-                        entityGO = SpawnFighter(position, entry.pattern, entry.escortOf).gameObject;
+                        var fighter = SpawnFighter(position, entry.pattern, entry.escortOf);
+                        // Catches a left-scrolling camera while it enters (B074).
+                        fighter.BeginEntry(CameraVelocityX);
+                        entityGO = fighter.gameObject;
                         break;
                     }
 
@@ -341,6 +392,14 @@ namespace Biplanes.Missions {
 
                     case "healthballoon": {
                         var balloon = HealthBalloon.Spawn(position);
+                        entityGO = balloon.gameObject;
+                        break;
+                    }
+
+                    case "bombballoon": {
+                        // Pickup (B064): tracked only for cleanup and the auto-spawn check.
+                        var balloon = BombBalloon.Spawn(position);
+                        _bombBalloons.Add(balloon);
                         entityGO = balloon.gameObject;
                         break;
                     }
@@ -427,9 +486,10 @@ namespace Biplanes.Missions {
 
         /// <summary>
         /// EnemyPressure reinforcement (B035, B040): plane `index` of a `count`-plane wave. It
-        /// enters just past the screen edge the player faces (EnemyPressure.EntryX /
-        /// EntryOffset: plane 0 within half a unit of being on screen, later planes
-        /// EntryStagger further out) and flies the straight pattern toward the player, at a
+        /// enters just past the RIGHT screen edge whatever the player's facing (B074:
+        /// EnemyPressure.EntryX / EntryOffset: plane 0 within half a unit of being on screen,
+        /// later planes EntryStagger further out), flies left (EntryFlightDirection) with the
+        /// entry boost (FighterAI.BeginEntry) and the straight pattern, toward the player, at a
         /// height in slice `index` of the flight band (terrain + MinPlaneHeight .. screen top -
         /// PlaneTopMargin). It is named ScoreKeeper.ReinforcementFighterKey: it scores like a
         /// fighter and its kill counts toward destroyAllOfType "fighter" (B050; the required
@@ -437,26 +497,158 @@ namespace Biplanes.Missions {
         /// camera exists.
         /// </summary>
         public FighterAI SpawnReinforcementFighter(int index, int count) {
+            return SpawnEnteringReinforcement(index, index, count, ReinforcementPattern, "");
+        }
+
+        /// <summary>
+        /// One fighter of a zeppelin's defense wave (B080): plane `index` of a `count`-plane
+        /// wave, built exactly like a reinforcement (named ScoreKeeper.ReinforcementFighterKey:
+        /// fighter score, counts toward destroyAllOfType "fighter" without raising the required
+        /// total; enters just past the RIGHT edge flying left with the entry boost, B074) but
+        /// with the "escort" pattern and escortOf = the zeppelin's spawn id, so it takes a
+        /// FighterAI formation slot on that hull (or chases the player inside the escort leash).
+        /// Each one enters at the first-plane entry offset (the wave is staggered in time, not
+        /// in x) at a height in slice `index` of the flight band. Returns null when no camera
+        /// exists or the zeppelin is gone or dead.
+        /// </summary>
+        public FighterAI SpawnZeppelinDefender(ZeppelinAI zeppelin, int index, int count) {
+            if (zeppelin == null || zeppelin.IsDead) return null;
+            return SpawnEnteringReinforcement(0, index, count, ZeppelinDefensePattern, zeppelin.Id);
+        }
+
+        /// <summary>Shared reinforcement build (B035/B074/B080): x = entry offset `entryIndex`
+        /// past the right edge, y = slice `sliceIndex` of `sliceCount` in the flight band.</summary>
+        private FighterAI SpawnEnteringReinforcement(int entryIndex, int sliceIndex, int sliceCount,
+                                                     string pattern, string escortOf) {
             var cam = ScrollController.Instance != null && ScrollController.Instance.Camera != null
                 ? ScrollController.Instance.Camera : Camera.main;
             if (cam == null) return null;
 
-            int facing = PlayerFacing;
             float x = EnemyPressure.EntryX(cam.transform.position.x, cam.orthographicSize * cam.aspect,
-                facing, EnemyPressure.EntryOffset(index, Random.value));
+                EnemyPressure.EntryOffset(entryIndex, Random.value));
             float low = GetTerrainHeightAt(x) + MinPlaneHeight;
             float high = cam.transform.position.y + cam.orthographicSize - PlaneTopMargin;
-            float y = EnemyPressure.SliceHeight(low, high, index, count, Random.value);
+            float y = EnemyPressure.SliceHeight(low, high, sliceIndex, sliceCount, Random.value);
 
-            var fighter = SpawnFighter(new Vector3(x, y, 0f), ReinforcementPattern, "");
+            var fighter = SpawnFighter(new Vector3(x, y, 0f), pattern, escortOf);
             fighter.gameObject.name = ScoreKeeper.ReinforcementFighterKey;
-            fighter.SetFlightDirection(EnemyPressure.EntryFlightDirection(facing));
+            fighter.SetFlightDirection(EnemyPressure.EntryFlightDirection);
+            fighter.BeginEntry(CameraVelocityX);
             _spawnedEntities.Add(fighter.gameObject);
             return fighter;
         }
 
+        // ── Zeppelin defense wave (B080) ─────────────────────────────────
+
+        /// <summary>Movement pattern of zeppelin defense fighters (FighterAI escort formation).</summary>
+        public const string ZeppelinDefensePattern = "escort";
+
+        /// <summary>
+        /// The queued defense wave of one zeppelin (B080). Pure bookkeeping (EditMode-tested):
+        /// Total fighters, Pending still to send; TryTake says whether one may go now: the
+        /// zeppelin is alive, the stagger time has come and the live fighters counting toward
+        /// the cap are below maxLive. When the zeppelin is no longer alive the rest of the wave
+        /// is dropped. While at the cap the wave waits (queued) and sends as slots free.
+        /// </summary>
+        public sealed class DefenseWave {
+            public readonly ZeppelinAI Target;
+            public readonly int Total;
+            public readonly float StaggerSeconds;
+            public int Pending { get; private set; }
+            public float NextAt { get; private set; }
+
+            /// <summary>Index (0-based) of the next fighter to send.</summary>
+            public int NextIndex => Total - Pending;
+
+            /// <summary>Nothing left to send.</summary>
+            public bool Done => Pending <= 0;
+
+            public DefenseWave(ZeppelinAI target, int count, float staggerSeconds, float now) {
+                Target = target;
+                Total = Mathf.Max(0, count);
+                Pending = Total;
+                StaggerSeconds = Mathf.Max(0f, staggerSeconds);
+                NextAt = now;
+            }
+
+            /// <summary>True when one fighter should spawn now (and counts it as sent).</summary>
+            public bool TryTake(float now, bool targetAlive, int liveFighters, int maxLiveFighters) {
+                if (Pending <= 0) return false;
+                if (!targetAlive) { Pending = 0; return false; }
+                if (now < NextAt) return false;
+                if (liveFighters >= maxLiveFighters) return false;   // at the cap: stay queued
+                Pending--;
+                NextAt = now + StaggerSeconds;
+                return true;
+            }
+        }
+
+        /// <summary>Defense waves still sending this mission (cleared in teardown).</summary>
+        private readonly List<DefenseWave> _defenseWaves = new List<DefenseWave>();
+
+        /// <summary>Defense waves still queued (B080; for tests and debugging).</summary>
+        public IReadOnlyList<DefenseWave> DefenseWaves => _defenseWaves;
+
+        /// <summary>ZeppelinAI.ShieldDropped (B080): queues the defense wave for a zeppelin this
+        /// mission spawned (once per zeppelin; none once the mission has ended or with the wave
+        /// disabled). Generic: any mission with a zeppelin gets it.</summary>
+        private void OnZeppelinShieldDropped(ZeppelinAI zeppelin) {
+            if (zeppelin == null || zeppelin.IsDead || _missionEnded || _missionData == null) return;
+            if (!_enemyAircraft.Contains(zeppelin)) return;
+            for (int i = 0; i < _defenseWaves.Count; i++) {
+                if (_defenseWaves[i].Target == zeppelin) return;
+            }
+            var data = ZeppelinDefenseData.Resolve(GameBalance.Get());
+            if (!data.enabled || data.waveCount <= 0) return;
+            _defenseWaves.Add(new DefenseWave(zeppelin, data.waveCount, data.staggerSeconds, Time.time));
+            Debug.Log($"MissionRunner: zeppelin '{zeppelin.Id}' lost its turrets; {data.waveCount} defense fighter(s) queued.");
+        }
+
+        /// <summary>Sends due defense fighters (B080), at most one per wave per frame, while the
+        /// live fighters near the view (EnemyPressure.CountsTowardCap) stay under
+        /// pressure.maxLiveFighters. Finished waves are dropped.</summary>
+        private void TickDefenseWaves(Camera cam) {
+            if (_defenseWaves.Count == 0) return;
+            if (_missionEnded || cam == null) {
+                _defenseWaves.Clear();
+                return;
+            }
+            var gm = GameManager.GetOrNull();
+            if (gm != null && gm.CurrentState != GameManager.GameState.Playing) return;
+
+            int maxLive = _pressure != null && _pressure.Settings != null
+                ? _pressure.Settings.maxLiveFighters
+                : PressureData.Resolve(GameBalance.Get()).maxLiveFighters;
+            int live = CountFightersTowardCap(cam);
+            float now = Time.time;
+            for (int i = _defenseWaves.Count - 1; i >= 0; i--) {
+                var w = _defenseWaves[i];
+                bool alive = w.Target != null && !w.Target.IsDead;
+                int index = w.NextIndex;
+                if (w.TryTake(now, alive, live, maxLive)) {
+                    if (SpawnZeppelinDefender(w.Target, index, w.Total) != null) live++;
+                }
+                if (w.Done) _defenseWaves.RemoveAt(i);
+            }
+        }
+
+        /// <summary>Live fighters that count toward pressure.maxLiveFighters (the EnemyPressure
+        /// rule: on screen, or off screen within a screen width and closing on the view).</summary>
+        private int CountFightersTowardCap(Camera cam) {
+            Rect view = EnemyPressure.ViewRect(cam);
+            float range = view.width * EnemyPressure.CapRangeScreens;
+            float camVelX = ScrollController.Instance != null ? ScrollController.Instance.Velocity : 0f;
+            int n = 0;
+            for (int i = 0; i < _enemyAircraft.Count; i++) {
+                if (!(_enemyAircraft[i] is FighterAI f) || f == null || f.IsDead) continue;
+                if (EnemyPressure.CountsTowardCap(f.transform.position.x, f.WorldVelocityX - camVelX, view, range)) n++;
+            }
+            return n;
+        }
+
         /// <summary>The way the player faces (+1 right, -1 left): the scroll direction, else the
-        /// plane's Facing, else right.</summary>
+        /// plane's Facing, else right. Since B074 it no longer picks an entry side: every
+        /// aircraft enters from the right edge.</summary>
         public int PlayerFacing {
             get {
                 if (ScrollController.Instance != null) return ScrollController.Instance.Direction < 0 ? -1 : 1;
@@ -481,10 +673,10 @@ namespace Biplanes.Missions {
 
         /// <summary>
         /// Escaped-fighter re-entry (B040, GDD "Enemy pressure"): the same fighter (same name
-        /// and damage, so it still counts for its objective) re-enters just past the screen edge
-        /// the player faces, flying toward the player, at a random height in the flight band
-        /// (RandomPlaneY, so sine fighters keep their dip allowance). Returns false without a
-        /// camera.
+        /// and damage, so it still counts for its objective) re-enters just past the RIGHT screen
+        /// edge whatever the player's facing (B074), flying left with the entry boost
+        /// (FighterAI.BeginEntry), at a random height in the flight band (RandomPlaneY, so sine
+        /// fighters keep their dip allowance). Returns false without a camera.
         /// </summary>
         public bool ReEnterFighter(FighterAI fighter) {
             if (fighter == null) return false;
@@ -492,12 +684,42 @@ namespace Biplanes.Missions {
                 ? ScrollController.Instance.Camera : Camera.main;
             if (cam == null) return false;
 
-            int facing = PlayerFacing;
             float x = EnemyPressure.EntryX(cam.transform.position.x, cam.orthographicSize * cam.aspect,
-                facing, EnemyPressure.EntryOffset(0, Random.value));
+                EnemyPressure.EntryOffset(0, Random.value));
             float y = RandomPlaneY(cam, x, fighter.Pattern);
-            fighter.ReEnter(new Vector3(x, y, 0f), EnemyPressure.EntryFlightDirection(facing));
+            fighter.ReEnter(new Vector3(x, y, 0f), EnemyPressure.EntryFlightDirection);
+            fighter.BeginEntry(CameraVelocityX);
             return true;
+        }
+
+        /// <summary>Camera x velocity for the entry boost (units/s; 0 without a ScrollController):
+        /// of the current velocity and the one it eases toward, the farther left (B075,
+        /// FighterAI.BoostCameraVelocityNow), so a wave sent mid-turn starts fast enough.</summary>
+        private static float CameraVelocityX =>
+            FighterAI.BoostCameraVelocityNow(EnemyPressure.EntryFlightDirection);
+
+        /// <summary>Distance past the right edge at which a JSON plane of type `typeLower` is
+        /// centred before its stagger (B075, QA T975 BUG-4): PlaneEntryMarginX, but for a bomber
+        /// at least its half width + EntryGap, so its nose never starts inside the view.</summary>
+        public static float PlaneEntryMargin(string typeLower) {
+            return typeLower == "bomber"
+                ? Mathf.Max(PlaneEntryMarginX, EnemyPressure.BomberHalfWidth + EnemyPressure.EntryGap)
+                : PlaneEntryMarginX;
+        }
+
+        /// <summary>
+        /// Farthest camera x at which a spawn entry of type `typeLower` (lower case) triggers, for
+        /// a view of half width `halfWidth` (B074 pure helper, the Update rule). Planes (fighter,
+        /// bomber) trigger at atX and place themselves past the right edge (EntryX); a zeppelin
+        /// (kept at atX) once its nose is ZeppelinEntryMarginX past the right edge; everything
+        /// else (ground objects, balloons) once atX is GroundEntryMarginX past it. Spawns trigger
+        /// on ScrollController.FarthestX, which only grows while the camera moves right, so a
+        /// spawn placed at atX is always off the right edge when it appears.
+        /// </summary>
+        public static float SpawnTriggerX(string typeLower, float atX, float halfWidth) {
+            if (typeLower == "fighter" || typeLower == "bomber") return atX;
+            if (typeLower == "zeppelin") return atX - (halfWidth + ZeppelinAI.HalfLength + ZeppelinEntryMarginX);
+            return atX - (halfWidth + GroundEntryMarginX);
         }
 
         /// <summary>
@@ -515,8 +737,14 @@ namespace Biplanes.Missions {
             if (_objectiveTracker != null && _objectiveTracker.AllComplete) {
                 _missionEnded = true;
                 Debug.Log("MissionRunner: all objectives complete — mission won!");
+                // B069: a win decided by a kill opens the result screen killWinDelaySeconds
+                // (real time) later, so the explosion / bomber wreck plays out; the player keeps
+                // flying meanwhile (OnMissionEnded defers EndPlayerControl) but can't lose.
+                _winResultDelay = WinResultDelayFor(objectiveId, GameManager.KillWinDelayOrDefault(GameBalance.Get()));
+                // B070: the engine and smoke loops run on until the controls end.
+                if (_playerPlane != null) _playerPlane.HoldAudioOnWin = _winResultDelay > 0f;
                 // GetOrNull: never builds a GameManager outside Play mode (B047).
-                GameManager.GetOrNull()?.SetState(GameManager.GameState.Won);
+                GameManager.GetOrNull()?.WinMission(GameManager.DefaultWinReason, _winResultDelay);
 
                 // Persist score and unlock next mission via ScoreKeeper.
                 var sk = ScoreKeeper.Instance;
@@ -670,11 +898,56 @@ namespace Biplanes.Missions {
         private readonly List<IdTarget> _idTargets = new List<IdTarget>();
 
         /// <summary>GameEvents.MissionEnded (win or loss): stop handling mission-end conditions
-        /// and take the controls away from the player (B016).</summary>
+        /// and take the controls away from the player (B016). A delayed win (B069) keeps the
+        /// controls and the scroll until its result screen opens (real-time deadline, checked
+        /// in Update through TickWinControlEnd).</summary>
         private void OnMissionEnded(bool won, string reason) {
             _missionEnded = true;
+            if (won && _winResultDelay > 0f) {
+                _endControlAt = Time.realtimeSinceStartup + _winResultDelay;
+                _winResultDelay = 0f;
+                return;
+            }
+            _winResultDelay = 0f;
+            _endControlAt = -1f;
             EndPlayerControl();
         }
+
+        /// <summary>Win delay in real seconds for a win reported as `objectiveId` (B069): the
+        /// kill paths ("all_objectives" from EntityDestroyed, "bomb_target" from a bombed
+        /// base) get `killDelay`; any other path (survive_to_end at the map end) opens the
+        /// result at once, as before. Pure.</summary>
+        public static float WinResultDelayFor(string objectiveId, float killDelay) {
+            bool fromKill = objectiveId == WinFromKill || objectiveId == WinFromBombTarget;
+            return fromKill ? Mathf.Max(0f, killDelay) : 0f;
+        }
+
+        /// <summary>HandleObjectiveComplete ids of the kill-driven win paths.</summary>
+        public const string WinFromKill = "all_objectives";
+        public const string WinFromBombTarget = "bomb_target";
+
+        /// <summary>True once a deferred control end at `endAt` (real seconds; negative = none)
+        /// is due at `now`. Pure.</summary>
+        public static bool ControlEndDue(float now, float endAt) {
+            return endAt >= 0f && now >= endAt;
+        }
+
+        /// <summary>Ends the player's control once a delayed win's deadline has passed (B069).
+        /// Returns true when it did.</summary>
+        internal bool TickWinControlEnd(float now) {
+            if (!ControlEndDue(now, _endControlAt)) return false;
+            _endControlAt = -1f;
+            EndPlayerControl();
+            return true;
+        }
+
+        /// <summary>Real-time result delay of the win being raised (B069), read by
+        /// OnMissionEnded; 0 = none.</summary>
+        private float _winResultDelay;
+
+        /// <summary>Time.realtimeSinceStartup at which a delayed win takes the controls away;
+        /// negative = nothing pending.</summary>
+        private float _endControlAt = -1f;
 
         /// <summary>
         /// Any mission end: the player's PlayerInput stops polling (no more move, fire or bomb
@@ -686,6 +959,9 @@ namespace Biplanes.Missions {
             if (_playerPlane != null) {
                 var input = _playerPlane.GetComponent<PlayerInput>();
                 if (input != null) input.enabled = false;
+                // Engine / smoke loops stop with the controls (B070; idempotent, and a
+                // crashing plane keeps its wind-down).
+                _playerPlane.EndMissionAudio();
             }
             if (ScrollController.Instance != null) ScrollController.Instance.SetScrollSpeed(0f);
         }
@@ -693,6 +969,7 @@ namespace Biplanes.Missions {
         // ── Core loop (Update in MonoBehaviour) ────────────────────────────
 
         private void Update() {
+            TickWinControlEnd(Time.realtimeSinceStartup);
             if (_missionData == null || _spawnedFlags == null) return;
 
             float cameraX = ScrollController.Instance != null
@@ -708,25 +985,18 @@ namespace Biplanes.Missions {
             // once that spot is just past the right screen edge, so they scroll into view
             // instead of popping in mid-screen. Planes still trigger at camera x >= atX and
             // place themselves off-screen (SpawnEntities).
+            // Zeppelins are long: the hull (centred on atX) must be wholly off screen when it
+            // appears, so its look-ahead adds half the hull length (B021). SpawnTriggerX holds
+            // the rule; without a camera every entry triggers at its atX.
             var cam = ScrollController.Instance != null && ScrollController.Instance.Camera != null
                 ? ScrollController.Instance.Camera : Camera.main;
-            float groundLookAhead = cam != null
-                ? cam.orthographicSize * cam.aspect + GroundEntryMarginX
-                : 0f;
-            // Zeppelins are long: the hull (centred on atX) must be wholly off screen when it
-            // appears, so its look-ahead adds half the hull length (B021).
-            float zeppelinLookAhead = cam != null
-                ? cam.orthographicSize * cam.aspect + ZeppelinAI.HalfLength + ZeppelinEntryMarginX
-                : 0f;
+            float halfWidth = cam != null ? cam.orthographicSize * cam.aspect : 0f;
 
             // Check each spawn entry: has the camera reached its threshold?
             for (int i = 0; i < _spawnedFlags.Length && i < _missionData.spawns.Length; i++) {
                 var spawn = _missionData.spawns[i];
                 string spawnType = spawn.type != null ? spawn.type.ToLowerInvariant() : "";
-                bool isPlane = spawnType == "fighter" || spawnType == "bomber";
-                float trigger = isPlane ? spawn.atX
-                    : spawnType == "zeppelin" ? spawn.atX - zeppelinLookAhead
-                    : spawn.atX - groundLookAhead;
+                float trigger = cam != null ? SpawnTriggerX(spawnType, spawn.atX, halfWidth) : spawn.atX;
                 if (!_spawnedFlags[i] && farthestX >= trigger) {
                     SpawnEntities(_missionData.spawns[i]);
                     _spawnedFlags[i] = true;
@@ -740,6 +1010,9 @@ namespace Biplanes.Missions {
                     _aaagunsToInit.Clear();
                 }
             }
+
+            UpdateBombRecharge(cam);
+            TickDefenseWaves(cam);
 
             // failAtX (B018): the target entity itself (mission 2 bomber, mission 5 zeppelin)
             // reaching its failAtX world x loses the mission. The camera position plays no part,
@@ -763,6 +1036,193 @@ namespace Biplanes.Missions {
                 string openId = _objectiveTracker.CheckMapEnd(cameraX, _missionData.length);
                 if (openId != null) HandleObjectiveFailed(openId, MapEndReason(openId));
             }
+        }
+
+        // ── Mission-5 HQ cheat (B078) ────────────────────────────────────
+
+        /// <summary>The HQ cheat may fire now (CheatCodes.CanUseCheat): mission 5, GameManager
+        /// Playing, started (B049 gate), plane airborne and not crashed, mission not ended.
+        /// CheatCodes also checks that no UI screen is up.</summary>
+        public bool CanUseHqCheat {
+            get {
+                if (_missionData == null || _missionData.id != CheatCodes.HqCheatMissionId) return false;
+                var gm = GameManager.GetOrNull();
+                bool playing = gm != null && gm.CurrentState == GameManager.GameState.Playing;
+                return CheatCodes.CanUseCheat(_missionData.id, playing, HasStarted, _playerPlane != null,
+                    _playerPlane != null && _playerPlane.OnRunway,
+                    _playerPlane != null && _playerPlane.HasCrashed, _missionEnded);
+            }
+        }
+
+        /// <summary>The typed cheat (CheatCodes): JumpToHq when CanUseHqCheat, else nothing.</summary>
+        public bool TryHqCheat() {
+            return CanUseHqCheat && JumpToHq();
+        }
+
+        /// <summary>
+        /// Jumps the player and the camera to the player HQ (B078; ungated, TryHqCheat gates it):
+        ///  1. HQ x = the mission's playerHQ spawn entry atX (no entry: nothing happens);
+        ///  2. facing = toward the zeppelin (live one, else its spawn entry; none: right), so it
+        ///     comes from ahead (CheatCodes.FacingTowardThreat);
+        ///  3. camera x = the one that puts the HQ on the plane's trailing screen anchor for that
+        ///     facing, clamped to the mission limits;
+        ///  4. pending spawns the jump passes are skipped, except the HQ, the zeppelin, escorts and
+        ///     objective targets (CheatCodes.SkipPassedSpawns): those spawn normally next Update;
+        ///  5. the camera moves, then the plane warps above the HQ (CheatCodes.WarpY, inside the
+        ///     view) facing that way (PlayerPlane.WarpTo also sets the scroll direction), and the
+        ///     terrain window is rebuilt at once;
+        ///  6. the run is flagged CheatUsed and best-score saves are locked.
+        /// Idempotent: at the HQ already, it lands on the same spot and skips nothing new.
+        /// Returns false when nothing happened.
+        /// </summary>
+        public bool JumpToHq() {
+            if (_missionData == null || _spawnedFlags == null || _playerPlane == null) return false;
+            if (_playerPlane.HasCrashed || _playerPlane.OnRunway) return false;
+            if (!TryGetHqX(out float hqX)) {
+                Debug.LogWarning("MissionRunner: HQ cheat — this mission has no playerHQ spawn; ignored.");
+                return false;
+            }
+            var sc = ScrollController.Instance;
+            var cam = sc != null && sc.Camera != null ? sc.Camera : Camera.main;
+            if (cam == null) return false;
+
+            float halfWidth = cam.orthographicSize * cam.aspect;
+            int facing = CheatCodes.FacingTowardThreat(hqX, ThreatX(hqX));
+            float maxX = Mathf.Max(MissionStartCameraX, _missionData.length);
+            float camX = Mathf.Clamp(CheatCodes.CameraXForAnchor(hqX, facing, _playerPlane.ScreenAnchor, halfWidth),
+                MissionStartCameraX, maxX);
+
+            int skipped = CheatCodes.SkipPassedSpawns(_missionData.spawns, _spawnedFlags, _missionData.objectives,
+                camX, halfWidth);
+
+            Vector3 camPos = cam.transform.position;
+            cam.transform.position = new Vector3(camX, camPos.y, camPos.z);
+
+            float planeX = Mathf.Clamp(hqX, camX - halfWidth + 1f, camX + halfWidth - 1f);
+            float y = CheatCodes.WarpY(GetTerrainHeightAt(planeX), camPos.y + cam.orthographicSize);
+            _playerPlane.WarpTo(new Vector2(planeX, y), facing);
+            if (_terrain != null) _terrain.RefreshWindowNow();
+
+            CheatUsed = true;
+            SaveSystem.BestScoreLocked = true;
+            Debug.Log($"MissionRunner: HQ cheat — jumped to x={planeX:0.#} (camera {camX:0.#}), facing {facing}, " +
+                      $"skipped {skipped} spawn group(s). Best score locked for this run.");
+            return true;
+        }
+
+        /// <summary>The first playerHQ spawn entry's atX.</summary>
+        private bool TryGetHqX(out float hqX) {
+            hqX = 0f;
+            if (_missionData?.spawns == null) return false;
+            foreach (var s in _missionData.spawns) {
+                if (s == null || s.type == null || s.type.ToLowerInvariant() != "playerhq") continue;
+                hqX = s.atX;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>World x of the threat to face at the HQ: a live zeppelin, else the first
+        /// zeppelin spawn entry's atX, else just right of the HQ.</summary>
+        private float ThreatX(float hqX) {
+            foreach (var a in _enemyAircraft) {
+                if (a is ZeppelinAI && EnemyPressure.IsLiveAircraft(a)) return a.transform.position.x;
+            }
+            if (_missionData?.spawns != null) {
+                foreach (var s in _missionData.spawns) {
+                    if (s != null && s.type != null && s.type.ToLowerInvariant() == "zeppelin") return s.atX;
+                }
+            }
+            return hqX + 1f;
+        }
+
+        // ── Recharge bomb balloon (B064) ─────────────────────────────────
+
+        /// <summary>GameEvents.BombsChanged: an empty bay arms the recharge timer, a refill cancels it.</summary>
+        private void OnBombsChanged(int bombs) {
+            _lastBombs = bombs;
+            if (_bombTimer != null) _bombTimer.OnBombsChanged(bombs);
+        }
+
+        /// <summary>Last BombsChanged value this mission (-1 = none yet).</summary>
+        private int _lastBombs = -1;
+
+        /// <summary>
+        /// B065 re-arm rule (pure): the bay is still empty, the timer is idle (its balloon was
+        /// already spawned) and no live or pending bomb balloon serves the player any more (the
+        /// auto one was missed, scrolled off behind, or was recycled), so a new countdown starts.
+        /// </summary>
+        public static bool ShouldRearmRecharge(int bombsLeft, bool timerArmed, bool balloonServesPlayer) {
+            return bombsLeft == 0 && !timerArmed && !balloonServesPlayer;
+        }
+
+        /// <summary>
+        /// Drives the empty-bay recharge timer (B064). It only counts in scaled time (pauses with
+        /// the game) once the mission has started (not during the scroll hold), and is cancelled
+        /// by a crash or the mission end. When due, one BombBalloon spawns `lead` ahead of the
+        /// player, unless an uncollected bomb balloon (spawned or still pending in the JSON)
+        /// already serves the player: then it retries every frame until that one is gone.
+        /// B065: while the bay stays empty and no bomb balloon serves the player any more (the
+        /// auto one was missed), the timer re-arms, so another spawns bombBalloonDelay later.
+        /// </summary>
+        private void UpdateBombRecharge(Camera cam) {
+            if (_bombTimer == null) return;
+            if (_missionEnded || _playerPlane == null || _playerPlane.HasCrashed) {
+                if (_bombTimer.Armed) _bombTimer.Cancel();
+                return;
+            }
+            if (!HasStarted) return;
+
+            Vector3 p = _playerPlane.transform.position;
+            int facing = _playerPlane.Facing < 0 ? -1 : 1;
+
+            if (!_bombTimer.Armed) {
+                // Cheap check first: only an empty bay can need a re-arm.
+                if (_lastBombs != 0) return;
+                if (ShouldRearmRecharge(_lastBombs, false, BombBalloonServesPlayer(cam, p.x, facing))) {
+                    _bombTimer.Reset();
+                    _bombTimer.OnBombsChanged(0);
+                }
+                return;
+            }
+
+            if (!_bombTimer.Tick(Time.deltaTime)) return;
+            if (BombBalloonServesPlayer(cam, p.x, facing)) return;
+
+            float maxX = _missionData.length > 0f ? _missionData.length : float.MaxValue;
+            float x = BombBalloon.AutoSpawnX(p.x, facing, _bombBalloonData.lead, MissionStartCameraX, maxX);
+            float low = GetTerrainHeightAt(x) + BombBalloonMinHeight;
+            float high = cam != null ? cam.transform.position.y + cam.orthographicSize - PlaneTopMargin : low + 6f;
+            float y = BombBalloon.AutoSpawnY(p.y, low, high);
+
+            var balloon = BombBalloon.Spawn(new Vector3(x, y, 0f), true);
+            _bombBalloons.Add(balloon);
+            _spawnedEntities.Add(balloon.gameObject);
+            _bombTimer.MarkSpawned();
+        }
+
+        /// <summary>True when a live uncollected bomb balloon is on screen or ahead of the player
+        /// within the lead, or a not-yet-spawned JSON bombBalloon entry lies in that span.</summary>
+        private bool BombBalloonServesPlayer(Camera cam, float playerX, int facing) {
+            float camX = cam != null ? cam.transform.position.x : playerX;
+            float halfWidth = cam != null ? cam.orthographicSize * cam.aspect : 0f;
+            float lead = _bombBalloonData.lead;
+
+            _bombBalloons.RemoveAll(b => b == null);
+            foreach (var b in _bombBalloons) {
+                if (b.IsDead || !b.gameObject.activeInHierarchy) continue;
+                if (BombBalloon.BlocksAutoSpawn(b.transform.position.x, playerX, facing, lead, camX, halfWidth)) return true;
+            }
+
+            if (_missionData.spawns != null && _spawnedFlags != null) {
+                for (int i = 0; i < _missionData.spawns.Length && i < _spawnedFlags.Length; i++) {
+                    var s = _missionData.spawns[i];
+                    if (_spawnedFlags[i] || s == null || s.type == null) continue;
+                    if (s.type.ToLowerInvariant() != "bombballoon") continue;
+                    if (BombBalloon.BlocksAutoSpawn(s.atX, playerX, facing, lead, camX, halfWidth)) return true;
+                }
+            }
+            return false;
         }
 
         // ── HUD creation (from code — no prefabs per ARCHITECTURE §0) ───────
@@ -877,7 +1337,16 @@ namespace Biplanes.Missions {
             GameEvents.EntityDestroyed -= OnEntityDestroyed;
             GameEvents.MissionEnded -= OnMissionEnded;
             EnemyBase.Destroyed -= OnEnemyBaseDestroyed;
+            GameEvents.BombsChanged -= OnBombsChanged;
+            ZeppelinAI.ShieldDropped -= OnZeppelinShieldDropped;
             _idTargets.Clear();
+            _bombBalloons.Clear();
+            // B080: queued defense fighters never outlive their mission. Sent ones and a dying
+            // zeppelin (its death sequence) are in _spawnedEntities and go below.
+            _defenseWaves.Clear();
+            _winResultDelay = 0f;
+            _endControlAt = -1f;
+            if (_bombTimer != null) _bombTimer.Reset();
 
             if (_playerPlane != null) DestroyNow(_playerPlane.gameObject);
             _playerPlane = null;
@@ -886,6 +1355,8 @@ namespace Biplanes.Missions {
                 if (go != null) DestroyNow(go);
             }
             _spawnedEntities.Clear();
+            // Falling bomber wrecks (B068) are scene-root visuals outside _spawnedEntities.
+            BomberWreck.ClearAll();
             _enemyAircraft.Clear();
             _groundEnemies.Clear();
             _aaagunsToInit.Clear();
@@ -915,7 +1386,11 @@ namespace Biplanes.Missions {
             GameEvents.EntityDestroyed -= OnEntityDestroyed;
             GameEvents.MissionEnded -= OnMissionEnded;
             EnemyBase.Destroyed -= OnEnemyBaseDestroyed;
+            GameEvents.BombsChanged -= OnBombsChanged;
+            ZeppelinAI.ShieldDropped -= OnZeppelinShieldDropped;
+            _defenseWaves.Clear();
             _spawnedEntities.Clear();
+            _bombBalloons.Clear();
             _enemyAircraft.Clear();
             _groundEnemies.Clear();
             _idTargets.Clear();

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- bomb_balloon: supply balloon pickup (bomb resupply), same envelope/rigging/basket as health_balloon;
+     bold ink aerial-bomb mark on the envelope and a zigzag hazard band so it reads apart from the health cross -->
+<svg xmlns="http://www.w3.org/2000/svg" width="70" height="100" viewBox="0 0 70 100">
+  <defs>
+    <pattern id="ht" width="2.4" height="2.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="2.4" stroke="#E8F1FA" stroke-width="0.5" opacity="0.7"/>
+    </pattern>
+    <pattern id="wicker" width="2.5" height="2.5" patternUnits="userSpaceOnUse">
+      <path d="M0,0 L2.5,2.5 M2.5,0 L0,2.5" stroke="#E8F1FA" stroke-width="0.4" opacity="0.7" fill="none"/>
+    </pattern>
+    <clipPath id="envclip">
+      <path d="M35,6 C49,6 59,17 59,30 C59,44 47,54 35,62 C23,54 11,44 11,30 C11,17 21,6 35,6 Z"/>
+    </clipPath>
+  </defs>
+
+  <g fill="none" stroke="#E8F1FA" stroke-linecap="round" stroke-linejoin="round">
+    <!-- shading hatch on the right flank -->
+    <path d="M45,7 C56,11 60,20 60,30 C60,46 46,56 35,63 C44,54 50,44 50,30 C50,20 48,12 45,7 Z" fill="url(#ht)" stroke="none" clip-path="url(#envclip)"/>
+
+    <!-- gores -->
+    <path d="M35,6 C44,18 44,46 35,62 M35,6 C26,18 26,46 35,62" stroke-width="0.75"/>
+    <path d="M35,6 C54,18 54,44 35,62 M35,6 C16,18 16,44 35,62" stroke-width="0.5" opacity="0.8"/>
+
+    <!-- latitude seams, equator load band with rivet dots, crown valve -->
+    <path d="M16,18 Q35,22 54,18 M14.5,44 Q35,49 55.5,44" stroke-width="0.5" opacity="0.8"/>
+    <path d="M11.2,32 Q35,38 58.8,32" stroke-width="0.75"/>
+    <path d="M12,34.5 Q35,40.5 58,34.5" stroke-width="0.9" stroke-dasharray="0 2.6" opacity="0.85"/>
+    <circle cx="35" cy="9" r="1.5" stroke-width="0.75"/>
+
+    <!-- hazard band (bomb balloon only): second seam under the lower seam, zigzag between them -->
+    <g clip-path="url(#envclip)">
+      <path d="M15,49.5 Q35,54.5 55,49.5" stroke-width="0.75"/>
+      <path d="M13,44 L16,49.6 L19,45.2 L22,50.9 L25,46.1 L28,51.8 L31,46.6 L34,52.2 L37,46.6 L40,52.1 L43,46.1 L46,51.4 L49,45.2 L52,50.3 L55,44.2 L58,49.2" stroke-width="0.6" opacity="0.85"/>
+    </g>
+
+    <!-- envelope outline -->
+    <path d="M35,6 C49,6 59,17 59,30 C59,44 47,54 35,62 C23,54 11,44 11,30 C11,17 21,6 35,6 Z" stroke-width="1.25"/>
+
+    <!-- appendix neck and load ring -->
+    <path d="M32,60 L33,66 L37,66 L38,60" stroke-width="0.75"/>
+    <circle cx="35" cy="68" r="1.6" stroke-width="0.75"/>
+
+    <!-- rigging lines: envelope to ring, ring to basket corners -->
+    <path d="M15,44 L34,67 M55,44 L36,67 M24,53 L34.5,67 M46,53 L35.5,67" stroke-width="0.5" opacity="0.8"/>
+    <path d="M34,69.5 L27,82 M36,69.5 L43,82 M35,69.6 L35,82 M34.5,69.6 L31,82 M35.5,69.6 L39,82" stroke-width="0.5" opacity="0.85"/>
+
+    <!-- basket: rim, wicker weave, ribs, skid -->
+    <path d="M27,83 L43,83 L42,94 L28,94 Z" fill="url(#wicker)" stroke="none"/>
+    <path d="M26,82 L44,82 L44,84 L26,84 Z" stroke-width="0.75"/>
+    <path d="M27,84 L28,94 L42,94 L43,84" stroke-width="1.25"/>
+    <path d="M31.5,84 L32,94 M35,84 L35,94 M38.5,84 L38,94" stroke-width="0.5" opacity="0.8"/>
+    <path d="M27,96 L43,96" stroke-width="0.5" opacity="0.7"/>
+
+    <!-- small label mark on the basket rim side: a "B" tick pair instead of the health plus -->
+    <path d="M46.5,86.5 L46.5,89.5 M48,86.5 L48,89.5" stroke-width="0.5" opacity="0.8"/>
+  </g>
+
+  <!-- bomb mark (white only): aerial bomb, nose down, box tail fins up. Paper knock-out
+       silhouette with a bold ink outline, solid ink body inside (double outline), paper belly band -->
+  <g id="bomb_mark" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M25.5,11.5 L31.5,11.5 L35,16 L38.5,11.5 L44.5,11.5 L38,21.5 C42.5,23.5 45,27.5 45,32 C45,38 40.5,42.5 35,44 C29.5,42.5 25,38 25,32 C25,27.5 27.5,23.5 32,21.5 Z"
+          fill="#0F2A4A" stroke="#E8F1FA" stroke-width="1.25"/>
+    <!-- tail fins: flared V fin pair plus the centre fin -->
+    <path d="M27.8,12.8 L31,12.8 L34,17.6 L33.4,21.2 Z M42.2,12.8 L39,12.8 L36,17.6 L36.6,21.2 Z"
+          fill="#E8F1FA" stroke="#E8F1FA" stroke-width="0.75"/>
+    <path d="M35,16.5 L35,22" fill="none" stroke="#E8F1FA" stroke-width="1"/>
+    <!-- solid ink body (teardrop, nose down) -->
+    <path d="M33,23.5 C29,25 27,28 27,32 C27,37 30.5,40.5 35,41.8 C39.5,40.5 43,37 43,32 C43,28 41,25 37,23.5 Z"
+          fill="#E8F1FA" stroke="#E8F1FA" stroke-width="1"/>
+    <!-- nose fuse -->
+    <path d="M35,44 L35,46.5" fill="none" stroke="#E8F1FA" stroke-width="1.25"/>
+  </g>
+</svg>

@@ -9,7 +9,8 @@
     "smokeThreshold": 70.0,
     "turnEaseSeconds": 0.6,
     "screenAnchor": 0.3,
-    "resistance": 1.5
+    "resistance": 1.5,
+    "turnSeconds": 0.6
   },
   "damageTaken": {
     "fighterBullet": 5.0,
@@ -17,14 +18,18 @@
     "bomberGunner": 10.0,
     "zeppelinTurret": 12.0,
     "collision": 100.0,
-    "planeCollision": 50.0
+    "planeCollision": 50.0,
+    "barrageBalloonCollision": 50.0
   },
   "healthBalloonRestore": 100.0,
+  "bombBalloonGrant": 4,
+  "bombBalloonDelay": 4.0,
+  "bombBalloonLead": 12.0,
   "enemyHealth": {
     "fighter": 75.0,
-    "bomber": 200.0,
+    "bomber": 1000.0,
     "aaa": 125.0,
-    "barrageBalloon": 50.0,
+    "barrageBalloon": 100.0,
     "zeppelinTurret": 75.0,
     "zeppelinHull": 1000.0,
     "enemyBase": 100.0
@@ -101,5 +106,32 @@
     "maxAttackers": 3,
     "standoffMax": 5.0,
     "slotGraceSeconds": 0.5
+  },
+  "bomberCrash": {
+    "gravity": 5.0,
+    "driftFactor": 0.8,
+    "diveDegreesPerSecond": 30.0,
+    "maxDiveDegrees": 60.0,
+    "groundBurstCount": 3,
+    "groundBurstSpread": 0.9,
+    "maxFallSeconds": 10.0
+  },
+  "killWinDelaySeconds": 2.5,
+  "ramDamage": {
+    "bomber": 250.0
+  },
+  "zeppelinDefense": {
+    "enabled": true,
+    "waveCount": 4,
+    "staggerSeconds": 0.6
+  },
+  "zeppelinExplosion": {
+    "burstCount": 12,
+    "tailBurstCount": 3,
+    "spread": 3.4,
+    "duration": 1.8,
+    "fadeSeconds": 0.4,
+    "sinkSpeed": 0.6,
+    "tiltDegrees": 6.0
   }
 }

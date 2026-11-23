@@ -20,8 +20,10 @@ namespace Biplanes.Missions {
     /// fighters (same FighterAI factory as JSON fighters), trimmed so the live fighters that
     /// count toward the cap (on screen, or off screen and closing on it: CountsTowardCap, B041)
     /// never exceed pressure.maxLiveFighters (at the cap it waits), then resets.
-    /// B040: the wave enters just past the screen edge the player faces and flies toward the
-    /// player (EntryX / EntryOffset), close enough to be on screen within about 0.2 s.
+    /// B074: the wave always enters just past the RIGHT screen edge and flies left (EntryX /
+    /// EntryOffset / EntryFlightDirection), whichever way the player faces or the camera scrolls,
+    /// close enough to be on screen within about 0.2 s (FighterAI.BeginEntry adds the camera's
+    /// leftward speed while it enters, so it also catches a left-scrolling camera).
     /// Reinforcements are named ScoreKeeper.ReinforcementFighterKey: they score like fighters,
     /// and each kill counts toward a destroyAllOfType "fighter" objective (B050,
     /// ObjectiveTracker.CountsAsKillOf); the required total is still the JSON fighter count.
@@ -29,11 +31,15 @@ namespace Biplanes.Missions {
     /// Escaped fighters (B040, GDD "Enemy pressure"): a fighter that is outside the view and
     /// not closing on it in the camera's frame (it flew past the player, or the player turned
     /// away faster than it flies) has escaped once it is more than a margin beyond the edge.
-    ///   - Reinforcement: removed silently past DespawnBehindMargin (the B035 rule).
-    ///   - JSON fighter, past EscapeMargin: while an open destroyAllOfType objective counts its
-    ///     type it re-enters just past the leading edge (same object, same damage); otherwise
-    ///     it is removed silently (no score, no objective credit).
-    /// Escorts following a live target are left alone (they move with the bomber/zeppelin).
+    /// B074: a fighter wholly past the LEFT edge (more than LeftExitMargin) has escaped at once,
+    /// closing or not, so no fighter ever comes back into view from the left.
+    ///   - Reinforcement: removed silently (left exit, or past DespawnBehindMargin = EscapeMargin
+    ///     on the right, B075).
+    ///   - JSON fighter (left exit, or past EscapeMargin on the right): while an open
+    ///     destroyAllOfType objective counts its type it re-enters just past the RIGHT edge
+    ///     (same object, same damage); otherwise it is removed silently (no score, no credit).
+    /// Escorts holding formation on a live target are left alone (they move with the
+    /// bomber/zeppelin); an escort that left formation to chase obeys the left-exit rule.
     ///
     /// The decision maths are pure static helpers, covered by EnemyPressureTests and
     /// EnemyPressureFixTests.
@@ -56,13 +62,17 @@ namespace Biplanes.Missions {
         /// </summary>
         public const float CapRangeScreens = 1f;
 
-        /// <summary>A reinforcement that has escaped this far beyond the screen edge is removed
-        /// (B035 rule; same margin ZeppelinAI uses).</summary>
-        public const float DespawnBehindMargin = 20f;
+        /// <summary>A reinforcement that has escaped (not closing) this far beyond the RIGHT screen
+        /// edge is removed. B075 (QA T975 BUG-1): was 20 (the B035 rule), which let reinforcements
+        /// that fell behind a left-flying player linger just off the right edge, outside the
+        /// maxLiveFighters cap (they don't close), and all come back at once after a right turn;
+        /// now the same as EscapeMargin. The left side uses LeftExitMargin (B074).</summary>
+        public const float DespawnBehindMargin = EscapeMargin;
 
         /// <summary>A JSON fighter that has escaped this far beyond the screen edge re-enters or
-        /// is removed (B040). Larger than any entry offset, so a fighter that just entered is
-        /// never caught by it.</summary>
+        /// is removed (B040). Larger than the entry offset of a default 2-plane wave (plane 1:
+        /// at most 2.5), and an entering fighter is always closing (FighterAI.BeginEntry), so a
+        /// fighter that just entered is never caught by it.</summary>
         public const float EscapeMargin = 3f;
 
         /// <summary>Camera-frame speed (units/s) below which a fighter outside the view counts
@@ -75,6 +85,16 @@ namespace Biplanes.Missions {
         public const float EntryStagger = 1.25f;
         /// <summary>Random extra x per plane (0..this).</summary>
         public const float EntryJitter = 0.25f;
+
+        /// <summary>B074: a fighter whose centre is this far past the left edge is wholly off
+        /// screen and has left the view for good: it re-enters from the right or is removed,
+        /// never back in from the left. B075 (QA T975 BUG-3): the hitbox half width (the sprite's
+        /// visible half width is 0.74), so it is handled the moment it clears the edge; with the
+        /// old extra EntryGap a camera turning back could reveal it again from the left.</summary>
+        public const float LeftExitMargin = FighterHalfWidth;
+
+        /// <summary>B074: every entering aircraft flies left (toward the view from the right).</summary>
+        public const int EntryFlightDirection = -1;
 
         /// <summary>What to do with an escaped fighter.</summary>
         public enum EscapeAction { None, ReEnter, Remove }
@@ -170,10 +190,16 @@ namespace Biplanes.Missions {
             var list = _runner.EnemyAircraft;
             for (int i = 0; i < list.Count; i++) {
                 if (!(list[i] is FighterAI f) || f == null) continue;
-                if (f.IsDead || f.IsEscorting) continue; // dying: FighterAI removes itself
+                if (f.IsDead) continue; // dying: FighterAI removes itself
+                // Escorts in formation move with their bomber/zeppelin: exempt. An escort chasing
+                // the player only obeys the left-exit rule (B074).
+                if (f.IsEscorting && !f.IsEscortChasing) continue;
                 bool reinforcement = f.gameObject.name == ScoreKeeper.ReinforcementFighterKey;
                 float margin = reinforcement ? DespawnBehindMargin : EscapeMargin;
-                bool escaped = IsEscaped(f.transform.position.x, f.WorldVelocityX - cameraVelocityX, view, margin);
+                float x = f.transform.position.x;
+                bool escaped = f.IsEscorting
+                    ? HasLeftView(x, view)
+                    : IsEscapedOrLeft(x, f.WorldVelocityX - cameraVelocityX, view, margin);
                 bool needed = !reinforcement && _runner.OpenDestroyAllCounts(f.gameObject.name);
                 switch (DecideEscape(escaped, reinforcement, needed)) {
                     case EscapeAction.ReEnter:
@@ -280,26 +306,39 @@ namespace Biplanes.Missions {
             return relativeVelocityX < -ClosingSpeedEpsilon;
         }
 
-        /// <summary>The side entering fighters come from: the edge the player faces
-        /// (+1 = right edge, -1 = left edge).</summary>
-        public static int EntrySide(int facing) {
-            return facing < 0 ? -1 : 1;
+        /// <summary>
+        /// World x of an entering aircraft (B074): always `offset` units (clamped at 0) past the
+        /// RIGHT edge of the view (camera centre x + half view width), whatever the player's
+        /// facing or the scroll direction. Used for JSON planes, reinforcements and re-entries.
+        /// </summary>
+        public static float EntryX(float cameraX, float halfWidth, float offset) {
+            return cameraX + Mathf.Abs(halfWidth) + Mathf.Max(0f, offset);
         }
 
-        /// <summary>Entering fighters fly toward the player: opposite the entry side.</summary>
-        public static int EntryFlightDirection(int facing) {
-            return -EntrySide(facing);
+        /// <summary>B074 check: a body of `halfWidth` at `x` starts wholly at or beyond the right
+        /// edge of `view` (never inside it, never on the left).</summary>
+        public static bool EntersFromRight(float x, float halfWidth, Rect view) {
+            return x - Mathf.Abs(halfWidth) >= view.xMax;
         }
 
-        /// <summary>World x of an entering fighter `offset` units past the screen edge the
-        /// player faces (camera centre x, half view width).</summary>
-        public static float EntryX(float cameraX, float halfWidth, int facing, float offset) {
-            float edgeDistance = Mathf.Abs(halfWidth) + Mathf.Max(0f, offset);
-            return cameraX + EntrySide(facing) * edgeDistance;
+        /// <summary>B074: the fighter's centre is more than LeftExitMargin past the left edge of
+        /// `view`, so it is wholly off screen on the left.</summary>
+        public static bool HasLeftView(float x, Rect view) {
+            return x < view.xMin - LeftExitMargin;
         }
 
         /// <summary>
-        /// Distance past the screen edge for plane `index` of an entering wave (B040, BUG 7):
+        /// Escape test used by HandleEscapedFighters (B074): wholly off the left edge (always
+        /// escaped, closing or not, so it can never come back from the left), or IsEscaped with
+        /// `margin` (the B040 right-side rule; its left branch is covered by HasLeftView since
+        /// every margin is larger than LeftExitMargin).
+        /// </summary>
+        public static bool IsEscapedOrLeft(float x, float relativeVelocityX, Rect view, float margin) {
+            return HasLeftView(x, view) || IsEscaped(x, relativeVelocityX, view, margin);
+        }
+
+        /// <summary>
+        /// Distance past the right screen edge for plane `index` of an entering wave (B040, BUG 7):
         /// the hitbox starts EntryGap off screen, later planes EntryStagger apart, plus
         /// t01 (0..1) * EntryJitter. Plane 0 is at most EntryGap + EntryJitter (0.5 units) from
         /// being on screen.

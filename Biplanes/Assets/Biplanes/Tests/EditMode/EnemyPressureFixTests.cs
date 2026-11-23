@@ -12,7 +12,7 @@ namespace Biplanes.Tests {
     /// <summary>
     /// B040 (QA T957 BUG 1, 2, 3, 5, 6, 7): the aircraft liveness check never casts a
     /// non-IDamageable (BomberAI) to IDamageable; reinforcements and re-entering fighters come
-    /// in just past the edge the player faces and fly toward the player; escaped fighters
+    /// in just past the RIGHT edge and fly left (B074; was the edge the player faces); escaped fighters
     /// re-enter while an open destroyAllOfType objective counts them and are removed otherwise;
     /// the fighter fallback health is 75 (three bullets).
     ///
@@ -43,43 +43,40 @@ namespace Biplanes.Tests {
             awake.Invoke(c, null);
         }
 
-        // ── BUG 3: entry on the side the player faces ────────────────────
+        // ── BUG 3, superseded by B074: entry always from the right edge ──
 
         [Test]
-        public void Entry_FacingRight_RightEdge_FlyingLeft() {
-            Assert.AreEqual(1, EnemyPressure.EntrySide(1));
-            Assert.AreEqual(-1, EnemyPressure.EntryFlightDirection(1));
-            float x = EnemyPressure.EntryX(100f, 8.8889f, 1, 1f);
+        public void Entry_RightEdge_FlyingLeft() {
+            // B074: there is no left entry any more, whatever the player's facing.
+            Assert.AreEqual(-1, EnemyPressure.EntryFlightDirection);
+            float x = EnemyPressure.EntryX(100f, 8.8889f, 1f);
             Assert.AreEqual(View.xMax + 1f, x, Eps);
         }
 
         [Test]
-        public void Entry_FacingLeft_LeftEdge_FlyingRight() {
-            Assert.AreEqual(-1, EnemyPressure.EntrySide(-1));
-            Assert.AreEqual(1, EnemyPressure.EntryFlightDirection(-1));
-            float x = EnemyPressure.EntryX(100f, 8.8889f, -1, 1f);
-            Assert.AreEqual(View.xMin - 1f, x, Eps);
-        }
-
-        [Test]
         public void Entry_StartsOffScreen_AndIsNeverAnEscape() {
-            for (int facing = -1; facing <= 1; facing += 2) {
-                for (int i = 0; i < 4; i++) {
-                    float offset = EnemyPressure.EntryOffset(i, 1f);
-                    float x = EnemyPressure.EntryX(100f, 8.8889f, facing, offset);
-                    Assert.IsFalse(EnemyPressure.InView(new Vector2(x, 0f), EnemyPressure.FighterHalfWidth,
-                        EnemyPressure.AircraftHalfHeight, View), $"facing {facing} plane {i} spawns off screen");
-                    // Flying toward the player with the camera standing still: closing, not escaped.
-                    float rel = EnemyPressure.EntryFlightDirection(facing) * 3f;
-                    Assert.IsFalse(EnemyPressure.IsEscaped(x, rel, View, EnemyPressure.EscapeMargin));
-                    // Even while the camera still moves the other way at full speed (mid-turn):
-                    // reinforcements use the 20-unit margin, re-entries use plane 0's offset.
-                    Assert.IsFalse(EnemyPressure.IsEscaped(x, 0f, View, EnemyPressure.DespawnBehindMargin),
+            for (int i = 0; i < 4; i++) {
+                float offset = EnemyPressure.EntryOffset(i, 1f);
+                float x = EnemyPressure.EntryX(100f, 8.8889f, offset);
+                Assert.IsFalse(EnemyPressure.InView(new Vector2(x, 0f), EnemyPressure.FighterHalfWidth,
+                    EnemyPressure.AircraftHalfHeight, View), $"plane {i} spawns off screen");
+                // Flying left toward the view with the camera standing still: closing, not escaped.
+                float rel = EnemyPressure.EntryFlightDirection * 3f;
+                Assert.IsFalse(EnemyPressure.IsEscapedOrLeft(x, rel, View, EnemyPressure.EscapeMargin));
+                // With the entry boost (B074/B075) it closes at cruise speed even while the camera
+                // runs left at 3.9: never an escape at its entry.
+                int dir = EnemyPressure.EntryFlightDirection;
+                float camV = -3.9f;
+                float boosted = dir * (3f + FighterAI.EntryBoost(dir, camV)) - camV;
+                Assert.Less(boosted, -EnemyPressure.ClosingSpeedEpsilon, "closing in the camera's frame");
+                Assert.IsFalse(EnemyPressure.IsEscapedOrLeft(x, boosted, View, EnemyPressure.DespawnBehindMargin));
+                // The planes of a default 2-plane wave (and every re-entry, plane 0) start inside
+                // the 3-unit margin, so even with no relative motion they aren't removed (B075).
+                if (i < 2) {
+                    Assert.IsFalse(EnemyPressure.IsEscapedOrLeft(x, 0f, View, EnemyPressure.DespawnBehindMargin),
                         "a reinforcement sits inside its removal margin");
-                    if (i == 0) {
-                        Assert.IsFalse(EnemyPressure.IsEscaped(x, 0f, View, EnemyPressure.EscapeMargin),
-                            "a re-entering fighter sits inside the escape margin");
-                    }
+                    Assert.IsFalse(EnemyPressure.IsEscapedOrLeft(x, 0f, View, EnemyPressure.EscapeMargin),
+                        "a re-entering fighter sits inside the escape margin");
                 }
             }
         }
@@ -95,7 +92,7 @@ namespace Biplanes.Tests {
             float speed = g != null && g.enemySpeed != null && g.enemySpeed.fighter > 0f ? g.enemySpeed.fighter : 3f;
             Assert.LessOrEqual(worst / speed, 0.2f, "worst entry delay past the quiet limit");
 
-            float x = EnemyPressure.EntryX(100f, 8.8889f, 1, EnemyPressure.EntryOffset(0, 1f));
+            float x = EnemyPressure.EntryX(100f, 8.8889f, EnemyPressure.EntryOffset(0, 1f));
             Assert.IsTrue(EnemyPressure.InView(new Vector2(x - worst - 0.01f, 0f), EnemyPressure.FighterHalfWidth,
                 EnemyPressure.AircraftHalfHeight, View), "after flying `worst` units it overlaps the view");
         }
@@ -134,9 +131,14 @@ namespace Biplanes.Tests {
         }
 
         [Test]
-        public void Escape_Reinforcement_KeepsTheTwentyUnitRule() {
-            Assert.IsFalse(EnemyPressure.IsEscaped(View.xMin - 19f, -5f, View, EnemyPressure.DespawnBehindMargin));
-            Assert.IsTrue(EnemyPressure.IsEscaped(View.xMin - 21f, -5f, View, EnemyPressure.DespawnBehindMargin));
+        public void Escape_Reinforcement_RemovedThreeUnitsPastTheRightEdge_WhenNotClosing() {
+            // B075 (QA T975 BUG-1): the old 20-unit margin let reinforcements that fell behind a
+            // left-flying player linger off the right edge and return all at once after a turn.
+            Assert.AreEqual(EnemyPressure.EscapeMargin, EnemyPressure.DespawnBehindMargin, Eps);
+            Assert.IsFalse(EnemyPressure.IsEscapedOrLeft(View.xMax + 2.9f, 0.25f, View, EnemyPressure.DespawnBehindMargin));
+            Assert.IsTrue(EnemyPressure.IsEscapedOrLeft(View.xMax + 3.1f, 0.25f, View, EnemyPressure.DespawnBehindMargin));
+            Assert.IsFalse(EnemyPressure.IsEscapedOrLeft(View.xMax + 3.1f, -1f, View, EnemyPressure.DespawnBehindMargin),
+                "still closing: it is coming in, not leaving");
         }
 
         [Test]
@@ -345,10 +347,14 @@ namespace Biplanes.Tests {
         public void ReEntry_ClosesOnTheView_ThenChasesOnScreen_InMission1() {
             // Mission 1: the cruise (scrollSpeed) is slower than a fighter, so a re-entered
             // fighter closes on the view at entry and never escapes again (no re-entry loop).
-            // B061 (QA T967): it can't back off tail-first, so it flies at the player (down to
-            // MinForwardSpeed), is passed, turns and then holds its standoff BEHIND the player,
-            // with its centre on screen (standoffMax 5 < the 5.33 u from the player to the
-            // trailing edge), so it can fire.
+            // B074: it always re-enters past the RIGHT edge flying left, with the entry boost
+            // (FighterAI.BeginEntry) while the camera scrolls left.
+            // Facing right (B061, QA T967): it can't back off tail-first, so it flies at the
+            // player (down to MinForwardSpeed), is passed, turns and then holds its standoff
+            // BEHIND the player, with its centre on screen (standoffMax 5 < the 5.33 u from the
+            // player to the trailing edge), so it can fire.
+            // Facing left: it comes in behind the player and holds its standoff there without
+            // turning (the player sits at 0.7 of the view, 5.33 u from the right edge).
             var g = GameBalance.Get();
             float fighter = g.enemySpeed.fighter;
             float scroll = LoadMission(1).scrollSpeed;
@@ -357,14 +363,14 @@ namespace Biplanes.Tests {
             float anchor = g.player.screenAnchor > 0f ? g.player.screenAnchor : 0.3f;
 
             for (int facing = -1; facing <= 1; facing += 2) {
-                float x = EnemyPressure.EntryX(100f, HalfW, facing, EnemyPressure.EntryOffset(0, 1f));
-                float vx = EnemyPressure.EntryFlightDirection(facing) * fighter;
+                float x = EnemyPressure.EntryX(100f, HalfW, EnemyPressure.EntryOffset(0, 1f));
+                int dir = EnemyPressure.EntryFlightDirection;
+                float vx = dir * (fighter + FighterAI.EntryBoost(dir, facing * scroll));
                 float rel = vx - facing * scroll;
                 Assert.GreaterOrEqual(Mathf.Abs(rel), fighter - scroll - Eps);
-                Assert.IsFalse(EnemyPressure.IsEscaped(x, rel, View, EnemyPressure.EscapeMargin),
+                Assert.IsFalse(EnemyPressure.IsEscapedOrLeft(x, rel, View, EnemyPressure.EscapeMargin),
                     $"facing {facing}: a fresh re-entry is closing, not escaped");
-                Assert.AreEqual(System.Math.Sign(-EnemyPressure.EntrySide(facing)), System.Math.Sign(rel),
-                    "it moves toward the view");
+                Assert.AreEqual(-1, System.Math.Sign(rel), "it moves left, toward the view");
 
                 foreach (float standoff in new[] { chase.standoff, chase.standoffMax }) {
                     var r = SimulateChase(x, vx, facing, scroll, anchor, standoff, 60f);
@@ -373,7 +379,8 @@ namespace Biplanes.Tests {
                     Assert.IsTrue(r.CentreInViewAtEnd, $"facing {facing}, standoff {standoff}: centre on screen (may fire)");
                     Assert.AreEqual(standoff, r.GapAtEnd, 0.1f, $"facing {facing}: holds its standoff behind the player");
                     Assert.AreEqual(facing * scroll, r.VxAtEnd, 0.05f, "matches the cruise, nose first");
-                    Assert.IsTrue(r.Passed, $"facing {facing}, standoff {standoff}: passed by the player, then turned to chase");
+                    Assert.AreEqual(facing > 0, r.Passed,
+                        $"facing {facing}, standoff {standoff}: facing right it is passed and turns; facing left it chases from behind");
                 }
             }
         }
@@ -382,8 +389,11 @@ namespace Biplanes.Tests {
         public void ReEntry_FasterCruise_FighterFallsBehindAndEscapes_AfterAFullPass_NoRapidLoop() {
             // Missions 2-4 (QA T966): the player cruises faster than a fighter. A re-entered
             // fighter comes on screen ahead, is overtaken, turns, chases flat out, falls behind
-            // and escapes again (re-enter or removal per B040). One cycle takes many seconds and
-            // most of it is on screen, so re-entry can't loop off screen.
+            // and escapes again (re-enter or removal per B040). One cycle takes several seconds and
+            // most of it is on screen, so re-entry can't loop off screen. B074: it now escapes as
+            // soon as it is wholly past the left edge (LeftExitMargin) instead of drifting 3 u
+            // further off screen, so a cycle is shorter (about 6.8 s at 3.9 u/s) and almost all
+            // on screen.
             var g = GameBalance.Get();
             float fighter = g.enemySpeed.fighter;
             var chase = FighterChaseData.Resolve(g);
@@ -392,10 +402,10 @@ namespace Biplanes.Tests {
                 float scroll = LoadMission(mission).scrollSpeed;
                 Assert.Greater(scroll, fighter, $"precondition: mission {mission} cruises faster than a fighter");
                 foreach (float standoff in new[] { chase.standoff, chase.standoffMax }) {
-                    float x = EnemyPressure.EntryX(100f, HalfW, 1, EnemyPressure.EntryOffset(0, 1f));
+                    float x = EnemyPressure.EntryX(100f, HalfW, EnemyPressure.EntryOffset(0, 1f));
                     var r = SimulateChase(x, -fighter, 1, scroll, anchor, standoff, 300f);
                     Assert.Greater(r.EscapedAt, 0f, $"M{mission} standoff {standoff}: the overtaken fighter escapes");
-                    Assert.Greater(r.EscapedAt, 8f, $"M{mission}: one re-entry cycle lasts well over a few seconds");
+                    Assert.Greater(r.EscapedAt, 6f, $"M{mission}: one re-entry cycle lasts several seconds");
                     Assert.Greater(r.SecondsInView / r.EscapedAt, 0.5f, $"M{mission}: on screen most of the cycle");
                     Assert.IsTrue(r.Passed, $"M{mission}: it was overtaken and turned to chase");
                 }
@@ -421,7 +431,8 @@ namespace Biplanes.Tests {
         /// `scroll` along `facing`, the player at its trailing screen anchor; the fighter starts
         /// at `x0` with `vx0`, facing its flight direction, and steers with DesiredFacing +
         /// HorizontalVelocityStep with the B061 forward floor (FighterAI.MinForwardSpeed), as
-        /// ChaseStep does. Stops at the first IsEscaped (EscapeMargin).</summary>
+        /// ChaseStep does, with the B074 entry boost (FighterAI.EntryBoost until EntryComplete).
+        /// Stops at the first IsEscapedOrLeft (EscapeMargin).</summary>
         private static ChaseResult SimulateChase(float x0, float vx0, int facing, float scroll, float anchor,
                 float standoff, float seconds) {
             var chase = FighterChaseData.Resolve(GameBalance.Get());
@@ -432,20 +443,23 @@ namespace Biplanes.Tests {
             float x = x0, v = vx0;
             int dir = vx0 < 0f ? -1 : 1;
             int startDir = dir;
+            bool entering = true;
             var r = new ChaseResult { EscapedAt = -1f };
             int ticks = Mathf.RoundToInt(seconds / ChaseDt);
             for (int i = 0; i < ticks; i++) {
                 camX += camV * ChaseDt;
                 float px = camX + (anchorViewport - 0.5f) * 2f * HalfW;
+                if (entering && FighterAI.EntryComplete(x, camX - HalfW, camX + HalfW)) entering = false;
+                float maxSpeed = fighterSpeed + (entering ? FighterAI.EntryBoost(dir, camV) : 0f);
                 dir = FighterAI.DesiredFacing(dir, px - x, chase.turnDeadzone);
                 if (dir != startDir) r.Passed = true;
-                v = FighterAI.HorizontalVelocityStep(x, v, px, camV, dir, standoff, fighterSpeed, chase.accel, ChaseDt,
+                v = FighterAI.HorizontalVelocityStep(x, v, px, camV, dir, standoff, maxSpeed, chase.accel, ChaseDt,
                     FighterAI.MinForwardSpeed);
                 x += v * ChaseDt;
                 var view = new Rect(camX - HalfW, -5f, 2f * HalfW, 10f);
                 bool inView = EnemyPressure.InView(new Vector2(x, 0f), EnemyPressure.FighterHalfWidth, 0.5f, view);
                 if (inView) r.SecondsInView += ChaseDt;
-                if (EnemyPressure.IsEscaped(x, v - camV, view, EnemyPressure.EscapeMargin)) {
+                if (EnemyPressure.IsEscapedOrLeft(x, v - camV, view, EnemyPressure.EscapeMargin)) {
                     r.EscapedAt = (i + 1) * ChaseDt;
                     break;
                 }

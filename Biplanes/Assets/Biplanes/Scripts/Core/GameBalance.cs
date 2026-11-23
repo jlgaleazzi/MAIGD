@@ -58,6 +58,17 @@ namespace Biplanes.Core {
         /// <summary>Player toughness (B052): every non-fatal damageTaken hit on the player is divided
         /// by it. Read it through ResistanceOrDefault: a missing or non-positive value means 1.</summary>
         public float resistance;
+        /// <summary>Seconds for the plane's eased turn-around look (B066). Read it through
+        /// TurnSecondsOrDefault: missing or non-positive means fighterChase.turnSeconds.</summary>
+        public float turnSeconds;
+
+        /// <summary>player.turnSeconds, or the fighters' FighterChaseData turnSeconds (default
+        /// 0.6) when it is missing or &lt;= 0. `balance` may be null.</summary>
+        public static float TurnSecondsOrDefault(GameBalance balance) {
+            var p = balance != null ? balance.player : null;
+            if (p != null && p.turnSeconds > 0f) return p.turnSeconds;
+            return FighterChaseData.Resolve(balance).turnSeconds;
+        }
 
         /// <summary>Used when Balance.json has no (or a non-positive) player.resistance: no change.</summary>
         public const float DefaultResistance = 1f;
@@ -93,6 +104,22 @@ namespace Biplanes.Core {
         public static float PlaneCollisionOrDefault(DamageTakenData data) {
             return data != null && data.planeCollision > 0f ? data.planeCollision : DefaultPlaneCollision;
         }
+
+        /// <summary>Flying into a barrage balloon (B072), in the same units as planeCollision:
+        /// raw percent before player.resistance (50 / 1.5 = 33.3% taken). Read it through
+        /// BarrageBalloonCollisionOrDefault: a missing or non-positive value means
+        /// DefaultBarrageBalloonCollision.</summary>
+        public float barrageBalloonCollision;
+
+        /// <summary>Used when Balance.json has no (or a non-positive) damageTaken.barrageBalloonCollision.</summary>
+        public const float DefaultBarrageBalloonCollision = 50f;
+
+        /// <summary>damageTaken.barrageBalloonCollision, or DefaultBarrageBalloonCollision when it
+        /// is missing. `data` may be null (Balance.json not loaded).</summary>
+        public static float BarrageBalloonCollisionOrDefault(DamageTakenData data) {
+            return data != null && data.barrageBalloonCollision > 0f
+                ? data.barrageBalloonCollision : DefaultBarrageBalloonCollision;
+        }
     }
 
     /// <summary>
@@ -109,6 +136,16 @@ namespace Biplanes.Core {
         public float zeppelinTurret;
         public float zeppelinHull;
         public float enemyBase;
+
+        /// <summary>Barrage balloon hit points when Balance.json has none (B072: 100, i.e. four
+        /// 25-point player bullets or one 100-point bomb).</summary>
+        public const float DefaultBarrageBalloon = 100f;
+
+        /// <summary>enemyHealth.barrageBalloon, or DefaultBarrageBalloon when it is missing or
+        /// non-positive. `data` may be null (Balance.json not loaded).</summary>
+        public static float BarrageBalloonOrDefault(EnemyHealthData data) {
+            return data != null && data.barrageBalloon > 0f ? data.barrageBalloon : DefaultBarrageBalloon;
+        }
     }
 
     /// <summary>
@@ -426,6 +463,190 @@ namespace Biplanes.Core {
     }
 
     /// <summary>
+    /// Serializable data class matching the "bomberCrash" section of Balance.json (B068):
+    /// how a shot-down bomber's wreck (BomberWreck) falls. Read it through Resolve: a missing
+    /// block or a non-positive number falls back to the Default* value.
+    /// </summary>
+    [System.Serializable]
+    public class BomberCrashData {
+        public const float DefaultGravity = 5f;
+        public const float DefaultDriftFactor = 0.8f;
+        public const float DefaultDiveDegreesPerSecond = 30f;
+        public const float DefaultMaxDiveDegrees = 60f;
+        public const int DefaultGroundBurstCount = 3;
+        public const float DefaultGroundBurstSpread = 0.9f;
+        public const float DefaultMaxFallSeconds = 10f;
+
+        /// <summary>Downward acceleration of the wreck in world units per second squared.</summary>
+        public float gravity;
+        /// <summary>Share of the bomber's forward speed the wreck keeps while it falls.</summary>
+        public float driftFactor;
+        /// <summary>How fast (degrees per second) the nose tips down while falling.</summary>
+        public float diveDegreesPerSecond;
+        /// <summary>Steepest nose-down pitch (degrees) the falling wreck reaches.</summary>
+        public float maxDiveDegrees;
+        /// <summary>Explosions in the ground-impact burst (the "bigger" second explosion).</summary>
+        public int groundBurstCount;
+        /// <summary>Half the x spread (world units) of the ground-impact burst along the wreck.</summary>
+        public float groundBurstSpread;
+        /// <summary>Safety net: a wreck still falling after this many seconds bursts and goes.</summary>
+        public float maxFallSeconds;
+
+        /// <summary>A sanitised copy of balance.bomberCrash. Never null.</summary>
+        public static BomberCrashData Resolve(GameBalance balance) {
+            var src = balance != null ? balance.bomberCrash : null;
+            var r = new BomberCrashData();
+            r.gravity = Pick(src != null ? src.gravity : 0f, DefaultGravity);
+            r.driftFactor = Pick(src != null ? src.driftFactor : 0f, DefaultDriftFactor);
+            r.diveDegreesPerSecond = Pick(src != null ? src.diveDegreesPerSecond : 0f, DefaultDiveDegreesPerSecond);
+            r.maxDiveDegrees = Pick(src != null ? src.maxDiveDegrees : 0f, DefaultMaxDiveDegrees);
+            r.groundBurstCount = src != null && src.groundBurstCount > 0 ? src.groundBurstCount : DefaultGroundBurstCount;
+            r.groundBurstSpread = Pick(src != null ? src.groundBurstSpread : 0f, DefaultGroundBurstSpread);
+            r.maxFallSeconds = Pick(src != null ? src.maxFallSeconds : 0f, DefaultMaxFallSeconds);
+            return r;
+        }
+
+        private static float Pick(float value, float fallback) {
+            return value > 0f ? value : fallback;
+        }
+    }
+
+    /// <summary>
+    /// Serializable data class matching the "zeppelinDefense" section of Balance.json (B080):
+    /// the moment a zeppelin's last turret dies (its hull loses the shield), MissionRunner
+    /// queues waveCount extra escort fighters for it, one every staggerSeconds while the live
+    /// fighters near the view stay under pressure.maxLiveFighters. Read it through Resolve: a
+    /// missing block or a non-positive number falls back to the Default* value; `enabled`
+    /// defaults to true and false turns the wave off.
+    /// </summary>
+    [System.Serializable]
+    public class ZeppelinDefenseData {
+        public const bool DefaultEnabled = true;
+        public const int DefaultWaveCount = 4;
+        public const float DefaultStaggerSeconds = 0.6f;
+
+        /// <summary>False turns the defense wave off. Defaults to true when the key is missing.</summary>
+        public bool enabled = DefaultEnabled;
+        /// <summary>Extra escort fighters per zeppelin, sent once when its shield drops.</summary>
+        public int waveCount;
+        /// <summary>Scaled seconds between two fighters of the wave.</summary>
+        public float staggerSeconds;
+
+        /// <summary>A sanitised copy of balance.zeppelinDefense. Never null.</summary>
+        public static ZeppelinDefenseData Resolve(GameBalance balance) {
+            var src = balance != null ? balance.zeppelinDefense : null;
+            var r = new ZeppelinDefenseData();
+            r.enabled = src != null ? src.enabled : DefaultEnabled;
+            r.waveCount = src != null && src.waveCount > 0 ? src.waveCount : DefaultWaveCount;
+            r.staggerSeconds = src != null && src.staggerSeconds > 0f ? src.staggerSeconds : DefaultStaggerSeconds;
+            return r;
+        }
+    }
+
+    /// <summary>
+    /// Serializable data class matching the "zeppelinExplosion" section of Balance.json (B080):
+    /// the zeppelin hull's death sequence (ZeppelinAI.DeathBurstPlan). burstCount explosions
+    /// walk out from the envelope centre to `spread` (local half span, world units) on each
+    /// side, tailBurstCount more hit the tail and gondolas, all staggered over `duration`
+    /// scaled seconds while the hull drifts on, sinks at sinkSpeed, tips its nose down to
+    /// tiltDegrees and fades out over the last fadeSeconds; then it is removed. Read it through
+    /// Resolve: a missing block or a non-positive number falls back to the Default* value
+    /// (tailBurstCount may be 0).
+    /// </summary>
+    [System.Serializable]
+    public class ZeppelinExplosionData {
+        public const int DefaultBurstCount = 12;
+        public const int DefaultTailBurstCount = 3;
+        public const float DefaultSpread = 3.4f;
+        public const float DefaultDuration = 1.8f;
+        public const float DefaultFadeSeconds = 0.4f;
+        public const float DefaultSinkSpeed = 0.6f;
+        public const float DefaultTiltDegrees = 6f;
+        /// <summary>Tail/gondola bursts are capped at the number of tail/gondola points.</summary>
+        public const int MaxTailBurstCount = 4;
+
+        /// <summary>Explosions spread along the envelope.</summary>
+        public int burstCount;
+        /// <summary>Explosions on the tail and gondolas (0..MaxTailBurstCount).</summary>
+        public int tailBurstCount;
+        /// <summary>Half the x span (world units) the envelope bursts cover around its centre.</summary>
+        public float spread;
+        /// <summary>Scaled seconds the dying hull stays on screen; the bursts span it.</summary>
+        public float duration;
+        /// <summary>The hull sprite fades out over this many final seconds of `duration`.</summary>
+        public float fadeSeconds;
+        /// <summary>Sink speed (world units per second) the hull reaches by the end.</summary>
+        public float sinkSpeed;
+        /// <summary>Nose-down tilt (degrees) the hull reaches by the end.</summary>
+        public float tiltDegrees;
+
+        /// <summary>A sanitised copy of balance.zeppelinExplosion. Never null.</summary>
+        public static ZeppelinExplosionData Resolve(GameBalance balance) {
+            var src = balance != null ? balance.zeppelinExplosion : null;
+            var r = new ZeppelinExplosionData();
+            r.burstCount = src != null && src.burstCount > 0 ? src.burstCount : DefaultBurstCount;
+            r.tailBurstCount = src == null ? DefaultTailBurstCount
+                : Mathf.Clamp(src.tailBurstCount, 0, MaxTailBurstCount);
+            r.spread = Pick(src != null ? src.spread : 0f, DefaultSpread);
+            r.duration = Pick(src != null ? src.duration : 0f, DefaultDuration);
+            r.fadeSeconds = Mathf.Min(r.duration, Pick(src != null ? src.fadeSeconds : 0f, DefaultFadeSeconds));
+            r.sinkSpeed = Pick(src != null ? src.sinkSpeed : 0f, DefaultSinkSpeed);
+            r.tiltDegrees = Pick(src != null ? src.tiltDegrees : 0f, DefaultTiltDegrees);
+            return r;
+        }
+
+        private static float Pick(float value, float fallback) {
+            return value > 0f ? value : fallback;
+        }
+    }
+
+    /// <summary>
+    /// Serializable data class matching the "ramDamage" section of Balance.json (B069): hit
+    /// points a mid-air ram by the player takes off an enemy that survives rams. Only the
+    /// bomber does; fighters still die at once (DamageSource.Collision).
+    /// </summary>
+    [System.Serializable]
+    public class RamDamageData {
+        public const float DefaultBomber = 250f;
+
+        /// <summary>Hit points one ram takes off a bomber (of enemyHealth.bomber).</summary>
+        public float bomber;
+
+        /// <summary>ramDamage.bomber, or DefaultBomber when it is missing or not positive.
+        /// `data` may be null. Pure.</summary>
+        public static float BomberOrDefault(RamDamageData data) {
+            return data != null && data.bomber > 0f ? data.bomber : DefaultBomber;
+        }
+    }
+
+    /// <summary>
+    /// Recharge bomb balloon tunables (B064), read from the top-level Balance.json keys
+    /// bombBalloonGrant, bombBalloonDelay and bombBalloonLead. Read it through Resolve: a
+    /// missing or non-positive value falls back to the Default* const.
+    /// </summary>
+    public class BombBalloonData {
+        public const int DefaultGrant = 4;
+        public const float DefaultDelay = 4f;
+        public const float DefaultLead = 12f;
+
+        /// <summary>Bombs one balloon adds to the bay (clamped to capacity by BombBay.AddBombs).</summary>
+        public int grant;
+        /// <summary>Scaled seconds after the bay runs empty before a recharge balloon spawns.</summary>
+        public float delay;
+        /// <summary>World units ahead of the player where the recharge balloon appears.</summary>
+        public float lead;
+
+        /// <summary>A sanitised copy of the bomb balloon keys. Never null.</summary>
+        public static BombBalloonData Resolve(GameBalance balance) {
+            var r = new BombBalloonData();
+            r.grant = balance != null && balance.bombBalloonGrant > 0 ? balance.bombBalloonGrant : DefaultGrant;
+            r.delay = balance != null && balance.bombBalloonDelay > 0f ? balance.bombBalloonDelay : DefaultDelay;
+            r.lead = balance != null && balance.bombBalloonLead > 0f ? balance.bombBalloonLead : DefaultLead;
+            return r;
+        }
+    }
+
+    /// <summary>
     /// Root serialisable class matching Balance.json. Loaded once from Resources at
     /// runtime and cached in the static _instance field for fast access by all systems.
     ///
@@ -448,6 +669,15 @@ namespace Biplanes.Core {
 
         /// <summary>Mirrors the "healthBalloonRestore" key in Balance.json.</summary>
         public float healthBalloonRestore;
+
+        /// <summary>Mirrors "bombBalloonGrant" (B064). Read through BombBalloonData.Resolve.</summary>
+        public int bombBalloonGrant;
+
+        /// <summary>Mirrors "bombBalloonDelay" in seconds (B064). Read through BombBalloonData.Resolve.</summary>
+        public float bombBalloonDelay;
+
+        /// <summary>Mirrors "bombBalloonLead" in world units (B064). Read through BombBalloonData.Resolve.</summary>
+        public float bombBalloonLead;
 
         /// <summary>Mirrors the "enemyHealth" key in Balance.json.</summary>
         public EnemyHealthData enemyHealth;
@@ -487,6 +717,26 @@ namespace Biplanes.Core {
         /// <summary>Mirrors the "fighterChase" key in Balance.json (B059). Read it through
         /// FighterChaseData.Resolve(GameBalance.Get()), which fills in defaults.</summary>
         public FighterChaseData fighterChase;
+
+        /// <summary>Mirrors the "bomberCrash" key in Balance.json (B068). Read it through
+        /// BomberCrashData.Resolve(GameBalance.Get()), which fills in defaults.</summary>
+        public BomberCrashData bomberCrash;
+
+        /// <summary>Mirrors "killWinDelaySeconds" (B069): real seconds between a win decided
+        /// by a kill and the result screen. Read through GameManager.KillWinDelayOrDefault.</summary>
+        public float killWinDelaySeconds;
+
+        /// <summary>Mirrors the "ramDamage" key in Balance.json (B069). Read it through
+        /// RamDamageData.BomberOrDefault.</summary>
+        public RamDamageData ramDamage;
+
+        /// <summary>Mirrors the "zeppelinDefense" key in Balance.json (B080). Read it through
+        /// ZeppelinDefenseData.Resolve(GameBalance.Get()), which fills in defaults.</summary>
+        public ZeppelinDefenseData zeppelinDefense;
+
+        /// <summary>Mirrors the "zeppelinExplosion" key in Balance.json (B080). Read it through
+        /// ZeppelinExplosionData.Resolve(GameBalance.Get()), which fills in defaults.</summary>
+        public ZeppelinExplosionData zeppelinExplosion;
 
         // --- cached instance for Get() singleton pattern ---
 

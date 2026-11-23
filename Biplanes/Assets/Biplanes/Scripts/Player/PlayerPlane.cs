@@ -73,6 +73,23 @@ namespace Biplanes.Player {
         /// <summary>+1 = facing right, -1 = facing left. The art faces right.</summary>
         private int _facing = 1;
 
+        // ── Turn-around visual (B066) ────────────────────────────────────
+        // _facing switches at once on the key press (gameplay: scroll, gun, bombs, anchor);
+        // only the look follows it: _heading eases -1..1 toward _facing over _turnSeconds with
+        // the same maths as the fighters (FighterAI.StepHeading / FacingFromHeading /
+        // TurnScaleX): the body's x scale squashes to FighterAI.MinTurnScale at the midpoint,
+        // the sprite flips (flipX) and the pitch rotation mirrors there, then it widens again.
+        // The BoxCollider2D is divided by that x scale, so the world hitbox never changes.
+
+        /// <summary>Visual turn state: -1 drawn facing left, +1 drawn facing right.</summary>
+        private float _heading = 1f;
+        /// <summary>Seconds for a full turn-around (PlayerData.TurnSecondsOrDefault).</summary>
+        private float _turnSeconds = FighterChaseData.DefaultTurnSeconds;
+        /// <summary>The BoxCollider2D size/offset at x scale 1, captured in Create.</summary>
+        private Vector2 _boxBaseSize;
+        private Vector2 _boxBaseOffset;
+        private bool _hasBoxBase;
+
         /// <summary>A/D held on the previous tick, so the last key pressed wins when both are held.</summary>
         private bool _prevLeft;
         private bool _prevRight;
@@ -231,6 +248,7 @@ namespace Biplanes.Player {
             var col = go.AddComponent<BoxCollider2D>();
             col.isTrigger = true;
             pp._collider = col;
+            pp.CaptureBoxBase();
 
             // TeamTag before Health: Health reads the team in its Awake. Otherwise the plane
             // is Neutral and its own bullets would hit it.
@@ -257,7 +275,10 @@ namespace Biplanes.Player {
             pp._pitch = PitchData.Resolve(g);
             pp._bomb = BombData.Resolve(g);
             pp._pitchAngle = 0f;
+            pp._turnSeconds = PlayerData.TurnSecondsOrDefault(g);
+            pp._heading = 1f;
             sr.flipX = false;
+            pp.ApplyTurnVisual(); // x scale 1, unmirrored, collider at its base size
 
             // Clamp to initial camera bounds.
             pp._hasCrashed   = false;
@@ -365,6 +386,7 @@ namespace Biplanes.Player {
             if (_collider == null) _collider = GetComponent<Collider2D>();
             if (_pitch == null) _pitch = PitchData.Resolve(GameBalance.Get());
             if (_bomb == null) _bomb = BombData.Resolve(GameBalance.Get());
+            if (!_hasBoxBase) CaptureBoxBase();
 
             // Compute screen bounds from the main camera (may be set up later).
             ComputeScreenBounds();
@@ -437,23 +459,50 @@ namespace Biplanes.Player {
         }
 
         /// <summary>
-        /// Mid-air collision with an enemy plane (fighter or bomber), B025: the enemy is
-        /// destroyed (Collision is always fatal for enemies, so score and EntityDestroyed are
-        /// as before) and the player takes damageTaken.planeCollision percent (50) through
-        /// Health. The plane crashes only when its total damage reaches 100%.
-        /// No double hit: a dead enemy is ignored (a bomber's other hitboxes, re-entry), and
-        /// for PlaneCollisionGraceSeconds after a hit further contacts don't damage the player.
-        /// Terrain, buildings, trees, balloons, bases and zeppelins keep their own fatal rules.
+        /// Mid-air collision with an enemy plane (fighter or bomber), B025/B069:
+        ///  - fighter: destroyed at once (DamageSource.Collision is fatal for enemies), even
+        ///    during the grace window, as before;
+        ///  - bomber (B069): not fatal any more: it loses RamDamageFor() hit points (Balance
+        ///    ramDamage.bomber, 250 of 1000), once per contact: a contact inside the grace
+        ///    window (its other hitboxes, the same pass) does nothing. A ram that empties its
+        ///    Health kills it normally (score, objectives, wreck);
+        ///  - the player takes damageTaken.planeCollision percent (50, divided by resistance)
+        ///    through Health, at most once per PlaneCollisionGraceSeconds, and crashes only
+        ///    when its total damage reaches 100%.
+        /// A barrage balloon (B072) is handled by HitBarrageBalloon, the zeppelin hull and its
+        /// turrets (B079) by HitZeppelin. A dead enemy is ignored.
+        /// Terrain, buildings, trees and bases keep their own fatal rules.
         /// </summary>
         private void OnTriggerEnter2D(Collider2D other) {
             if (_hasCrashed || _health == null) return;
-            if (other.GetComponentInParent<FighterAI>() == null
-                && other.GetComponentInParent<BomberAI>() == null) return;
+
+            // Checked first: a turret collider is a child of the hull, so this catches both.
+            var zeppelin = other.GetComponentInParent<ZeppelinAI>();
+            if (zeppelin != null) {
+                HitZeppelin(zeppelin);
+                return;
+            }
+
+            var barrage = other.GetComponentInParent<BarrageBalloon>();
+            if (barrage != null) {
+                HitBarrageBalloon(barrage);
+                return;
+            }
+
+            bool bomber = other.GetComponentInParent<BomberAI>() != null;
+            if (!bomber && other.GetComponentInParent<FighterAI>() == null) return;
 
             var enemy = other.GetComponentInParent<Health>();
             if (enemy == null || enemy.IsDead) return;
 
-            enemy.ApplyDamage(1f, DamageSource.Collision);
+            if (bomber) {
+                if (_planeCollisionGrace > 0f) return;   // same contact: one ram per pass
+                // Hit points, like a bullet: enemy-mode Health only treats Collision /
+                // PlaneCollision as fatal, so any other source applies the points as given.
+                enemy.ApplyDamage(RamDamageFor(GameBalance.Get()), DamageSource.Bullet);
+            } else {
+                enemy.ApplyDamage(1f, DamageSource.Collision);
+            }
 
             if (_planeCollisionGrace > 0f) return;
             _planeCollisionGrace = PlaneCollisionGraceSeconds;
@@ -461,6 +510,70 @@ namespace Biplanes.Player {
             _health.ApplyDamage(1f, DamageSource.PlaneCollision);
             UpdateSmokeTrail();
             if (_health.CurrentDamagePercent >= 100f) TriggerCrash();
+        }
+
+        /// <summary>
+        /// Flying into a barrage balloon (B072): not fatal. The balloon pops at once
+        /// (DamageSource.Collision is fatal for enemies), so Health raises
+        /// EntityDestroyed("barrageBalloon") and it scores and counts toward objectives like a
+        /// shot-down balloon; BarrageBalloon.FixedUpdate then plays the explosion and removes it.
+        /// The player takes damageTaken.barrageBalloonCollision (50) through the plane-collision
+        /// path (DamageSource.PlaneCollision, divided by player.resistance: 33.3%), sharing the
+        /// PlaneCollisionGraceSeconds window with fighter/bomber contact, so one pass never
+        /// costs it twice. A dead balloon is ignored; the plane crashes only at 100% total.
+        /// </summary>
+        private void HitBarrageBalloon(BarrageBalloon balloon) {
+            var hp = balloon.GetComponent<Health>();
+            if (hp == null || hp.IsDead) return;
+
+            hp.ApplyDamage(1f, DamageSource.Collision);
+
+            if (_planeCollisionGrace > 0f) return;   // same contact: damage once per pass
+            _planeCollisionGrace = PlaneCollisionGraceSeconds;
+
+            _health.ApplyDamage(BarrageBalloonCollisionScale(GameBalance.Get()), DamageSource.PlaneCollision);
+            UpdateSmokeTrail();
+            if (_health.CurrentDamagePercent >= 100f) TriggerCrash();
+        }
+
+        /// <summary>
+        /// Flying into the zeppelin hull or one of its turrets (B079): not fatal any more. The
+        /// player takes damageTaken.planeCollision (50, divided by player.resistance: 33.3%)
+        /// through DamageSource.PlaneCollision, sharing the PlaneCollisionGraceSeconds window
+        /// with every other plane contact, and crashes only at 100% total (three contacts).
+        /// The zeppelin, its turrets and its shield take nothing: no damage, no score, no
+        /// EntityDestroyed. Only entering a collider calls this (no OnTriggerStay2D), so
+        /// sitting inside the hull costs nothing more until the plane enters another of its
+        /// colliders after the grace window, the same as sitting inside a bomber. A dead
+        /// (falling/removed) zeppelin is ignored.
+        /// </summary>
+        private void HitZeppelin(ZeppelinAI zeppelin) {
+            if (zeppelin.IsDead) return;
+            if (_planeCollisionGrace > 0f) return;   // same contact: damage once per pass
+            _planeCollisionGrace = PlaneCollisionGraceSeconds;
+
+            _health.ApplyDamage(1f, DamageSource.PlaneCollision);
+            UpdateSmokeTrail();
+            if (_health.CurrentDamagePercent >= 100f) TriggerCrash();
+        }
+
+        /// <summary>
+        /// The `percent` argument for a balloon collision through DamageSource.PlaneCollision
+        /// (B072). Health multiplies PlaneCollision hits by damageTaken.planeCollision, so this
+        /// returns barrageBalloonCollision / planeCollision (both with their code defaults):
+        /// the raw damage is then exactly barrageBalloonCollision before resistance. Pure;
+        /// `balance` may be null.
+        /// </summary>
+        public static float BarrageBalloonCollisionScale(GameBalance balance) {
+            var taken = balance != null ? balance.damageTaken : null;
+            return DamageTakenData.BarrageBalloonCollisionOrDefault(taken)
+                 / DamageTakenData.PlaneCollisionOrDefault(taken);
+        }
+
+        /// <summary>Hit points one ram takes off a bomber (B069): Balance ramDamage.bomber, or
+        /// RamDamageData.DefaultBomber (250) when missing. `balance` may be null. Pure.</summary>
+        public static float RamDamageFor(GameBalance balance) {
+            return RamDamageData.BomberOrDefault(balance != null ? balance.ramDamage : null);
         }
 
         /// <summary>Counts the plane-collision grace window down by `dt` seconds.</summary>
@@ -613,6 +726,8 @@ namespace Biplanes.Player {
             // and hitbox) turned through the Rigidbody2D like the position (B029) ──
             if (_pitch == null) _pitch = PitchData.Resolve(GameBalance.Get());
             _pitchAngle = PlanePitch.Step(_pitchAngle, _velocity.y, _pitch, Time.fixedDeltaTime);
+            // Turn-around look (B066): eased squash toward _facing; BodyAngle follows the drawn facing.
+            StepTurn(Time.fixedDeltaTime);
             _rb.MoveRotation(BodyAngle);
 
             // ── Update smoke trail visual ───────────────────────────────────
@@ -642,8 +757,63 @@ namespace Biplanes.Player {
         public float PitchAngle => _pitchAngle;
 
         /// <summary>The z rotation (degrees) the body is turned to with MoveRotation:
-        /// PitchAngle * Facing, so the drawn nose points up when climbing in either facing.</summary>
-        public float BodyAngle => PlanePitch.BodyAngle(_pitchAngle, _facing);
+        /// PitchAngle * VisualFacing, so the drawn nose points up when climbing in either
+        /// facing. During a turn-around it mirrors at the squash midpoint with the sprite (B066);
+        /// the box hitbox is centred, so its lowest point is the same either way.</summary>
+        public float BodyAngle => PlanePitch.BodyAngle(_pitchAngle, VisualFacing);
+
+        /// <summary>The facing the sprite is drawn in: the sign of the turn state (flips at the
+        /// squash midpoint). Equals Facing except during the first half of a turn-around.</summary>
+        public int VisualFacing => FighterAI.FacingFromHeading(_heading, _facing);
+
+        /// <summary>Visual turn state -1..1 (B066): -1 drawn left, +1 drawn right.</summary>
+        public float TurnHeading => _heading;
+
+        /// <summary>True while the turn-around squash runs (the visual hasn't reached Facing).</summary>
+        public bool IsTurning => _heading != (_facing < 0 ? -1f : 1f);
+
+        /// <summary>Seconds for a full turn-around (Balance player.turnSeconds, else
+        /// fighterChase.turnSeconds).</summary>
+        public float TurnSeconds => _turnSeconds;
+
+        // ── Turn-around visual (B066) ─────────────────────────────────────
+
+        /// <summary>Eases the turn state toward Facing by `dt` (same curve as the fighters) and
+        /// applies it. Gameplay doesn't wait for it; a reversal mid-turn just turns the
+        /// target round, so the squash reverses smoothly from where it is.</summary>
+        private void StepTurn(float dt) {
+            _heading = FighterAI.StepHeading(_heading, _facing, _turnSeconds, dt);
+            ApplyTurnVisual();
+        }
+
+        /// <summary>Applies the turn state: flipX from VisualFacing, transform x scale
+        /// FighterAI.TurnScaleX(heading), and the BoxCollider2D divided by that scale so the
+        /// world hitbox (and HitboxLowestPoint) stays the same.</summary>
+        private void ApplyTurnVisual() {
+            if (_sr != null) _sr.flipX = VisualFacing < 0;
+            float sx = FighterAI.TurnScaleX(_heading);
+            Vector3 scale = transform.localScale;
+            if (scale.x == sx) return;
+            scale.x = sx;
+            transform.localScale = scale;
+            var box = _collider as BoxCollider2D;
+            if (box == null || !_hasBoxBase || sx <= 0f) return;
+            box.size = new Vector2(_boxBaseSize.x / sx, _boxBaseSize.y);
+            box.offset = new Vector2(_boxBaseOffset.x / sx, _boxBaseOffset.y);
+        }
+
+        /// <summary>Remembers the BoxCollider2D size/offset at x scale 1 (the turn squash
+        /// divides them by the scale).</summary>
+        private void CaptureBoxBase() {
+            if (_collider == null) _collider = GetComponent<Collider2D>();
+            var box = _collider as BoxCollider2D;
+            if (box == null) return;
+            float sx = transform.localScale.x;
+            if (sx <= 0f) sx = 1f;
+            _boxBaseSize = new Vector2(box.size.x * sx, box.size.y);
+            _boxBaseOffset = new Vector2(box.offset.x * sx, box.offset.y);
+            _hasBoxBase = true;
+        }
 
         /// <summary>World unit vector of the drawn nose: (Facing * cos p, sin p). Facing left
         /// it points left; climbing it points up. The machine gun fires along it.</summary>
@@ -693,7 +863,8 @@ namespace Biplanes.Player {
 
         /// <summary>
         /// D faces right, A faces left; with both held the most recent press wins, and with
-        /// neither held the facing is kept. A change flips the sprite and the scroll direction.
+        /// neither held the facing is kept. A change turns the scroll direction at once; the
+        /// sprite follows over TurnSeconds (StepTurn, B066).
         /// </summary>
         private void UpdateFacing(InputState state) {
             int facing = _facing;
@@ -710,7 +881,6 @@ namespace Biplanes.Player {
             if (facing == _facing) return;
 
             _facing = facing;
-            if (_sr != null) _sr.flipX = _facing < 0;
             var sc = ScrollController.Instance;
             if (sc != null) sc.SetDirection(_facing);
         }
@@ -758,7 +928,7 @@ namespace Biplanes.Player {
             var fx = FxManager.GetOrNull();
             if (fx == null) return;
             // The drawn nose in world space, from the body rotation (pitch, or the wreck's spin).
-            Vector3 nose = transform.rotation * new Vector3(_facing, 0f, 0f);
+            Vector3 nose = transform.rotation * new Vector3(VisualFacing, 0f, 0f);
             fx.SpawnSmokePuff(transform.position - nose * SmokeTailOffset);
         }
 
@@ -789,7 +959,7 @@ namespace Biplanes.Player {
 
         /// <summary>
         /// Triggers the crash flow (only at 100% damage, including a terrain/obstacle crash,
-        /// or ForceCrash from a zeppelin ram):
+        /// or an explicit ForceCrash):
         ///  1. input off at once (unsubscribed and PlayerInput disabled), collider off;
         ///  2. the mission is lost at once through GameManager.LoseMission, so no win can
         ///     follow, but the result screen opens CrashFallSeconds later (real time);
@@ -836,12 +1006,25 @@ namespace Biplanes.Player {
         /// (TerrainStrip.HeightAt, no collider) with one explosion.
         /// </summary>
         private void UpdateCrashFall(float dt) {
+            // A turn-around in progress finishes on the wreck, landed or not (B066).
+            // When the drawn facing flips at the squash midpoint the sprite mirrors left/right,
+            // so the wreck's angle is mirrored too (B067): the nose keeps its up/down attitude,
+            // exactly as BodyAngle mirrors in flight, instead of snapping.
+            if (dt > 0f && IsTurning) {
+                int drawnBefore = VisualFacing;
+                StepTurn(dt);
+                if (VisualFacing != drawnBefore) {
+                    _crashAngle = -_crashAngle;
+                    if (_crashLanded && _rb != null) _rb.MoveRotation(_crashAngle);
+                }
+            }
             if (_crashLanded || _rb == null || dt <= 0f) return;
 
             _crashElapsed += dt;
             _crashVelocity.y -= CrashGravity * dt;
             Vector2 pos = _rb.position + _crashVelocity * dt;
-            _crashAngle -= _facing * CrashSpinDegPerSec * dt; // nose goes down in the facing direction
+            // The nose goes down in the direction it is drawn (B066).
+            _crashAngle -= VisualFacing * CrashSpinDegPerSec * dt;
 
             var terrain = TerrainStrip.Instance;
             float ground = terrain != null ? terrain.HeightAt(pos.x) : TerrainStrip.GroundBaseY;
@@ -969,10 +1152,31 @@ namespace Biplanes.Player {
         /// <summary>Mission over: a flying plane's loops stop at once. A crashing plane keeps
         /// its engine wind-down (the loss is raised at crash start) and stops it on landing.</summary>
         private void OnMissionEndedAudio(bool won, string reason) {
+            // A delayed kill win (B069/B070): the plane keeps flying until the result opens, so
+            // its engine and smoke loops keep running; MissionRunner.EndPlayerControl calls
+            // EndMissionAudio when the controls actually end.
+            if (won && HoldAudioOnWin) return;
+            EndMissionAudio();
+        }
+
+        /// <summary>
+        /// Set by MissionRunner just before it raises a delayed win (B070): MissionEnded(true)
+        /// then leaves the engine and smoke loops running until EndMissionAudio.
+        /// </summary>
+        public bool HoldAudioOnWin { get; set; }
+
+        /// <summary>The mission is over for this plane's audio: a flying plane's loops stop
+        /// and stay stopped. A crashing plane keeps its engine wind-down (it stops on landing).
+        /// Idempotent.</summary>
+        public void EndMissionAudio() {
+            HoldAudioOnWin = false;
             if (_hasCrashed) return;
             StopPlayerLoops();
             _audioStopped = true;
         }
+
+        /// <summary>True once the mission-end audio stop has run (the loops never restart).</summary>
+        public bool AudioStopped => _audioStopped;
 
         /// <summary>Stops the engine and smoke loops if this plane owns them. Safe from OnDisable
         /// at quit: GetOrNull never creates a manager while the application is quitting (B032).</summary>
@@ -996,5 +1200,47 @@ namespace Biplanes.Player {
 
         /// <summary>Whether the plane has already been processed as crashed.</summary>
         public bool HasCrashed => _hasCrashed;
+
+        /// <summary>Viewport x (0..1) of the trailing anchor facing right (Balance
+        /// player.screenAnchor, else 0.3); facing left the anchor is 1 - this.</summary>
+        public float ScreenAnchor => _screenAnchor;
+
+        // ── Teleport (B078 mission-5 HQ cheat) ────────────────────────────
+
+        /// <summary>
+        /// Teleports an airborne, uncrashed plane to `position` facing `facing` (+1 / -1), level
+        /// and already drawn in that facing (no turn squash), with no velocity. The caller moves
+        /// the camera FIRST: the ride-along is re-based on the camera's current x, so the next
+        /// physics tick adds no scroll jump and the plane doesn't slide. Sets the
+        /// ScrollController direction to the new facing. Returns false (and does nothing) on the
+        /// runway or after a crash.
+        /// </summary>
+        public bool WarpTo(Vector2 position, int facing) {
+            if (_hasCrashed || _onRunway) return false;
+            facing = facing < 0 ? -1 : 1;
+
+            transform.position = new Vector3(position.x, position.y, transform.position.z);
+            if (_rb != null) {
+                _rb.position = position;
+                _rb.rotation = 0f;
+            }
+            transform.rotation = Quaternion.identity;
+
+            _facing = facing;
+            _heading = facing;
+            _pitchAngle = 0f;
+            _velocity = Vector2.zero;
+            _climbOutTimer = 0f;
+            ApplyTurnVisual();
+
+            var cam = Camera.main;
+            _lastCamX = cam != null ? cam.transform.position.x : 0f;
+            _hasLastCamX = true;
+            ComputeScreenBounds();
+
+            var sc = ScrollController.Instance;
+            if (sc != null) sc.SetDirection(_facing);
+            return true;
+        }
     }
 }

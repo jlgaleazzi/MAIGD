@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 MISSIONS = ROOT / "Biplanes" / "Assets" / "Biplanes" / "Resources" / "Missions"
 
 TYPES = {"fighter", "bomber", "aaa", "zeppelin", "barrageBalloon", "healthBalloon",
-         "building", "tree", "enemyBase", "airfield", "playerHQ"}
+         "bombBalloon", "building", "tree", "enemyBase", "airfield", "playerHQ"}
 GROUND = {"aaa", "building", "tree", "enemyBase", "airfield", "playerHQ"}
 BOMB_TARGETS = {"aaa", "enemyBase"}
 PATTERNS = {"static", "straight", "sine", "dive", "escort", "drift"}
@@ -133,7 +133,13 @@ def validate(path: Path, number: int) -> list:
                                   f"{spawn_x} ({target.get('type')} '{target.get('id')}')")
 
     if bombable > BOMB_CAPACITY:
-        warnings.append(f"{bombable} bomb targets but only {BOMB_CAPACITY} bombs and no refills")
+        warnings.append(f"{bombable} bomb targets but only {BOMB_CAPACITY} bombs per load (recharge bomb balloons refill 4 at a time)")
+    third = m["length"] / 3
+    mid = [s for s in m["spawns"] if s.get("type") == "bombBalloon"
+           and third <= s.get("atX", 0) <= 2 * third]
+    if not mid:
+        errors.append(f"needs >= 1 bombBalloon within the middle third "
+                      f"[{third:.0f}, {2 * third:.0f}] of the map")
     if "healthBalloon" not in spawned_types:
         warnings.append("no health balloon in this mission")
     return errors + [f"warning: {w}" for w in warnings]

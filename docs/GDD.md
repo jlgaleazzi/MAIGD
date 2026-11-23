@@ -53,13 +53,13 @@ attacks. It is marked with a **bullseye (roundel)** on the center of its body.
 The sky is never empty for long. Missions are packed with fighter waves, and during play
 there is **never more than 2 seconds without an enemy aircraft on screen**. If the screen has
 been clear of enemy planes for 2 seconds, a small wave of reinforcement fighters (2 by default)
-enters ahead of the player. Reinforcements score like any fighter and **count toward a
+enters from the right side of the screen. Reinforcements score like any fighter and **count toward a
 "destroy them all" objective** like any other fighter of that type: every kill the player sees
 moves the counter. The objective still needs the mission's own number of kills (the fighters
 listed in the mission), so reinforcements only help reach it sooner. They stop once the
 mission's objectives are complete, and never come while the plane still sits on the runway.
-They enter past the screen edge the player is flying toward. An enemy fighter that gets past
-the player circles back in from ahead while a "destroy them all" objective still needs it;
+**Enemy aircraft always enter from the right side of the screen, never from the left**, also when the player flies left (then they come in from behind). An enemy fighter that gets past
+the player and leaves the left edge comes back in from the right side while a "destroy them all" objective still needs it;
 otherwise it leaves the battle for good.
 
 ### Mission start
@@ -78,13 +78,14 @@ the line a target must not cross). Like everything else it is drawn in white. La
 
 ### Obstacles
 1. **Barrage balloons:** low-flying balloons, usually protected by AAA. The player destroys
-   them when the mission requires it.
+   them when the mission requires it. A balloon has 100 health (4 bullets or 1 bomb), and flying into one pops it but costs the player 33% damage.
 2. **Buildings and trees:** flying too low can crash the player into them.
 
 ### Airplane damage
 - Damage goes up with each hit. At **100%** the airplane is destroyed.
 - At about **70%** damage, a smoke trail shows behind the plane.
 - **Health balloons** appear at some points on the map. Flying through one **restores all of the plane's health (100%)**.
+- **Recharge bomb balloons** carry a bomb on the envelope. Flying through one **gives 4 bombs, up to the maximum of 7**. Every mission has one in the middle of the map, and when the player has dropped all bombs, another appears ahead 4 seconds later (and again every 4 s if it is missed, until the bay has bombs).
 
 ### Controls (keyboard and mouse)
 | Action | Input |
@@ -316,3 +317,15 @@ this Style Guide. Change a rule here and the loop follows it.
 | 2026-11-20 | Enemy fighters always face and chase the player (user request; bombers and zeppelins unchanged): pursuit replaces the fixed straight/sine/dive paths (those become small entry flavours), with a standoff distance, separation and an escort leash; Balance `fighterChase` | user |
 | 2026-11-20 | Balance call after B059: at most 3 fighters fire at once (attack slots) and each fighter keeps its own standoff 3.5-6, because in missions 1 and 5 the player (cruise 2.6) can't outrun fighters (3) and a pack of 6 firing together killed the player in about 11 s | orchestrator |
 | 2026-11-20 | Health balloons restore 100% of the player's health (user request; was 30%): Balance `healthBalloonRestore` 100. Each balloon is now a full repair, so the mission heal budgets are far above the expected damage; balance by removing balloons if missions feel too easy | user |
+| 2026-11-22 | Recharge bomb balloons (user request): new pickup `bombBalloon`, +4 bombs capped at 7 (Balance `bombBalloonGrant`); one placed mid-map in every mission, plus an automatic one `bombBalloonDelay` 4 s after the bay hits zero, spawned `bombBalloonLead` 12 units ahead of the player; re-armed if missed | user |
+| 2026-11-22 | Player plane turns around with the same flip animation as the enemy fighters (user request): the sprite squashes edge-on and widens to the new facing over Balance `player.turnSeconds` 0.6, while controls, scrolling, shots and bombs switch at once and the hitbox is unchanged | user |
+| 2026-11-22 | Bomber (user request): 1000 health (40 bullets or 10 bombs, was 200), smoke trail that thickens at 70%, 40% and 15% health, and when shot down it explodes and falls to the ground as a harmless wreck with a ground explosion burst; the kill counts the moment it is shot down | user |
+| 2026-11-22 | Bomber rework follow-up (orchestrator call): ramming the bomber no longer destroys it, it loses 250 of its 1000 health (about 4 rams, each costing the player the usual collision damage; fighters still die from a ram). Winning by a kill shows the result screen about 2.5 s later (Balance `killWinDelaySeconds`) so the explosion and the falling wreck can be seen | orchestrator |
+| 2026-11-22 | Barrage balloons (user request): 100 health (was 50); a collision pops the balloon (scored like a shot kill) and costs the player 33.3% (50 raw / resistance 1.5), no longer an obstacle crash. Fix: balloons were not simulated, so bullets, bombs and contact never hit them in play | user |
+| 2026-11-22 | Enemy aircraft never spawn from the left (user request): every fighter, bomber, reinforcement and re-entry enters past the right screen edge flying left, whichever way the player faces; a fighter wholly past the left edge counts as escaped (a needed one re-enters from the right, others are removed); entering fighters get a speed boost equal to the camera's leftward speed until they reach the view, so the 2-second rule still holds | user |
+| 2026-11-23 | Mission 5 is 30% shorter (user request): length 580 -> 406 (about 156 s at scroll 2.6, was 223 s); every spawn, the HQ and failAtX (360 -> 252), the zeppelin (atX 420 -> 294) and the balloons scaled by 0.7, same enemy counts and objective; the zeppelin still reaches the HQ about 4-5 s before the map end | user |
+| 2026-11-23 | The bomber and the zeppelin hull show a small white damage bar above them while alive, shrinking as they take damage (user request); the zeppelin's bar tracks the hull only, so it stays full while the turrets are being shot | user |
+| 2026-11-23 | Damage bar fix (user: it did not seem to update): the zeppelin bar shows overall progress (turrets plus hull) instead of the shielded hull only; the bar is thinner (14 px total on screen at any resolution) and flashes white on every hit | user |
+| 2026-11-23 | Hidden cheat code (user request): in mission 5 typing H then Q jumps the plane and camera to the player HQ; passed spawns are skipped except the HQ, zeppelin and escorts; a run that used it never records a best score | user |
+| 2026-11-23 | Zeppelin ram is no longer fatal (user request): touching the hull or a turret costs the player 33.3% like other plane contacts (shared 0.5 s grace window, three contacts crash); the zeppelin takes no damage from it | user |
+| 2026-11-23 | Zeppelin finale (user request): destroying the last zeppelin turret calls in 4 escort fighters from the right (staggered, within the fighter cap, scored like reinforcements); the zeppelin goes down in a massive chain of about 15 explosions over 1.8 s while it sinks and fades, inside the 2.5 s win delay. No camera shake | user |

@@ -410,8 +410,9 @@ namespace Biplanes.Tests {
 
         // ── Right-flying fighters (B040, T958) ──────────────────────────
 
-        /// <summary>A fighter flying right, as SpawnReinforcementFighter / ReEnterFighter leave it:
-        /// Awake run, SetFlightDirection(+1) before Start.</summary>
+        /// <summary>A fighter flying right (Awake run, SetFlightDirection(+1) before Start), as the
+        /// chase leaves it after turning toward the player. Since B074 SpawnReinforcementFighter
+        /// and ReEnterFighter always leave a fighter flying left (EntryFlightDirection).</summary>
         private FighterAI MakeRightFighter(Vector2 position, PlayerPlane player) {
             var f = MakeFighter(position, player);
             f.SetFlightDirection(1);

@@ -113,6 +113,7 @@ FX are the one in-world exception to crisp wireframes: they are hand-drawn penci
 | targets | `enemy_base` | 260×120 | Hangar plus flag, hostile mark |
 | targets | `airfield`, `player_hq` | 400×100 | Friendly mark |
 | pickups | `health_balloon` | 70×100 | Bold ink cross: paper knock-out with 1.25 px ink outline, solid ink inner cross (double outline), group `id="cross"` |
+| pickups | `bomb_balloon` | 70×100 | SVG `art-src/pickups/bomb_balloon.svg` (A064). Same envelope, rigging, basket and canvas as `health_balloon` (same collider). Bold ink aerial bomb, nose down: paper knock-out silhouette with 1.25 px ink outline, solid ink teardrop body and V tail fins, nose fuse, group `id="bomb_mark"`. Extra zigzag hazard band under the lower seam; basket label is two ticks instead of the plus |
 | projectiles | `bullet`, `enemy_bullet`, `bomb`, `flak_shell` | 16–24 | Ink white; player bullets solid streaks, enemy tracers dashed pairs (code tints removed, B038) |
 | fx | `explosion_0..5` | 128×128 | Pencil FX (section above). 0 spiky flash + rays + debris (FxManager plays all 6 frames at 0.08 s each, B030), 1–3 growing hatched billows, 4–5 broken contour and wavy wisps. Ink/pencil only, no accents |
 | fx | `smoke_puff` | 48×48 | Pencil FX: one lobed puff, sketchy double contour, hatched underside, two small wisps |

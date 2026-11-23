@@ -130,6 +130,25 @@ namespace Biplanes.Missions {
             }
         }
 
+        /// <summary>
+        /// Rebuilds the chunk window around the camera at once (B078): drops chunks outside it
+        /// and builds every missing one this frame, instead of one per frame. Call after the
+        /// camera jumps (mission-5 HQ cheat), so the ground under the new view is drawn on the
+        /// very next frame.
+        /// </summary>
+        public void RefreshWindowNow() {
+            if (_cam == null) _cam = Camera.main;
+            float camX = CameraX();
+            int first = ChunkIndex(camX - KeepRange);
+            int last  = ChunkIndex(camX + KeepRange);
+            _toRemove.Clear();
+            foreach (var kv in _chunks) {
+                if (kv.Key < first || kv.Key > last) _toRemove.Add(kv.Key);
+            }
+            foreach (int i in _toRemove) DestroyChunk(i);
+            for (int i = first; i <= last; i++) BuildChunk(i);
+        }
+
         private void OnDestroy() {
             _toRemove.Clear();
             _toRemove.AddRange(_chunks.Keys);

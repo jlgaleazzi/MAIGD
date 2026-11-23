@@ -297,6 +297,7 @@ namespace Biplanes.Missions {
                 case "zeppelin":       return plural ? "zeppelins" : "zeppelin";
                 case "barrageballoon": return plural ? "barrage balloons" : "barrage balloon";
                 case "healthballoon":  return plural ? "health balloons" : "health balloon";
+                case "bombballoon":    return plural ? "bomb balloons" : "bomb balloon";
                 case "enemybase":      return plural ? "enemy bases" : "base";
                 case "building":       return plural ? "buildings" : "building";
                 case "tree":           return plural ? "trees" : "tree";

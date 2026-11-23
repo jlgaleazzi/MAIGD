@@ -103,6 +103,7 @@ The briefing freezes the world, fades in over 0.5 s and starts the mission after
 #### 3.3.1 Minimap (MinimapView)
 A thin blueprint strip at the top centre showing the **whole mission span**, start (x 0) on the
 left to the map end (`length`) on the right. White only.
+The strip shows while Playing or Paused, and in Won until the result screen opens (the B069 kill-win window), using `MinimapView.VisibleIn(state, ResultView.IsShowing)`.
 - **Frame:** 480 x 44 px at the 1920x1080 reference (scales with the canvas), paper `#0F2A4A` at
   70% alpha with a 1 px ink border, like a small `ui_panel`. Horizontal axis = world x 0..length;
   vertical axis = the flight band, terrain line at the bottom (a pencil polyline sampled from

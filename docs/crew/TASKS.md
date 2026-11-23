@@ -242,3 +242,9 @@ _(The orchestrator adds a 5-line summary here at the end of each milestone.)_
 | T966 | M7 | qa | Verify chase + attack slots: FAIL 1 P1 (overtake clip), 5 P2 | B059,B060 | DONE |
 | T967 | M7 | qa | Re-verify after B061: PASS (0 P0, 0 P1, 2 P2); real Unity run 536/536 incl. B062 | B061 | DONE |
 | B063 [P2] | M7 | mechanics | T967: escort formation slots kept inside the flight band; DefaultStandoffMax 5; stale comment; Unity 544/544 | T967 | DONE |
+| B064 [P1] | M7 | mechanics+art+mission-design | Recharge bomb balloons: +4 bombs cap 7, one mid-map per mission, auto-spawn 4 s after empty bay (A064, V064, B065 re-arm) | user | DONE (T968) |
+| B066 [P1] | M7 | mechanics | Player turn-around flip animation like fighters; B067 wreck nose fix | user | DONE (T969, T970) |
+| B068 [P1] | M7 | mechanics | Bomber 1000 HP, damage smoke, explosion + falling wreck; B069 win delay 2.5 s + ram 250; B070 Best label/audio/minimap | user | DONE (T971-T973, Unity 665/665) |
+| B071 [P2] | M7 | mechanics | T973: minimap flashes one frame after Retry/Menu from a won result (use pending-result flag); WinDelayFixTests.Runner_M2_KillWin_AudioRunsUntilControlEnds doesn't call PlayerPlane.Start | T973 | TODO |
+| B072 [P1] | M7 | mechanics | Barrage balloon 100 HP, collision pops it and costs player 33.3%; balloons now simulated (hittable) | user | DONE (T974 PASS static; Unity run pending, editor open) |
+| B073 [P2] | M7 | mechanics | T974: BarrageBalloon death path FxManager.GetOrNull; drift centred on spawn x; tether anchored to terrain height with a material | T974 | TODO |

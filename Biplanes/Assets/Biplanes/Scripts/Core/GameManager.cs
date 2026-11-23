@@ -165,6 +165,30 @@ namespace Biplanes.Core {
                 Mathf.Max(0f, resultDelaySeconds));
         }
 
+        /// <summary>
+        /// The mission is won for `reason` (DefaultWinReason when empty), with the result screen
+        /// opening `resultDelaySeconds` of real time later (B069). Like LoseMission(reason,
+        /// delay): the state becomes Won and MissionEnded(true) fires at once, so a later crash
+        /// or loss is refused (SetState) and nothing completes twice; the delay only lets the
+        /// world keep running (e.g. a shot-down bomber's wreck falls and bursts) before
+        /// timeScale goes to 0. Ignored if the mission already ended.
+        /// </summary>
+        public void WinMission(string reason, float resultDelaySeconds) {
+            SetState(GameState.Won, string.IsNullOrEmpty(reason) ? DefaultWinReason : reason,
+                Mathf.Max(0f, resultDelaySeconds));
+        }
+
+        /// <summary>Fallback for Balance killWinDelaySeconds (B069): real seconds between a win
+        /// decided by a kill and the result screen.</summary>
+        public const float DefaultKillWinDelaySeconds = 2.5f;
+
+        /// <summary>Balance killWinDelaySeconds, or DefaultKillWinDelaySeconds when it is
+        /// missing or not positive. `balance` may be null. Pure.</summary>
+        public static float KillWinDelayOrDefault(GameBalance balance) {
+            return balance != null && balance.killWinDelaySeconds > 0f
+                ? balance.killWinDelaySeconds : DefaultKillWinDelaySeconds;
+        }
+
         /// <summary>True in Won or Lost: the current mission has ended.</summary>
         public bool IsMissionOver => _currentState == GameState.Won || _currentState == GameState.Lost;
 

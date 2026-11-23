@@ -224,6 +224,16 @@ namespace Biplanes.UI {
             return state == GameManager.GameState.Playing || state == GameManager.GameState.Paused;
         }
 
+        /// <summary>
+        /// As VisibleIn(state), plus the delayed kill-win window (B069/B070): in Won with the
+        /// result screen not open yet (`resultShowing` false) the player is still flying, so the
+        /// strip stays up; it hides once the result opens. Lost always hides (as before).
+        /// </summary>
+        public static bool VisibleIn(GameManager.GameState state, bool resultShowing) {
+            if (VisibleIn(state)) return true;
+            return state == GameManager.GameState.Won && !resultShowing;
+        }
+
         /// <summary>Spawn types drawn as enemies (live markers and upcoming ticks). Health
         /// balloons, buildings, trees, airfields and the HQ are not enemies.</summary>
         public static bool IsEnemySpawnType(string type) {
@@ -511,7 +521,7 @@ namespace Biplanes.UI {
 
         private bool IsVisibleState() {
             // Without a GameManager (EditMode tests, a bare scene) the strip just shows.
-            return _gameManager == null || VisibleIn(_gameManager.CurrentState);
+            return _gameManager == null || VisibleIn(_gameManager.CurrentState, ResultView.IsShowing);
         }
 
         // ── Build and layout ──────────────────────────────────────────────

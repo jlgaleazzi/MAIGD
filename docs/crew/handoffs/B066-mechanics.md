@@ -1,0 +1,15 @@
+TASK: B066
+AGENT: mechanics
+STATUS: DONE
+FILES:
+- Biplanes/Assets/Biplanes/Scripts/Player/PlayerPlane.cs (turn-around visual)
+- Biplanes/Assets/Biplanes/Scripts/Core/GameBalance.cs (PlayerData.turnSeconds + TurnSecondsOrDefault)
+- Biplanes/Assets/Biplanes/Resources/Balance.json (player.turnSeconds 0.6)
+- Biplanes/Assets/Biplanes/Tests/EditMode/PlayerFlipTests.cs (new, 11 tests)
+- Biplanes/Assets/Biplanes/Tests/EditMode/PlayerFacingTests.cs (flipX asserts now wait for the turn)
+SUMMARY: The player turns round like the fighters: `_heading` eases toward `_facing` with FighterAI.StepHeading/FacingFromHeading/TurnScaleX (reused, FighterAI not touched), root x scale squashes to 0.15 at the midpoint, flipX and the pitch rotation (BodyAngle now uses VisualFacing) mirror there, and the BoxCollider2D size/offset x is divided by the scale so the world hitbox never changes.
+Facing, ScrollController.SetDirection, gun/NoseDirection, bombs and the screen anchor still switch on the key press. The player keeps firing mid-turn, and a reversal mid-turn eases back from the current heading. Create resets heading/scale/flipX. A crash mid-turn finishes the squash on the wreck, and the crash spin and smoke tail use the drawn facing.
+New public API on PlayerPlane: VisualFacing, TurnHeading, IsTurning, TurnSeconds. PlayerData.TurnSecondsOrDefault(GameBalance) returns player.turnSeconds, or fighterChase.turnSeconds when that is missing or <= 0.
+VERIFY: `python tools/compile_check.py` -> PASS Biplanes, PASS Biplanes.Editor, exit 0 (`bash tools/unity.sh compile` exited 3: Unity not available). compile_check does not build the Tests assembly, so QA must run EditMode tests in Unity: PlayerFlipTests, PlayerFacingTests, PlanePitchTests (player cases), FxManagerTests (smoke puff). Playtest: in flight press A/D, and the sprite squashes edge-on and widens mirrored over 0.6 s with no flipX pop; climb then reverse, and the nose stays up through the turn; the hitbox gizmo keeps its width.
+REQUESTS: orchestrator: add to ARCHITECTURE.md §3 Player (facing): "B066 turn-around look: Facing (scroll, gun, bombs, screen anchor) switches on the key press; the sprite follows over `player.turnSeconds` (0.6; missing/<=0 = fighterChase.turnSeconds, PlayerData.TurnSecondsOrDefault) using the fighters' FighterAI.StepHeading/FacingFromHeading/TurnScaleX: root x scale down to 0.15 at the midpoint, where flipX and the pitch rotation mirror (BodyAngle = PlanePitch.BodyAngle(pitch, VisualFacing)). Unlike fighters the BoxCollider2D is compensated (size/offset x divided by the scale), so the world hitbox is unchanged, and the player keeps firing while turning. A crash mid-turn finishes the squash on the wreck; the wreck spin and smoke tail follow VisualFacing. APIs: VisualFacing, TurnHeading, IsTurning, TurnSeconds." Also add `turnSeconds` to the §4 Balance player schema.
+NOTES: The hitbox's pitch tilt mirrors at the squash midpoint, along with the sprite, instead of on the key press. That is up to turnSeconds/2 = 0.3 s later than before. The box is centred, so HitboxLowestPoint (the terrain check) is the same either way.

@@ -48,3 +48,5 @@ Player forward speed = scrollSpeed, raised 30%. Fighters still fly left at 3 u/s
 - Camera travel in 2 s: **5.2 units** (was 4.0).
 - Max empty-sky gap (uncontested): was median 1.65 s, 99th 2.6 s, worst 3.0 s; now **median 0.40 s, 99th 0.93 s, worst 1.24 s**. Waves trigger sooner in time (atX / scroll) while a plane's entry delay shrinks less (closing speed only +12 to +18%), so waves overlap more and the gaps close up instead of opening. Max alive at once: median 3, at most 4, under the cap of 6.
 - No spacing change needed (all 37 fighters kept). Side effect: more fighters per second (waves arrive 23% sooner), so the mission is a little harder per minute and 35 s shorter. Last wave (x 252) triggers at 97 s, leaving 18 s of map; the final wave is on screen about 3.5 s plus its stagger, so there is still time to clear it. Health balloons and objective unchanged.
+
+- **Bomb recharge (V064):** one static `bombBalloon` at x 150 (y 3.5), mid-map, clear of ground units and other balloons. It refills 4 bombs (cap 7); it is not an enemy and counts toward no objective or health-balloon rule.

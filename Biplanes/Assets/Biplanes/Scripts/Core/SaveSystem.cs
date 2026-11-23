@@ -40,12 +40,27 @@ namespace Biplanes.Core {
             return PlayerPrefs.GetInt(KeyPrefix + missionIndex, 0);
         }
 
-        /// <summary>Saves the best score for *missionIndex* if it exceeds the current record.</summary>
+        /// <summary>
+        /// True while the current run may not set a best score (B078: the mission-5 HQ cheat
+        /// was used). Set by MissionRunner when the cheat fires, cleared by
+        /// MissionRunner.StartMission for every new run (Retry, Next, menu). Unlocks are not
+        /// affected.
+        /// </summary>
+        public static bool BestScoreLocked { get; set; }
+
+        /// <summary>Pure best-score rule: save `score` over `current` only when it is higher
+        /// and the run is not locked (B078 cheat run).</summary>
+        public static bool ShouldSaveBest(int score, int current, bool locked) {
+            return !locked && score > current;
+        }
+
+        /// <summary>Saves the best score for *missionIndex* if it exceeds the current record,
+        /// unless BestScoreLocked (cheat run, B078).</summary>
         public static void SaveBestScore(int missionIndex, int score) {
             if (missionIndex < 1 || missionIndex > 5) return;
             string key = KeyPrefix + missionIndex;
             int current = PlayerPrefs.GetInt(key, 0);
-            if (score > current) {
+            if (ShouldSaveBest(score, current, BestScoreLocked)) {
                 PlayerPrefs.SetInt(key, score);
                 PlayerPrefs.Save();
             }

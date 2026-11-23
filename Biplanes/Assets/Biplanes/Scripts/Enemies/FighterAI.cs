@@ -28,8 +28,10 @@ namespace Biplanes.Enemies {
     ///   widens with the closing speed and has hysteresis: once in, the fighter holds
     ///   AvoidClearance above/below the player until |dx| leaves the box, and its nose doesn't
     ///   aim at the player meanwhile. Escorts hold their own formation slot (FormationOffset).
-    ///   JSON fighters start flying left; reinforcements and re-entered fighters start toward
-    ///   the player (SetFlightDirection / ReEnter, B040), then chase like the rest. The sprite
+    ///   JSON fighters, reinforcements and re-entered fighters all enter past the right screen
+    ///   edge flying left (B074; SetFlightDirection / ReEnter, B040), then chase like the rest.
+    ///   While entering (BeginEntry) the camera's leftward speed is added to its top speed until
+    ///   it is in view, so it reaches the view even when the player scrolls left. The sprite
     ///   mirror, nose, gun cone, pitch and smoke tail follow the flight direction.
     /// • Mission JSON patterns are only flavour on the chase height: sine adds a small wobble,
     ///   dive an initial dip; straight and static add nothing (static starts at MinForwardSpeed).
@@ -130,6 +132,10 @@ namespace Biplanes.Enemies {
         private int _avoidSide = 1;
         /// <summary>Formation slot index on the escorted plane (B061); -1 = not assigned yet.</summary>
         private int _escortSlot = -1;
+        /// <summary>B074: entering from past the right screen edge (BeginEntry) and not yet in
+        /// view; while set its top speed gets EntryBoost so it reaches the view even when the
+        /// camera scrolls left faster than a fighter flies.</summary>
+        private bool _entering;
         /// <summary>Half-height of the escorted plane's hitboxes (measured once with the slot).</summary>
         private float _escortHalfHeight = FormationDefaultHalfHeight;
         /// <summary>Escorted plane's x last tick, and its travel sign (-1 left, default).</summary>
@@ -447,6 +453,7 @@ namespace Biplanes.Enemies {
             if (_chase == null) _chase = FighterChaseData.Resolve(GameBalance.Get());
             if (_standoff <= 0f) _standoff = PickStandoff(_chase.standoff, _chase.standoffMax, UnityEngine.Random.value);
             _age += dt;
+            float maxSpeed = speed + EntryBoostNow(pos.x);
 
             bool targetable = PlayerTargetable();
             Vector2 playerPos = targetable ? (Vector2)_player.transform.position : Vector2.zero;
@@ -502,10 +509,15 @@ namespace Biplanes.Enemies {
 
             int facing = DesiredFacing(_turnTarget, playerPos.x - pos.x, _chase.turnDeadzone);
             StepTurn(facing, dt, true);
+            // B075: behind a left-flying player it keeps the camera's leftward speed on top of its
+            // own, so it holds its standoff instead of falling off the right edge.
+            if (BehindBoostApplies(facing, playerPos.x - pos.x)) {
+                maxSpeed = Mathf.Max(maxSpeed, speed + EntryBoost(facing, BoostCameraVelocityNow(facing)));
+            }
 
             // Pursuit along the facing, never slower than MinForwardSpeed (no tail-first flight).
             _velX = HorizontalVelocityStep(pos.x, _velX, playerPos.x, playerVel.x, facing,
-                _standoff, speed, _chase.accel, dt, MinForwardSpeed);
+                _standoff, maxSpeed, _chase.accel, dt, MinForwardSpeed);
             float newX = pos.x + _velX * dt;
 
             BandLimits(newX, out float low, out float high);
@@ -1081,6 +1093,89 @@ namespace Biplanes.Enemies {
             transform.position = position;
             if (_rb != null) _rb.position = position;
             _prevY = position.y;
+        }
+
+        // ── Entry from the right edge (B074) ─────────────────────────────
+
+        /// <summary>Entering from past the right screen edge and not yet in view (B074).</summary>
+        public bool IsEntering => _entering;
+
+        /// <summary>
+        /// Marks this fighter as entering (B074): MissionRunner calls it right after placing a
+        /// JSON fighter, a reinforcement or a re-entry past the right screen edge. Until its
+        /// hitbox first overlaps the view, its top speed is cruise speed + EntryBoost(direction,
+        /// camera x velocity), and when that boost is positive now (`cameraVelocityX`: the camera
+        /// scrolls the way it flies) its velocity starts at that top speed, so it closes on the
+        /// view at cruise speed in the camera's frame from the first tick. With the camera still
+        /// or moving toward it the boost is 0 and nothing changes. MissionRunner passes
+        /// BoostCameraVelocityNow (current or target camera velocity, whichever runs farther
+        /// left, B075), and the per-tick boost uses the same rule.
+        /// </summary>
+        public void BeginEntry(float cameraVelocityX) {
+            _entering = true;
+            float boost = EntryBoost(_direction, cameraVelocityX);
+            if (boost > 0f) _velX = _direction * (speed + boost);
+        }
+
+        /// <summary>Extra top speed while entering (B074, pure): the camera's speed along the
+        /// fighter's flight direction `direction` (any negative = left), 0 when the camera is
+        /// still or moves toward the fighter.</summary>
+        public static float EntryBoost(int direction, float cameraVelocityX) {
+            float d = direction < 0 ? -1f : 1f;
+            return Mathf.Max(0f, d * cameraVelocityX);
+        }
+
+        /// <summary>The entry is over (B074, pure): a fighter hitbox (EnemyPressure.FighterHalfWidth)
+        /// at `x` overlaps the view [viewXMin, viewXMax] horizontally.</summary>
+        public static bool EntryComplete(float x, float viewXMin, float viewXMax) {
+            return x - EnemyPressure.FighterHalfWidth <= viewXMax && x + EnemyPressure.FighterHalfWidth >= viewXMin;
+        }
+
+        /// <summary>
+        /// Camera velocity the boost uses (B075, QA T975 BUG-2, pure): of the camera's current
+        /// x velocity and the velocity it is easing toward (Direction x scrollSpeed), the one
+        /// that runs farther along `direction`. Mid-turn the camera's velocity still lags its
+        /// target, so a fighter boosted only by the current velocity started too slow and the
+        /// reversing camera pulled the view away from it.
+        /// </summary>
+        public static float BoostCameraVelocity(int direction, float velocity, float targetVelocity) {
+            return direction < 0 ? Mathf.Min(velocity, targetVelocity) : Mathf.Max(velocity, targetVelocity);
+        }
+
+        /// <summary>
+        /// B075 (QA T975 BUG-2, pure): the boost also applies while the fighter flies left with
+        /// the player ahead of it (`dxToPlayer` = player x - fighter x &lt; 0), i.e. it chases a
+        /// left-flying player from behind. Entries only come from the right, so that is where
+        /// they end up; without it a fighter slower than the scroll (M2-M4) fell off the right
+        /// edge within 1-2 s. It ends by itself when the player turns right (the camera no longer
+        /// runs left: EntryBoost 0) or the fighter turns, so no fighter keeps the extra speed.
+        /// Facing right the chase is unchanged (fighters behind still fall away, B059).
+        /// </summary>
+        public static bool BehindBoostApplies(int facing, float dxToPlayer) {
+            return facing < 0 && dxToPlayer < 0f;
+        }
+
+        /// <summary>BoostCameraVelocity for `direction` from the ScrollController (0 without one;
+        /// a held scroll has no target speed).</summary>
+        public static float BoostCameraVelocityNow(int direction) {
+            var sc = ScrollController.Instance;
+            if (sc == null) return 0f;
+            float target = sc.IsHeld ? 0f : sc.Direction * sc.ScrollSpeed;
+            return BoostCameraVelocity(direction, sc.Velocity, target);
+        }
+
+        /// <summary>This tick's entry boost: ends the entry once the fighter at `x` is in view
+        /// (needs the camera), else EntryBoost for BoostCameraVelocityNow.</summary>
+        private float EntryBoostNow(float x) {
+            if (!_entering) return 0f;
+            if (_cam != null) {
+                Rect view = EnemyPressure.ViewRect(_cam);
+                if (EntryComplete(x, view.xMin, view.xMax)) {
+                    _entering = false;
+                    return 0f;
+                }
+            }
+            return EntryBoost(_direction, BoostCameraVelocityNow(_direction));
         }
 
         // ── Escort lookup (B020) ──────────────────────────────────────────

@@ -52,6 +52,23 @@ namespace Biplanes.Player {
       RaiseChanged();
     }
 
+    /// <summary>Recharge bomb balloon (B064): adds <paramref name="n"/> bombs, clamped to
+    /// capacity, and raises BombsChanged (also at a full bay, so the HUD always agrees).</summary>
+    public void AddBombs(int n) {
+      _remaining = ClampedAdd(_remaining, n, _capacity);
+      RaiseChanged();
+    }
+
+    /// <summary>Pure clamp for AddBombs: min(capacity, remaining + n), never below 0; a
+    /// negative n adds nothing.</summary>
+    public static int ClampedAdd(int remaining, int n, int capacity) {
+      if (capacity < 0) capacity = 0;
+      int sum = remaining + (n > 0 ? n : 0);
+      if (sum > capacity) sum = capacity;
+      if (sum < 0) sum = 0;
+      return sum;
+    }
+
     private void RaiseChanged() {
       OnBombsChanged?.Invoke(_remaining);
       GameEvents.RaiseBombsChanged(_remaining);

@@ -53,7 +53,10 @@ namespace Biplanes.Enemies {
                 _rb = gameObject.AddComponent<Rigidbody2D>();
             }
             _rb.bodyType = RigidbodyType2D.Kinematic;
-            _rb.simulated = false; // Kinematic triggers only (ARCHITECTURE §3).
+            // B072: simulated (kinematic trigger body, ARCHITECTURE §3). A non-simulated body
+            // removes its colliders from the physics world, so bullets, bomb bursts and the
+            // player's contact could never register on the balloon.
+            _rb.simulated = true;
 
             // Sprite renderer.
             _sr = GetComponent<SpriteRenderer>();
@@ -76,8 +79,7 @@ namespace Biplanes.Enemies {
                 _health = gameObject.AddComponent<Health>();
             }
             var balance = GameBalance.Get();
-            _health.SetMaxHitPoints(balance != null && balance.enemyHealth != null
-                ? balance.enemyHealth.barrageBalloon : 50f);
+            _health.SetMaxHitPoints(MaxHitPointsFor(balance));
 
             // Trigger collider (use whatever size was set during Spawn).
             _collider = GetComponent<Collider2D>();
@@ -98,7 +100,9 @@ namespace Biplanes.Enemies {
             switch (damageable.Team) {
                 case Team.Player:
                     // Player bullets and bombs damage the balloon themselves (Projectile.OnHit),
-                    // so nothing extra here.
+                    // and flying into it is handled by PlayerPlane.OnTriggerEnter2D (B072: the
+                    // balloon pops, the player takes damageTaken.barrageBalloonCollision), so
+                    // nothing extra here.
                     break;
 
                 case Team.Enemy:
@@ -222,6 +226,12 @@ namespace Biplanes.Enemies {
             var balloon = go.AddComponent<BarrageBalloon>();
 
             return balloon;
+        }
+
+        /// <summary>Hit points of one balloon (B072): Balance enemyHealth.barrageBalloon (100), or
+        /// EnemyHealthData.DefaultBarrageBalloon (100) when missing. `balance` may be null. Pure.</summary>
+        public static float MaxHitPointsFor(GameBalance balance) {
+            return EnemyHealthData.BarrageBalloonOrDefault(balance != null ? balance.enemyHealth : null);
         }
 
         // ── Internal helpers ──────────────────────────────────────────────

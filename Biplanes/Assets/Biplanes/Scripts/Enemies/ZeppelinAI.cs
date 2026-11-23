@@ -16,8 +16,13 @@ namespace Biplanes.Enemies {
     /// • Hit points from Balance enemyHealth.zeppelinHull (damage values are points).
     /// • Shielded while any turret is alive: hull hits are absorbed (the projectile is used
     ///   up, no damage). Always vulnerable when Balance hullVulnerableEarly is true.
-    /// • On death raises EntityDestroyed("zeppelin", Enemy) exactly once (ScoreKeeper awards
-    ///   score.zeppelin), plays explosions along the hull and removes itself and its turrets.
+    /// • On death raises EntityDestroyed("zeppelin", Enemy) exactly once at the killing hit
+    ///   (ScoreKeeper awards score.zeppelin), then plays the B080 death sequence: any turrets
+    ///   left are removed, colliders and physics go off, and for zeppelinExplosion.duration
+    ///   (scaled) seconds staggered explosions (DeathBurstPlan) cover the envelope, tail and
+    ///   gondolas while the hull drifts on, sinks, tips nose-down and fades; then it is removed.
+    /// • Shield drop (B080): when the last turret dies (once per zeppelin, never after death)
+    ///   the static ShieldDropped event fires; MissionRunner sends the escort defense wave.
     /// • Art faces right; the zeppelin flies left, so the sprite is mirrored with flipX and
     ///   every hitbox / turret x offset is negated (same convention as BomberAI).
     /// • Removed silently (no score) once it is far behind the left screen edge, unless it
@@ -42,8 +47,16 @@ namespace Biplanes.Enemies {
         private const float ScreenTopClearance = 1.3f;
         /// <summary>Seconds added to each successive turret's first shot (staggers volleys).</summary>
         private const float TurretFirstShotStagger = 0.8f;
-        /// <summary>Explosions played along the hull on death (local x, art facing right).</summary>
-        private static readonly float[] DeathExplosionOffsetsX = { -2.5f, 0f, 2.5f };
+        /// <summary>Seconds an FxManager explosion keeps playing after it starts (6 frames x
+        /// 0.08 s = 0.48 s, rounded up): the last death burst still shows this long after the
+        /// hull is removed (B080 DeathSequenceSeconds).</summary>
+        public const float LastBurstLingerSeconds = 0.5f;
+        /// <summary>Envelope death bursts cycle through these y offsets from the envelope centre
+        /// line, so they cover its depth as well as its length.</summary>
+        private static readonly float[] DeathBurstYOffsets = { 0f, 0.35f, -0.35f };
+        /// <summary>Every this-many-th envelope burst (from the first) plays SfxId.Explosion,
+        /// layered over the single ExplosionBig cue of the killing hit.</summary>
+        private const int DeathBurstSoundEvery = 3;
         private const int FallbackPixelsPerUnit = 10;
 
         // ── Audio (T951) ──────────────────────────────────────────────────
@@ -111,6 +124,8 @@ namespace Biplanes.Enemies {
         private SpriteRenderer _sr;
         private Camera _cam;
         private float _maxHitPoints;
+        private float _turretMaxHitPoints;      // Balance enemyHealth.zeppelinTurret (bar only)
+        private int _turretsSpawned;            // turrets built by Spawn (bar only)
         private float _speed = FallbackSpeed;   // Balance enemySpeed.zeppelin, set in Awake
         private float _damagePercent;           // 0..100
         private bool _destroyed;                // EntityDestroyed raised (once-only guard)
@@ -121,6 +136,28 @@ namespace Biplanes.Enemies {
         private static int _humKeyCounter;      // makes each hum loop key unique
         private string _humKey;                 // unique AudioManager loop key per zeppelin
         private float _lastHitCueTime = -1f;
+        private bool _shieldDropRaised;         // ShieldDropped raised (once-only guard, B080)
+        private bool _dying;                    // death sequence running (B080)
+        private float _deathElapsed;
+        private DeathBurst[] _deathPlan;
+        private int _nextDeathBurst;
+        private ZeppelinExplosionData _explosion;
+
+        /// <summary>
+        /// Raised once per zeppelin the moment its last turret is destroyed (the hull loses its
+        /// shield), never after the hull has died or despawned (B080). MissionRunner subscribes
+        /// for the escort defense wave. Cleared when play starts without a domain reload.
+        /// </summary>
+        public static event System.Action<ZeppelinAI> ShieldDropped;
+
+        /// <summary>One explosion of the death sequence (B080): `Time` in seconds after the
+        /// killing hit, `Offset` in local units with the art facing right (callers mirror x for
+        /// a left-flying hull), `PlaySound` = also play SfxId.Explosion.</summary>
+        public struct DeathBurst {
+            public float Time;
+            public Vector2 Offset;
+            public bool PlaySound;
+        }
 
         /// <summary>Mission spawn id (e.g. "zeppelin_01"); empty when none was given.</summary>
         public string Id { get; private set; } = "";
@@ -142,8 +179,43 @@ namespace Biplanes.Enemies {
         /// <summary>True while hull hits are ignored (turrets alive and not hullVulnerableEarly).</summary>
         public bool IsShielded => !_hullVulnerableEarly && _turrets.Count > 0;
 
+        /// <summary>The death sequence is playing (B080): the kill has counted, the hull has no
+        /// colliders and is removed when the sequence ends.</summary>
+        public bool IsDying => _dying;
+
         /// <summary>Hull damage, 0..100.</summary>
         public float CurrentDamagePercent => _damagePercent;
+
+        /// <summary>
+        /// Overall remaining health 0..1 across the turrets AND the hull (B077), the value the
+        /// damage bar shows: OverallFraction(sum of living turrets' remaining HP, turrets
+        /// spawned x enemyHealth.zeppelinTurret, remaining hull HP, enemyHealth.zeppelinHull).
+        /// With Balance 3 x 75 + 1000 = 1225 HP, so a bullet on a turret moves it ~2% and the
+        /// bar moves through the shielded turret phase. A destroyed turret counts 0.
+        /// </summary>
+        public float OverallHealthFraction {
+            get {
+                float turretRemaining = 0f;
+                for (int i = 0; i < _turrets.Count; i++) {
+                    var t = _turrets[i];
+                    if (t == null || t.IsDead) continue;
+                    turretRemaining += _turretMaxHitPoints * (1f - Mathf.Clamp01(t.CurrentDamagePercent / 100f));
+                }
+                float hullRemaining = _maxHitPoints * (1f - Mathf.Clamp01(_damagePercent / 100f));
+                return OverallFraction(turretRemaining, _turretsSpawned * _turretMaxHitPoints,
+                    hullRemaining, _maxHitPoints);
+            }
+        }
+
+        /// <summary>(turretRemaining + hullRemaining) / (turretMax + hullMax), clamped 0..1.
+        /// Negative inputs count as 0; a total max of 0 or less gives 1 (nothing to show). Pure.</summary>
+        public static float OverallFraction(float turretRemainingHp, float turretMaxHp,
+                                            float hullRemainingHp, float hullMaxHp) {
+            float max = Mathf.Max(0f, turretMaxHp) + Mathf.Max(0f, hullMaxHp);
+            if (max <= 0f) return 1f;
+            float remaining = Mathf.Max(0f, turretRemainingHp) + Mathf.Max(0f, hullRemainingHp);
+            return Mathf.Clamp01(remaining / max);
+        }
 
         // ── IDamageable ───────────────────────────────────────────────────
 
@@ -227,6 +299,14 @@ namespace Biplanes.Enemies {
                     FlipsToFlyLeft, TurretUnderside[i], TurretFirstShotStagger * (i + 1));
                 zep._turrets.Add(turret);
             }
+            zep._turretsSpawned = zep._turrets.Count;
+
+            // Damage bar (B076, B077): visual-only child showing the OVERALL remaining health
+            // (turrets + hull, OverallHealthFraction), so it moves during the shielded turret
+            // phase too; hidden from Die on and removed with the hull.
+            EnemyHealthBar.Attach(go.transform, () => (1f - zep.OverallHealthFraction) * 100f,
+                () => zep.IsDead || zep._destroyed, EnemyHealthBar.ZeppelinWidth,
+                EnemyHealthBar.ZeppelinHeight, EnemyHealthBar.ZeppelinOffsetY);
             return zep;
         }
 
@@ -251,6 +331,9 @@ namespace Biplanes.Enemies {
             var balance = GameBalance.Get();
             _maxHitPoints = balance != null && balance.enemyHealth != null
                 ? balance.enemyHealth.zeppelinHull : 1000f;
+            // Same source and fallback as ZeppelinTurret.Awake; used only by the damage bar.
+            _turretMaxHitPoints = balance != null && balance.enemyHealth != null
+                ? balance.enemyHealth.zeppelinTurret : 75f;
             _hullVulnerableEarly = balance != null && balance.hullVulnerableEarly;
             // Speed: Balance enemySpeed.zeppelin (slower than the bomber). Fallback 1.0.
             _speed = balance != null && balance.enemySpeed != null && balance.enemySpeed.zeppelin > 0f
@@ -265,6 +348,10 @@ namespace Biplanes.Enemies {
         /// <summary>Hum loop: on while the hull is on screen or within HumFadeDistance of it,
         /// fading with the distance; off beyond that and once destroyed (T951).</summary>
         private void Update() {
+            if (_dying) {
+                StepDeath(Time.deltaTime);
+                return;
+            }
             if (_destroyed) return;
             var audio = AudioManager.GetOrNull();
             if (audio == null) return;
@@ -347,23 +434,31 @@ namespace Biplanes.Enemies {
             }
         }
 
-        /// <summary>Ramming the hull crashes the player. The airship itself is not brought
-        /// down by a biplane. Also fires for turret colliders (compound body); the
-        /// HasCrashed guard keeps it to one crash.</summary>
-        private void OnTriggerEnter2D(Collider2D other) {
-            if (_destroyed) return;
-            var player = other.GetComponentInParent<PlayerPlane>();
-            if (player == null || player.HasCrashed) return;
-
-            other.GetComponentInParent<IDamageable>()?.ApplyDamage(1f, DamageSource.Collision);
-            player.ForceCrash();
-        }
+        // Ramming (B079): no trigger handler here any more. PlayerPlane.HitZeppelin charges the
+        // player one plane contact (33.3%, shared grace window); the airship, its turrets and
+        // its shield take nothing from a ram.
 
         // ── Turret bookkeeping ────────────────────────────────────────────
 
         /// <summary>Called once by a turret when it dies.</summary>
         internal void NotifyTurretDestroyed(ZeppelinTurret turret) {
             _turrets.Remove(turret);
+            if (!ShouldRaiseShieldDropped(_shieldDropRaised, _destroyed, _turretsSpawned, _turrets.Count)) return;
+            _shieldDropRaised = true;
+            ShieldDropped?.Invoke(this);
+        }
+
+        /// <summary>B080 trigger rule (pure): raise ShieldDropped when it has not been raised
+        /// yet, the hull is neither dead nor despawned, it was built with turrets and none is
+        /// left.</summary>
+        public static bool ShouldRaiseShieldDropped(bool alreadyRaised, bool destroyed, int turretsSpawned,
+                                                    int turretsRemaining) {
+            return !alreadyRaised && !destroyed && turretsSpawned > 0 && turretsRemaining <= 0;
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics() {
+            ShieldDropped = null;
         }
 
         // ── Death ─────────────────────────────────────────────────────────
@@ -375,21 +470,157 @@ namespace Biplanes.Enemies {
             // ScoreKeeper awards score.zeppelin from this single event.
             GameEvents.RaiseEntityDestroyed(ScoreKey, Team.Enemy);
 
-            float sign = FlipsToFlyLeft ? -1f : 1f;
-            var fx = FxManager.Instance;
-            for (int i = 0; i < DeathExplosionOffsetsX.Length; i++) {
-                fx.TriggerExplosion(transform.position + new Vector3(DeathExplosionOffsetsX[i] * sign, 0f, 0f),
-                    playSound: false);   // ExplosionBig below is the one death cue
-            }
-
-            // Big explosion cue once, on top of the FxManager explosions (T951).
+            // Big explosion cue once (T951); the first burst below layers SfxId.Explosion on it.
             StopHum();
             var audio = AudioManager.GetOrNull();
             if (audio != null) audio.Play(SfxId.ExplosionBig, transform.position);
 
-            // Turrets are children: destroying the hull removes them without extra score events.
+            // Turrets still alive (hullVulnerableEarly) go now, silently: no score, no more fire.
+            for (int i = 0; i < _turrets.Count; i++) {
+                if (_turrets[i] != null) DestroyGo(_turrets[i].gameObject);
+            }
             _turrets.Clear();
-            Destroy(gameObject);
+
+            // Visual only from here: nothing can hit, ram or overlap the dying hull.
+            foreach (var col in GetComponents<Collider2D>()) col.enabled = false;
+            if (_rb != null) _rb.simulated = false;
+
+            // B080 death sequence: Update (scaled time) plays the bursts and removes the hull.
+            _explosion = ZeppelinExplosionData.Resolve(GameBalance.Get());
+            _deathPlan = DeathBurstPlan(_explosion.burstCount, _explosion.tailBurstCount,
+                _explosion.spread, _explosion.duration);
+            _nextDeathBurst = 0;
+            _deathElapsed = 0f;
+            _dying = true;
+            FireDueDeathBursts();
+        }
+
+        /// <summary>
+        /// Advances the death sequence by `dt` scaled seconds (B080): the hull drifts on at its
+        /// speed, sinks (speed rising to sinkSpeed), tips nose-down (to tiltDegrees), fires every
+        /// burst now due and fades over the last fadeSeconds. At `duration` it removes itself
+        /// and returns true. A dt of 0 (paused) changes nothing.
+        /// </summary>
+        internal bool StepDeath(float dt) {
+            if (!_dying || dt <= 0f) return false;
+            if (_explosion == null) _explosion = ZeppelinExplosionData.Resolve(GameBalance.Get());
+
+            _deathElapsed += dt;
+            float t01 = _explosion.duration > 0f ? Mathf.Clamp01(_deathElapsed / _explosion.duration) : 1f;
+            Vector3 p = transform.position;
+            p.x -= _speed * dt;
+            p.y -= _explosion.sinkSpeed * t01 * dt;
+            // Nose-down: the left-flying hull's nose is its left end, so it turns counter-clockwise.
+            float tilt = _explosion.tiltDegrees * t01 * (FlipsToFlyLeft ? 1f : -1f);
+            transform.SetPositionAndRotation(p, Quaternion.Euler(0f, 0f, tilt));
+
+            FireDueDeathBursts();
+
+            if (_sr != null) {
+                var c = _sr.color;
+                c.a = DeathAlpha(_deathElapsed, _explosion.duration, _explosion.fadeSeconds);
+                _sr.color = c;
+            }
+
+            if (_deathElapsed >= _explosion.duration) {
+                _dying = false;
+                DestroyGo(gameObject);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Plays every planned burst whose time has come, at its point on the (moving,
+        /// tilted) hull. Skipped silently without an FxManager (EditMode).</summary>
+        private void FireDueDeathBursts() {
+            if (_deathPlan == null) return;
+            var fx = FxManager.GetOrNull();
+            float sign = FlipsToFlyLeft ? -1f : 1f;
+            while (_nextDeathBurst < _deathPlan.Length && _deathPlan[_nextDeathBurst].Time <= _deathElapsed) {
+                var b = _deathPlan[_nextDeathBurst++];
+                if (fx == null) continue;
+                Vector3 local = new Vector3(b.Offset.x * sign, b.Offset.y, 0f);
+                fx.TriggerExplosion(transform.position + transform.rotation * local, b.PlaySound);
+            }
+        }
+
+        /// <summary>Death bursts fired so far (B080; for tests).</summary>
+        internal int DeathBurstsFired => _nextDeathBurst;
+
+        /// <summary>Tail and gondola points for the extra death bursts (art facing right).
+        /// Declared after the geometry fields it copies (static initialisers run in order).</summary>
+        private static readonly Vector2[] DeathTailPoints = { TailOffset, Gondola1Offset, Gondola3Offset, Gondola2Offset };
+
+        /// <summary>
+        /// The B080 death sequence plan (pure), sorted by time:
+        ///  • `burstCount` envelope bursts: the first at the envelope centre at t = 0 (the killing
+        ///    hit), the rest alternating aft/fore, each ring farther out, the outermost at
+        ///    `spread` (local units) from the centre; their y cycles 0 / +0.35 / -0.35 around the
+        ///    envelope centre line; evenly timed from 0 to `duration`; every DeathBurstSoundEvery-th
+        ///    (from the first) also plays SfxId.Explosion.
+        ///  • `tailBurstCount` (0..4) silent bursts on the tail, then gondolas 1, 3 and 2, at
+        ///    duration x (k + 1) / (tailBurstCount + 1).
+        /// Offsets are art-facing-right local units (callers mirror x).
+        /// </summary>
+        public static DeathBurst[] DeathBurstPlan(int burstCount, int tailBurstCount, float spread, float duration) {
+            int n = Mathf.Max(1, burstCount);
+            int tails = Mathf.Clamp(tailBurstCount, 0, DeathTailPoints.Length);
+            float span = Mathf.Max(0f, spread);
+            float d = Mathf.Max(0f, duration);
+            var arr = new DeathBurst[n + tails];
+
+            // B081: each side is spaced over its own burst count, so both the aft (odd indices)
+            // and the fore (even indices after the centre) side reach the full spread.
+            int aftCount = n / 2;                               // odd indices 1,3,...
+            int foreCount = (n - 1) / 2;                        // even indices 2,4,...
+            for (int i = 0; i < n; i++) {
+                bool aft = i % 2 == 1;
+                int k = aft ? (i + 1) / 2 : i / 2;              // 1-based step on its side (0 = centre)
+                int sideCount = Mathf.Max(1, aft ? aftCount : foreCount);
+                float side = aft ? -1f : 1f;
+                arr[i] = new DeathBurst {
+                    Time = n > 1 ? d * i / (n - 1) : 0f,
+                    Offset = new Vector2(EnvelopeOffset.x + side * span * k / sideCount,
+                        EnvelopeOffset.y + DeathBurstYOffsets[i % DeathBurstYOffsets.Length]),
+                    PlaySound = i % DeathBurstSoundEvery == 0,
+                };
+            }
+            for (int k = 0; k < tails; k++) {
+                arr[n + k] = new DeathBurst {
+                    Time = d * (k + 1) / (tails + 1),
+                    Offset = DeathTailPoints[k],
+                    PlaySound = false,
+                };
+            }
+
+            // Stable insertion sort by time (a dozen entries).
+            for (int i = 1; i < arr.Length; i++) {
+                var cur = arr[i];
+                int j = i - 1;
+                while (j >= 0 && arr[j].Time > cur.Time) { arr[j + 1] = arr[j]; j--; }
+                arr[j + 1] = cur;
+            }
+            return arr;
+        }
+
+        /// <summary>Hull sprite alpha `elapsed` seconds into a death sequence of `duration` that
+        /// fades over its last `fadeSeconds` (pure): 1 until the fade starts, 0 at the end.</summary>
+        public static float DeathAlpha(float elapsed, float duration, float fadeSeconds) {
+            if (fadeSeconds <= 0f) return elapsed >= duration ? 0f : 1f;
+            return Mathf.Clamp01((duration - elapsed) / fadeSeconds);
+        }
+
+        /// <summary>Length of the death visuals for `data` (B080): the hull's duration plus the
+        /// last burst's LastBurstLingerSeconds. The B069 win delay must cover it.</summary>
+        public static float DeathSequenceSeconds(ZeppelinExplosionData data) {
+            var d = data ?? ZeppelinExplosionData.Resolve(null);
+            return d.duration + LastBurstLingerSeconds;
+        }
+
+        private static void DestroyGo(GameObject go) {
+            if (go == null) return;
+            if (Application.isPlaying) Destroy(go);
+            else DestroyImmediate(go);
         }
 
         // ── Helpers ───────────────────────────────────────────────────────
